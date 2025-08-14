@@ -20,7 +20,7 @@ jobs:
     secrets: inherit
 
   super-linter:
-    name: Super Linter
+    name: super-linter
     runs-on: ubuntu-latest
     permissions:
       contents: read
