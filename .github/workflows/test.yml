@@ -1,16 +1,6 @@
 ---
 name: delinea-mcp-test
 on:
-  pull_request:
-    null
-    # paths:
-    #   - "**.py"
-    #   - "requirements.txt"
-    #   - "pyproject.toml"
-    #   - ".github/workflows/test.yml"
-  push:
-    null
-    # branches: [main]
   workflow_dispatch:
     inputs:
       test-scope:

@@ -1,12 +1,6 @@
 ---
 name: delinea-mcp-release-pipeline
 on:
-  push:
-    null
-    # branches: [main]
-    # paths:
-    #   - "CHANGELOG.md"
-    #   - ".changes/*.md"
   workflow_dispatch:
     inputs:
       force-release:
