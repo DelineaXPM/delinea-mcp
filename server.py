@@ -9,29 +9,29 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from delinea_mcp.config import load_config
 from delinea_api import DelineaSession
 from delinea_mcp import tools, user_platform_tools
+from delinea_mcp.config import load_config
 from delinea_mcp.tools import (
-    get_secret,
-    get_folder,
-    user_management,
-    role_management,
-    user_role_management,
-    group_management,
-    user_group_management,
-    group_role_management,
-    folder_management,
-    health_check,
-    search,
-    fetch,
-    search_users,
-    search_secrets,
-    search_folders,
-    get_secret_environment_variable,
     check_secret_template,
     check_secret_template_field,
+    fetch,
+    folder_management,
+    get_folder,
+    get_secret,
+    get_secret_environment_variable,
     get_secret_template_field,
+    group_management,
+    group_role_management,
+    health_check,
+    role_management,
+    search,
+    search_folders,
+    search_secrets,
+    search_users,
+    user_group_management,
+    user_management,
+    user_role_management,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     if username and password:
         delinea = DelineaSession(base_url=base_url or "", username=username)
     else:
+
         class DummySession:
             def request(self, *a, **k):
                 raise RuntimeError("Delinea session not initialised")
@@ -128,9 +129,7 @@ def run_server(argv: list[str] | None = None) -> None:
             import fastapi  # noqa: F401
             import uvicorn  # noqa: F401
         except Exception as exc:
-            raise RuntimeError(
-                "fastapi and uvicorn are required for SSE mode"
-            ) from exc
+            raise RuntimeError("fastapi and uvicorn are required for SSE mode") from exc
 
     if auth_mode == "oauth" and transport_mode != "sse":
         raise ValueError("OAuth mode requires TRANSPORT_MODE=sse")
@@ -148,12 +147,14 @@ def run_server(argv: list[str] | None = None) -> None:
         case ("none", "stdio"):
             mcp.run(transport="stdio")
         case ("none", "sse"):
-            from fastapi import FastAPI, Request
-            from delinea_mcp.transports.sse import mount_sse_routes
             import uvicorn
+            from fastapi import FastAPI, Request
+
+            from delinea_mcp.transports.sse import mount_sse_routes
 
             app = FastAPI(title="Delinea MCP")
             if _debug:
+
                 @app.middleware("http")
                 async def log_requests(request: Request, call_next):
                     body = await request.body()
@@ -165,17 +166,20 @@ def run_server(argv: list[str] | None = None) -> None:
                         body.decode("utf-8", "replace"),
                     )
                     return await call_next(request)
+
             mount_sse_routes(app, mcp)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("oauth", "sse"):
-            from fastapi import FastAPI, Request
-            from delinea_mcp.auth.routes import mount_oauth_routes
-            from delinea_mcp.transports.sse import mount_sse_routes
-            from delinea_mcp.auth.validators import require_scopes
             import uvicorn
+            from fastapi import FastAPI, Request
+
+            from delinea_mcp.auth.routes import mount_oauth_routes
+            from delinea_mcp.auth.validators import require_scopes
+            from delinea_mcp.transports.sse import mount_sse_routes
 
             app = FastAPI(title="Delinea MCP (OAuth)")
             if _debug:
+
                 @app.middleware("http")
                 async def log_requests(request: Request, call_next):
                     body = await request.body()
@@ -187,6 +191,7 @@ def run_server(argv: list[str] | None = None) -> None:
                         body.decode("utf-8", "replace"),
                     )
                     return await call_next(request)
+
             mount_oauth_routes(app, cfg)
             mount_sse_routes(
                 app,
@@ -201,9 +206,13 @@ def run_server(argv: list[str] | None = None) -> None:
             )
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("passthrough", _):
-            raise NotImplementedError("Passthrough auth is slated for a future release.")
+            raise NotImplementedError(
+                "Passthrough auth is slated for a future release."
+            )
         case _:
-            raise ValueError(f"Invalid AUTH_MODE '{auth_mode}' or TRANSPORT_MODE '{transport_mode}'")
+            raise ValueError(
+                f"Invalid AUTH_MODE '{auth_mode}' or TRANSPORT_MODE '{transport_mode}'"
+            )
 
 
 __all__ = [

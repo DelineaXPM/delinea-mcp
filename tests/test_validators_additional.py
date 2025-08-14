@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Depends
-from fastapi.testclient import TestClient
 import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
 
-from delinea_mcp.auth.validators import require_scopes
 from delinea_mcp.auth import as_config
+from delinea_mcp.auth.validators import require_scopes
 
 
 def test_require_scopes_missing_header():
@@ -28,4 +28,3 @@ def test_require_scopes_invalid_token():
     client = TestClient(app)
     r = client.get("/p", headers={"Authorization": "Bearer bad"})
     assert r.status_code == 401
-

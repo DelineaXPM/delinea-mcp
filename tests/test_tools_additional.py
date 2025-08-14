@@ -1,10 +1,14 @@
 from types import SimpleNamespace
+
 import pytest
+
 from delinea_mcp import tools
+
 
 class Session:
     def __init__(self):
         self.calls = []
+
     def request(self, method, path, **kw):
         self.calls.append((method, path, kw))
         return SimpleNamespace(json=lambda: {"ok": True})

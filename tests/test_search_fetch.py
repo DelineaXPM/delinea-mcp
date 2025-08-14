@@ -1,12 +1,16 @@
 import importlib
 import json
+
 import pytest
+
 import delinea_api
+
 
 # Avoid network calls by patching DelineaSession
 class DummySession:
     def request(self, method, path, **kwargs):
         raise AssertionError("network")
+
 
 import delinea_mcp.tools as tools
 
@@ -87,13 +91,12 @@ def test_fetch_user_enabled(monkeypatch):
     monkeypatch.setattr(
         tools,
         "user_management",
-        lambda action, user_id=None, **_: {"id": user_id, "username": "bob"}
-        if action == "get"
-        else None,
+        lambda action, user_id=None, **_: (
+            {"id": user_id, "username": "bob"} if action == "get" else None
+        ),
     )
     res = tools.fetch("user/4")
     assert res["id"] == "user/4"
     assert res["title"] == "bob"
     assert res["text"] == json.dumps({"id": 4, "username": "bob"}, sort_keys=True)
     assert res["url"] == "https://ss.local/SecretServer/api/v1/users/4"
-

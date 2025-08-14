@@ -1,0 +1,16 @@
+---
+name: conventional-commit-pr-title
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+permissions:
+  pull-requests: read
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  conventional-commit-pr-title:
+    uses: delineaxpm/github-workflows/.github/workflows/conventional-pr.yml@main
+    secrets: inherit

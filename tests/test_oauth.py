@@ -1,10 +1,12 @@
-import json
-import sys
-import pytest
-from fastapi import FastAPI, Depends
-from fastapi.testclient import TestClient
 import html
+import json
 import os
+import sys
+
+import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from delinea_mcp.auth import as_config
@@ -35,7 +37,9 @@ def test_scope_enforcement(monkeypatch):
     app = FastAPI()
 
     @app.get("/protected")
-    async def protected(claims=Depends(require_scopes(["mcp.read"], audience="http://host"))):
+    async def protected(
+        claims=Depends(require_scopes(["mcp.read"], audience="http://host"))
+    ):
         return {"client": claims["client_id"]}
 
     client = TestClient(app)
@@ -113,4 +117,3 @@ def test_authorize_form_escapes_html():
     assert html.escape(params["redirect_uri"]) in text
     assert html.escape(params["scope"]) in text
     assert html.escape(params["state"]) in text
-

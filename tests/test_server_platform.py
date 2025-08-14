@@ -4,16 +4,21 @@ import sys
 
 from delinea_mcp import tools
 
+
 class DummyMCP:
     def __init__(self):
         self.called = False
+
     def tool(self):
         def deco(f):
             self.called = True
             return f
+
         return deco
+
     def run(self, transport="stdio"):
         self.called = True
+
 
 def test_server_registers_platform_tools(monkeypatch, tmp_path):
     cfg = tmp_path / "config.json"
@@ -29,6 +34,7 @@ def test_server_registers_platform_tools(monkeypatch, tmp_path):
         called["cfg"] = True
 
     import server
+
     monkeypatch.setattr(server, "mcp", DummyMCP())
     monkeypatch.setattr(server.user_platform_tools, "register", fake_register)
     monkeypatch.setattr(server.user_platform_tools, "configure", fake_configure)

@@ -1,0 +1,13 @@
+---
+name: changie-trigger-release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  changelog:
+    uses: delineaxpm/github-workflows/.github/workflows/changie-trigger-release.yml@main
+    secrets: inherit
+    with:
+      additional_git_adds: "'charts/*'"

@@ -1,0 +1,15 @@
+---
+# Schema: https://github.com/kentaro-m/auto-assign-action
+runOnDraft: true
+addReviewers: true
+addAssignees: author
+numberOfReviewers: 0
+reviewers:
+  - mcp-contributors
+reviewGroups:
+useReviewGroups: false
+filterLabels:
+  exclude:
+    - wontmerge
+    - wip
+    - incomplete pr

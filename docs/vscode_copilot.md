@@ -38,4 +38,3 @@ Limit the server to the tools required for coding agents:
 ```
 
 <!-- TODO: Screenshot of Copilot configuration -->
-

@@ -1,33 +1,44 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from types import SimpleNamespace
 import importlib
+from types import SimpleNamespace
+
 import pytest
+
 from delinea_mcp import tools
+
 
 class DummyResponse:
     def __init__(self, data=None, status_code=200):
         self._data = data or {}
         self.status_code = status_code
+
     def json(self):
         return self._data
+
     def raise_for_status(self):
         pass
+
 
 class DummyRequests:
     def __init__(self, post_resp=None, request_resp=None):
         self.post_resp = post_resp or DummyResponse({"access_token": "tok"})
         self.request_resp = request_resp or DummyResponse({"ok": True})
         self.headers = {}
+
     def Session(self):
         return self
+
     def post(self, url, data=None):
         self.post_called = (url, data)
         return self.post_resp
+
     def request(self, method, url, **kwargs):
         self.request_called = (method, url, kwargs)
         return self.request_resp
+
 
 class FailFirstRequests(DummyRequests):
     def __init__(self):
@@ -45,8 +56,10 @@ class FailFirstRequests(DummyRequests):
             return DummyResponse(status_code=401)
         return super().request(method, url, **kwargs)
 
+
 def test_session_auth_and_request(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     dummy = DummyRequests()
     monkeypatch.setattr(delinea_api, "requests", dummy)
@@ -67,8 +80,10 @@ def test_session_auth_and_request(monkeypatch):
     )
     assert resp.json() == {"ok": True}
 
+
 def test_request_custom_timeout(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     dummy = DummyRequests()
     monkeypatch.setattr(delinea_api, "requests", dummy)
@@ -78,8 +93,10 @@ def test_request_custom_timeout(monkeypatch):
     s.request("GET", "/foo", timeout=5)
     assert dummy.request_called[2]["timeout"] == 5
 
+
 def test_session_missing_credentials(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     dummy = DummyRequests()
     monkeypatch.setattr(delinea_api, "requests", dummy)
@@ -88,8 +105,10 @@ def test_session_missing_credentials(monkeypatch):
     with pytest.raises(ValueError):
         delinea_api.DelineaSession(base_url="http://x")
 
+
 def test_session_no_token(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     dummy = DummyRequests(post_resp=DummyResponse({}))
     monkeypatch.setattr(delinea_api, "requests", dummy)
@@ -98,16 +117,22 @@ def test_session_no_token(monkeypatch):
     with pytest.raises(RuntimeError):
         delinea_api.DelineaSession(base_url="http://x")
 
+
 def test_generate_sql_query(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     captured = {}
+
     class DummyChat:
         @staticmethod
         def create(model, messages, temperature, max_tokens, n):
             captured["model"] = model
             captured["messages"] = messages
-            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="SELECT 1"))])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="SELECT 1"))]
+            )
+
     sys.modules["openai"] = SimpleNamespace(ChatCompletion=DummyChat)
     monkeypatch.setitem(os.environ, "AZURE_OPENAI_ENDPOINT", "e")
     monkeypatch.setitem(os.environ, "AZURE_OPENAI_KEY", "k")
@@ -117,8 +142,10 @@ def test_generate_sql_query(monkeypatch):
     assert "desc" in captured["messages"][1]["content"]
     assert sql == "SELECT 1"
 
+
 def test_generate_sql_query_missing_env(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     sys.modules["openai"] = SimpleNamespace()
     monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
@@ -127,18 +154,25 @@ def test_generate_sql_query_missing_env(monkeypatch):
     result = tools.generate_sql_query("desc")
     assert result.startswith("Error")
 
+
 def test_server_helpers(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     import server
+
     monkeypatch.setattr(server.tools, "generate_sql_query", lambda x: "SQL")
     assert server.generate_sql_query("foo") == "SQL"
 
+
 def test_run_report_delete_failure(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     from delinea_mcp import tools
+
     calls = []
+
     def fake_request(method, path, **kwargs):
         calls.append(path)
         if path == "/v1/reports":
@@ -147,17 +181,25 @@ def test_run_report_delete_failure(monkeypatch):
             return DummyResponse({"columns": ["c"], "rows": [[1]]})
         else:
             raise RuntimeError("boom")
+
     monkeypatch.setattr(tools, "delinea", SimpleNamespace(request=fake_request))
     result = tools.run_report("SELECT 1", report_name="t")
     assert result["rows"] == [[1]]
     assert calls[-1] == "/v1/reports/1"
 
+
 def test_tools_ai_generate_and_run_report(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
     from delinea_mcp import tools
+
     monkeypatch.setattr(tools, "generate_sql_query", lambda d: "SQLX")
-    monkeypatch.setattr(tools, "run_report", lambda sql, report_name=None: {"rows": [[2]], "columns": ["c"]})
+    monkeypatch.setattr(
+        tools,
+        "run_report",
+        lambda sql, report_name=None: {"rows": [[2]], "columns": ["c"]},
+    )
     result = tools.ai_generate_and_run_report("desc")
     assert result["generated_sql"] == "SQLX"
     assert result["rows"] == [[2]]
@@ -165,6 +207,7 @@ def test_tools_ai_generate_and_run_report(monkeypatch):
 
 def test_request_auto_reauth(monkeypatch):
     import delinea_api
+
     importlib.reload(delinea_api)
 
     dummy = FailFirstRequests()

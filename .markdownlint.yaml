@@ -1,0 +1,59 @@
+---
+#https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md002
+comment: my-markdown-linting-rules
+
+# enable all default tagged rules
+default: true
+
+# enable indentation rules by default
+indentation: true
+
+#MD004 - Unordered list style
+# Parameters: style ("consistent", "asterisk", "plus", "dash", "sublist"; default "consistent")
+# Defaults to dash
+MD004:
+  style: dash
+
+# MD041 - First line in a file should be a top-level heading: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md041---first-line-in-a-file-should-be-a-top-level-heading
+MD041: false
+# MD007 - Unordered list indentation: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md007---unordered-list-indentation
+# This rule is triggered when list items are not indented by the configured number of spaces (default: 2).
+MD007: true
+no-hard-tabs: true
+
+# enable all whitespace rules, such as:
+# - eliminate trailing whitespace
+# - no tabs, use only spaces
+# - remove double spaces
+# - clean spacing up
+whitespace: true
+
+# require urls to have []() format, rather than just pasting raw links. This improves readability.
+no-bare-urls: true
+
+# Don't allow anonymous code blocks, make sure a language is specificed, so that formatting can be applied.
+fenced-code-language: true
+# Don't allow nested html to be directly used without exception being allowed.
+no-inline-html: true
+# MD025 - Multiple top-level headings in the same document -> https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md#md025---multiple-top-level-headings-in-the-same-document
+# if using front matter, we don't want a title property + a # Title to conflict
+MD025: true
+
+# MD013 - Line length
+# This is for maintainability and code diffs.
+# Try applying semantic line break concept for breaking up longer phrases
+# https://sembr.org/
+MD013:
+  line_length: 200
+
+# MD024/no-duplicate-heading/no-duplicate-header - Multiple headings with the same content
+# This tweaks to allow nested items to have duplicate headers.
+MD024:
+  # Only check sibling headings
+  allow_different_nesting: true
+  # Only check sibling headings
+  siblings_only: true
+
+# MD033 - Inline HTML
+# Allow this as we use badges and other summary block in html format for better readability.
+MD033: false

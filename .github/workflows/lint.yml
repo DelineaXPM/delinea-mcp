@@ -1,0 +1,18 @@
+---
+name: lint
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+  merge_group:
+
+permissions:
+  pull-requests: write
+  checks: write
+  contents: read
+jobs:
+  lint:
+    uses: delineaxpm/github-workflows/.github/workflows/lint.yml@main
+    secrets: inherit

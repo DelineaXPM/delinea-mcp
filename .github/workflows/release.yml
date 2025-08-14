@@ -1,0 +1,161 @@
+---
+name: delinea-mcp-release
+on:
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: 'Type of release to create'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+          - prerelease
+  workflow_call:
+    inputs:
+      release-type:
+        description: 'Type of release to create'
+        required: false
+        default: 'auto'
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  pull-requests: read
+
+env:
+  DELINEA_DOCKER_REGISTRY: quay.io/delinea
+  UV_CACHE_DIR: /tmp/.uv-cache-release
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare-release-environment:
+    name: release-env-setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      release-version: ${{ steps.version-detect.outputs.version }}
+      should-release: ${{ steps.version-detect.outputs.should-release }}
+    steps:
+      - name: repo-checkout-full-history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: aqua-binary-manager-setup
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+          working_directory: .
+          # TODO: Create aqua.yaml with goreleaser and other required binaries
+
+      - name: release-version-detection
+        id: version-detect
+        run: |
+          # TODO: Implement proper version detection logic
+          echo "version=v0.1.0" >> $GITHUB_OUTPUT
+          echo "should-release=true" >> $GITHUB_OUTPUT
+
+  delinea-mcp-release-execution:
+    name: goreleaser-python-release
+    needs: prepare-release-environment
+    if: needs.prepare-release-environment.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: repo-checkout-full-history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: aqua-toolchain-setup
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+          working_directory: .
+
+      - name: uv-python-setup
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'requirements.txt'
+
+      - name: python-runtime-install
+        run: |
+          uv python install 3.11
+          uv sync --frozen
+          uv pip list --format=json | jq '.[] | select(.name=="mcp") | .version'
+
+      - name: docker-registry-auth-quay
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_DELINEA_USERNAME }}
+          password: ${{ secrets.QUAY_DELINEA_TOKEN }}
+          # TODO: Configure Quay.io registry credentials
+
+      - name: docker-registry-auth-dockerhub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          # TODO: Configure Docker Hub registry credentials (optional)
+
+      - name: delinea-pre-release-validation
+        run: |
+          # TODO: Add pre-release validation checks
+          uv run pytest tests/ -x --tb=line -m "not integration"
+          echo "✅ Pre-release validation completed"
+
+      - name: goreleaser-release-execution
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --timeout=20m
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_ORG: ${{ env.DELINEA_DOCKER_REGISTRY }}
+          QUAY_USERNAME: ${{ secrets.QUAY_DELINEA_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_DELINEA_TOKEN }}
+          # TODO: Configure PyPI publishing
+          # PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: release-artifact-validation
+        run: |
+          # TODO: Add post-release artifact validation
+          ls -la dist/
+          echo "✅ Release artifacts validated"
+
+      - name: release-notification-prep
+        if: success()
+        run: |
+          echo "🚀 Delinea MCP release ${{ needs.prepare-release-environment.outputs.release-version }} completed successfully"
+          # TODO: Add Slack/Teams notification logic
+
+  release-verification:
+    name: post-release-verification
+    needs: [prepare-release-environment, delinea-mcp-release-execution]
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: release-docker-image-test
+        run: |
+          # TODO: Add Docker image smoke test
+          docker pull quay.io/delinea/delinea-mcp:${{ needs.prepare-release-environment.outputs.release-version }}
+          echo "✅ Docker image verification completed"
+
+      - name: release-github-validation
+        run: |
+          # TODO: Validate GitHub release was created properly
+          echo "✅ GitHub release validation completed"

@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+
 import pytest
 
 from delinea_mcp.auth import as_config
@@ -16,8 +17,10 @@ def test_init_keys_invalid_file(tmp_path, monkeypatch):
 
 def test_init_keys_write_error(tmp_path, monkeypatch):
     target = tmp_path / "jwt.json"
+
     def fail_write(self, data):
         raise OSError("boom")
+
     monkeypatch.setattr(Path, "write_text", fail_write)
     as_config.init_keys(target)
     assert as_config._PRIVATE_KEY is not None
@@ -33,4 +36,3 @@ def test_verify_token_errors(monkeypatch):
     monkeypatch.setattr(as_config.time, "time", lambda: 2)
     with pytest.raises(ValueError):
         as_config.verify_token(exp, audience="aud")
-

@@ -1,0 +1,85 @@
+---
+name: delinea-mcp-release-pipeline
+on:
+  push:
+    null
+    # branches: [main]
+    # paths:
+    #   - "CHANGELOG.md"
+    #   - ".changes/*.md"
+  workflow_dispatch:
+    inputs:
+      force-release:
+        description: 'Force release execution'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  checks: write
+  id-token: write
+
+concurrency:
+  group: delinea-mcp-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  delinea-code-quality:
+    name: lint-format-validation
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  delinea-test-suite:
+    name: comprehensive-testing
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  delinea-security-scan:
+    name: security-vulnerability-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: repo-checkout
+        uses: actions/checkout@v4
+
+      - name: uv-setup
+        uses: astral-sh/setup-uv@v4
+
+      - name: python-security-audit
+        run: |
+          uv python install 3.11
+          uv sync --frozen
+          # TODO: Add security scanning with safety or bandit
+          uv pip list --format=json | jq '.[] | select(.name | contains("security"))'
+
+  delinea-release-automation:
+    name: automated-release-creation
+    needs:
+      - delinea-code-quality
+      - delinea-test-suite
+      - delinea-security-scan
+    if: >
+      always() &&
+      (needs.delinea-code-quality.result == 'success') &&
+      (needs.delinea-test-suite.result == 'success') &&
+      (needs.delinea-security-scan.result == 'success')
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
+    with:
+      release-type: auto
+
+  post-release-notification:
+    name: release-success-notification
+    needs: delinea-release-automation
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: release-success-message
+        run: |
+          echo "🎉 Delinea MCP release pipeline completed successfully!"
+          # TODO: Add notification to Slack/Teams/Discord
+          echo "Release information available at: ${{ github.server_url }}/${{ github.repository }}/releases"

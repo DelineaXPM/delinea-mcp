@@ -1,8 +1,9 @@
 import importlib
-import delinea_api
 import json
+
 import pytest
 
+import delinea_api
 import delinea_mcp.tools as tools
 
 
@@ -25,7 +26,9 @@ def test_search_unknown_type(monkeypatch):
 
 
 def test_search_function_error(monkeypatch):
-    monkeypatch.setattr(tools, "search_secrets", lambda q: (_ for _ in ()).throw(RuntimeError()))
+    monkeypatch.setattr(
+        tools, "search_secrets", lambda q: (_ for _ in ()).throw(RuntimeError())
+    )
     res = tools.search("x")
     assert res == {"results": []}
 
@@ -41,4 +44,3 @@ def test_fetch_errors(monkeypatch):
     tools.configure({"fetch_objects": ["secret", "user"]})
     with pytest.raises(ValueError):
         tools.fetch("other/1")
-

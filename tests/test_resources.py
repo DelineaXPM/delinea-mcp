@@ -4,19 +4,24 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+
 # Patch DelineaSession before importing server to avoid network calls
 class DummySession:
     def request(self, method, path, **kwargs):
         raise AssertionError("request not patched")
 
+
 import delinea_api
+
 delinea_api.DelineaSession = DummySession  # type: ignore
 
 server = importlib.import_module("server")
 
+
 class DummyResponse:
     def __init__(self, data):
         self._data = data
+
     def json(self):
         return self._data
 
@@ -27,6 +32,7 @@ def test_get_secret_detail(monkeypatch):
         assert path == "/v2/secrets/1"
         assert kwargs == {}
         return DummyResponse({"id": 1, "name": "detail"})
+
     monkeypatch.setattr(server.delinea, "request", fake_request)
     assert server.get_secret(1) == {"id": 1, "name": "detail"}
 
@@ -36,6 +42,7 @@ def test_get_secret_summary(monkeypatch):
         assert method == "GET"
         assert path == "/v1/secrets/1/summary"
         return DummyResponse({"id": 1, "name": "summary"})
+
     monkeypatch.setattr(server.delinea, "request", fake_request)
     assert server.get_secret(1, summary=True) == {"id": 1, "name": "summary"}
 
@@ -45,12 +52,14 @@ def test_get_folder_children(monkeypatch):
         assert path == "/v1/folders/5"
         assert kwargs.get("params") == {"getAllChildren": "true"}
         return DummyResponse({"id": 5, "children": []})
+
     monkeypatch.setattr(server.delinea, "request", fake_request)
     assert server.get_folder(5) == {"id": 5, "children": []}
 
 
 def test_user_details_and_search(monkeypatch):
     calls = []
+
     def fake_request(method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v1/users/2":
@@ -60,6 +69,7 @@ def test_user_details_and_search(monkeypatch):
             return DummyResponse({"records": []})
         else:
             raise AssertionError("unexpected path")
+
     monkeypatch.setattr(server.delinea, "request", fake_request)
     user = server.user_management("get", user_id=2)
     search = server.search_users("bob")

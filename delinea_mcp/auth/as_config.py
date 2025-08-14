@@ -1,12 +1,13 @@
+import hashlib
 import json
-import time
+import logging
+import os
 import secrets
 import sqlite3
+import time
 from pathlib import Path
-from authlib.jose import jwt, JsonWebKey
-import logging
-import hashlib
-import os
+
+from authlib.jose import JsonWebKey, jwt
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,6 @@ def init_keys(path: str | Path | None) -> None:
         logger.exception("Failed to write JWT keys to %s", _KEY_FILE)
 
 
-
 def init_db(path: str | Path) -> None:
     """Initialise the client database from the given path."""
     global _DB_CONN
@@ -100,23 +100,20 @@ def register_client(client_name: str | None = None) -> dict:
     client_id = secrets.token_urlsafe(8)
     client_secret = secrets.token_urlsafe(16)
     hashed = _hash_secret(client_secret)
-    CLIENTS[client_id] = {
-        'client_secret': hashed,
-        'name': client_name or ''
-    }
+    CLIENTS[client_id] = {"client_secret": hashed, "name": client_name or ""}
     if _DB_CONN:
         with _DB_CONN:
             _DB_CONN.execute(
                 "INSERT INTO clients (client_id, client_secret, name) VALUES (?, ?, ?)",
-                (client_id, hashed, client_name or '')
+                (client_id, hashed, client_name or ""),
             )
     logger.debug("registered %s", client_id)
-    return {'client_id': client_id, 'client_secret': client_secret}
+    return {"client_id": client_id, "client_secret": client_secret}
 
 
 def create_code(client_id: str, scopes: list[str]) -> str:
     code = secrets.token_urlsafe(8)
-    AUTH_CODES[code] = {'client_id': client_id, 'scopes': scopes}
+    AUTH_CODES[code] = {"client_id": client_id, "scopes": scopes}
     logger.debug("created code for %s", client_id)
     return code
 
@@ -126,16 +123,18 @@ def verify_client_secret(client_id: str, secret: str) -> bool:
     entry = CLIENTS.get(client_id)
     if not entry:
         return False
-    return entry.get('client_secret') == _hash_secret(secret)
+    return entry.get("client_secret") == _hash_secret(secret)
 
 
-def issue_token(client_id: str, scopes: list[str], audience: str, expires_in: int = 3600) -> str:
-    header = {'alg': 'RS256'}
+def issue_token(
+    client_id: str, scopes: list[str], audience: str, expires_in: int = 3600
+) -> str:
+    header = {"alg": "RS256"}
     payload = {
-        'aud': audience,
-        'scope': ' '.join(scopes),
-        'exp': int(time.time()) + expires_in,
-        'client_id': client_id,
+        "aud": audience,
+        "scope": " ".join(scopes),
+        "exp": int(time.time()) + expires_in,
+        "client_id": client_id,
     }
     token = jwt.encode(header, payload, _PRIVATE_KEY).decode()
     logger.debug("issued token for %s", client_id)
@@ -150,14 +149,13 @@ def public_jwk() -> dict:
 def verify_token(token: str, audience: str | None = None) -> dict:
     logger.debug("verifying token")
     claims = jwt.decode(token, _PUBLIC_KEY)
-    if audience and claims.get('aud') != audience:
-        raise ValueError('audience mismatch')
-    if claims.get('exp') and int(claims['exp']) < int(time.time()):
-        raise ValueError('token expired')
-    logger.debug("token verified for %s", claims.get('client_id'))
+    if audience and claims.get("aud") != audience:
+        raise ValueError("audience mismatch")
+    if claims.get("exp") and int(claims["exp"]) < int(time.time()):
+        raise ValueError("token expired")
+    logger.debug("token verified for %s", claims.get("client_id"))
     return claims
 
 
 # Initialise with ephemeral keys by default
 init_keys(None)
-
