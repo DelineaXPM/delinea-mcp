@@ -1,0 +1,7 @@
+.git
+__pycache__
+*.py[cod]
+*.pytest_cache
+tests
+.DS_Store
+docs

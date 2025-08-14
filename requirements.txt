@@ -1,0 +1,10 @@
+requests==2.31.0
+openai==1.10.0
+mcp[cli]==1.9.3
+authlib==1.6.1
+fastapi==0.116.1
+uvicorn==0.35.0
+httpx==0.28.1
+httpx-sse==0.4.1
+pytest-asyncio==1.1.0
+
