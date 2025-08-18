@@ -1,7 +1,9 @@
-from typing import Iterable
-from fastapi import HTTPException, Request
-from . import as_config
 import logging
+from typing import Iterable
+
+from fastapi import HTTPException, Request
+
+from . import as_config
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,7 @@ def require_scopes(
     If ``chatgpt_no_scope_check`` is True, scope validation is skipped. This
     provides compatibility with ChatGPT which may omit scopes entirely.
     """
+
     async def dependency(request: Request):
         logger.debug("validating scopes %s", required)
         auth_header = request.headers.get("Authorization")
@@ -33,4 +36,3 @@ def require_scopes(
         return claims
 
     return dependency
-

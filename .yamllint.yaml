@@ -1,0 +1,20 @@
+---
+extends: default
+rules:
+  line-length: disable
+  document-start: disable # standard only requires this when directives are used, which is rarely done
+  comments:
+    require-starting-space: false
+    ignore-shebangs: true
+    min-spaces-from-content: 1
+  comments-indentation: disable
+
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false # this eliminates on: in github actions from being a failure
+
+# For all rules
+ignore: |
+  .markdownlint-cli2.yaml
+  .licenses/
+  docs/godocs/

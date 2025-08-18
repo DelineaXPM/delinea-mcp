@@ -1,21 +1,24 @@
 import os
-import requests
 import sys
+
+import requests
 
 if len(sys.argv) < 2:
     print("Usage: python test_secret_request.py <Secret_ID>")
     exit(1)
 
 secret_id = sys.argv[1]
-password_env_var = f'SECRET_PASSWORD_{secret_id}'
-username_env_var = f'SECRET_USERNAME_{secret_id}'
+password_env_var = f"SECRET_PASSWORD_{secret_id}"
+username_env_var = f"SECRET_USERNAME_{secret_id}"
 print(f"Using environment variables: {password_env_var}, {username_env_var}")
 client_secret = os.getenv(password_env_var)
 client_id = os.getenv(username_env_var)
 print(f"Using environment variables: {client_secret}, {client_id}")
 
 if not client_secret or not client_id:
-    print(f"Required environment variables {password_env_var} and/or {username_env_var} not set.")
+    print(
+        f"Required environment variables {password_env_var} and/or {username_env_var} not set."
+    )
     exit(1)
 
 base_url = os.getenv("DELINEA_BASE_URL", "https://localhost/SecretServer")

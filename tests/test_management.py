@@ -1,5 +1,7 @@
 from types import SimpleNamespace
+
 import server
+
 
 class DummyResponse:
     def __init__(self, data=None):
@@ -7,6 +9,7 @@ class DummyResponse:
 
     def json(self):
         return self._data
+
 
 def patch_request(monkeypatch, expected_calls, responses=None):
     if expected_calls and isinstance(expected_calls[0], str):
@@ -57,14 +60,20 @@ def test_user_management(monkeypatch):
         "verification": {"ok": True},
     }
 
-    patch_request(monkeypatch, ("GET", "/v1/users/sessions", {"params": {"skip": 0, "take": 20}}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/users/sessions", {"params": {"skip": 0, "take": 20}})
+    )
     assert server.user_management("list_sessions") == {"ok": True}
 
     patch_request(monkeypatch, ("POST", "/v1/users/5/reset-two-factor", {"json": {}}))
     assert server.user_management("reset_2fa", user_id=5) == {"ok": True}
 
-    patch_request(monkeypatch, ("POST", "/v1/users/6/password-reset", {"json": {"p": 1}}))
-    assert server.user_management("reset_password", user_id=6, data={"p": 1}) == {"ok": True}
+    patch_request(
+        monkeypatch, ("POST", "/v1/users/6/password-reset", {"json": {"p": 1}})
+    )
+    assert server.user_management("reset_password", user_id=6, data={"p": 1}) == {
+        "ok": True
+    }
 
     patch_request(monkeypatch, ("POST", "/v1/users/7/lock-out", {"json": {}}))
     assert server.user_management("lock_out", user_id=7) == {"ok": True}
@@ -101,10 +110,14 @@ def test_user_role_management(monkeypatch):
     patch_request(monkeypatch, ("GET", "/v1/users/1/roles", {}))
     assert server.user_role_management("get", 1) == {"ok": True}
 
-    patch_request(monkeypatch, ("POST", "/v1/users/1/roles", {"json": {"roleIds": [2]}}))
+    patch_request(
+        monkeypatch, ("POST", "/v1/users/1/roles", {"json": {"roleIds": [2]}})
+    )
     assert server.user_role_management("add", 1, [2]) == {"ok": True}
 
-    patch_request(monkeypatch, ("DELETE", "/v1/users/1/roles", {"json": {"roleIds": [2]}}))
+    patch_request(
+        monkeypatch, ("DELETE", "/v1/users/1/roles", {"json": {"roleIds": [2]}})
+    )
     assert server.user_role_management("remove", 1, [2]) == {"ok": True}
 
 
@@ -139,10 +152,14 @@ def test_user_group_management(monkeypatch):
     patch_request(monkeypatch, ("GET", "/v1/users/2/groups", {}))
     assert server.user_group_management("get", 2) == {"ok": True}
 
-    patch_request(monkeypatch, ("POST", "/v1/users/2/groups", {"json": {"groupIds": [3]}}))
+    patch_request(
+        monkeypatch, ("POST", "/v1/users/2/groups", {"json": {"groupIds": [3]}})
+    )
     assert server.user_group_management("add", 2, [3]) == {"ok": True}
 
-    patch_request(monkeypatch, ("DELETE", "/v1/users/2/groups", {"params": {"groupIds": [3]}}))
+    patch_request(
+        monkeypatch, ("DELETE", "/v1/users/2/groups", {"params": {"groupIds": [3]}})
+    )
     assert server.user_group_management("remove", 2, [3]) == {"ok": True}
 
 
@@ -150,10 +167,14 @@ def test_group_role_management(monkeypatch):
     patch_request(monkeypatch, ("GET", "/v1/groups/3/roles", {}))
     assert server.group_role_management("list", 3) == {"ok": True}
 
-    patch_request(monkeypatch, ("POST", "/v1/groups/3/roles", {"json": {"roleIds": [4]}}))
+    patch_request(
+        monkeypatch, ("POST", "/v1/groups/3/roles", {"json": {"roleIds": [4]}})
+    )
     assert server.group_role_management("add", 3, [4]) == {"ok": True}
 
-    patch_request(monkeypatch, ("DELETE", "/v1/groups/3/roles", {"json": {"roleIds": [4]}}))
+    patch_request(
+        monkeypatch, ("DELETE", "/v1/groups/3/roles", {"json": {"roleIds": [4]}})
+    )
     assert server.group_role_management("remove", 3, [4]) == {"ok": True}
 
 
@@ -168,19 +189,26 @@ def test_folder_management(monkeypatch):
         "verification": {"ok": True},
     }
 
-    patch_request(monkeypatch, [("PUT", "/v1/folders/7", {"json": {"x": 2}}), ("GET", "/v1/folders/7", {})])
+    patch_request(
+        monkeypatch,
+        [("PUT", "/v1/folders/7", {"json": {"x": 2}}), ("GET", "/v1/folders/7", {})],
+    )
     assert server.folder_management("update", folder_id=7, data={"x": 2}) == {
         "result": {"ok": True},
         "verification": {"ok": True},
     }
 
-    patch_request(monkeypatch, [("DELETE", "/v1/folders/8", {}), ("GET", "/v1/folders/8", {})])
+    patch_request(
+        monkeypatch, [("DELETE", "/v1/folders/8", {}), ("GET", "/v1/folders/8", {})]
+    )
     assert server.folder_management("delete", folder_id=8) == {
         "result": {"ok": True},
         "verification": {"ok": True},
     }
 
-    patch_request(monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "true"}})])
+    patch_request(
+        monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "true"}})]
+    )
     assert server.folder_management("get", folder_id=9) == {"ok": True}
 
     patch_request(monkeypatch, [("GET", "/v1/folders", {"params": {}})])

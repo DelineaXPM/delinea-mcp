@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+
 import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -26,7 +27,9 @@ def test_group_crud_live():
     require_credentials()
     name = unique_name("mcp-group")
     created = server.group_management("create", data={"name": name, "enabled": True})
-    gid = created.get("result", {}).get("id") or created.get("result", {}).get("groupId")
+    gid = created.get("result", {}).get("id") or created.get("result", {}).get(
+        "groupId"
+    )
     assert gid
     fetched = server.group_management("get", group_id=gid)
     assert fetched.get("name") == name
@@ -71,7 +74,9 @@ def test_folder_crud_live():
     fid = res.get("result", {}).get("id") or res.get("result", {}).get("folderId")
     if not fid:
         pytest.skip("folder create failed")
-    updated = server.folder_management("update", folder_id=fid, data={"name": name + "-u"})
+    updated = server.folder_management(
+        "update", folder_id=fid, data={"name": name + "-u"}
+    )
     assert "error" not in updated
     deleted = server.folder_management("delete", folder_id=fid)
     assert "error" not in deleted
@@ -109,6 +114,7 @@ def test_pending_access_requests_live():
         rid = req.get("id") or req.get("secretAccessRequestId")
         if rid:
             server.tools.handle_access_request(rid, "Denied", "test")
+
 
 def test_templates_live():
     require_credentials()

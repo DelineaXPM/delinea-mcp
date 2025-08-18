@@ -1,12 +1,15 @@
 """
 MCP tools for Platform User API integration.
 """
-import os
+
 import json
-import requests
 import logging
+import os
+
+import requests
 
 logger = logging.getLogger(__name__)
+
 
 def _parse_json_data(data: dict | str | None) -> dict | None:
     """Return a dict from ``data`` when given a JSON string."""
@@ -25,10 +28,12 @@ def _json_or_error(response: requests.Response) -> dict:
     except Exception:
         return {"error": response.text}
 
+
 platform_hostname = os.getenv("PLATFORM_HOSTNAME")
 platform_service_account = os.getenv("PLATFORM_SERVICE_ACCOUNT")
 platform_service_password = os.getenv("PLATFORM_SERVICE_PASSWORD")
 platform_tenant_id = os.getenv("PLATFORM_TENANT_ID")
+
 
 def configure(
     hostname: str | None = None,
@@ -46,6 +51,7 @@ def configure(
         platform_service_password = service_password
     if tenant_id is not None:
         platform_tenant_id = tenant_id
+
 
 _headers = None
 
@@ -117,10 +123,22 @@ def search_platform_user(username: str) -> dict:
             "Ascending": True,
             "SortBy": "Username",
             "Parameters": [
-                {"Name": "searchString", "Value": f"%{username}%", "Label": "searchString", "Type": "string", "ColumnType": 12},
-                {"Name": "orderby", "Value": "Username", "Label": "orderby", "Type": "string", "ColumnType": 12}
-            ]
-        }
+                {
+                    "Name": "searchString",
+                    "Value": f"%{username}%",
+                    "Label": "searchString",
+                    "Type": "string",
+                    "ColumnType": 12,
+                },
+                {
+                    "Name": "orderby",
+                    "Value": "Username",
+                    "Label": "orderby",
+                    "Type": "string",
+                    "ColumnType": 12,
+                },
+            ],
+        },
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
@@ -182,9 +200,7 @@ def platform_user_management(
         if action == "create":
             if payload is None:
                 raise ValueError("data required for create")
-            url = (
-                f"https://{platform_hostname}/identity/CDirectoryService/CreateUser"
-            )
+            url = f"https://{platform_hostname}/identity/CDirectoryService/CreateUser"
             response = requests.post(url, json=payload, headers=headers)
             result = _json_or_error(response)
             verify = search_platform_user(
@@ -196,9 +212,7 @@ def platform_user_management(
             if not user_id:
                 raise ValueError("user_id required for delete")
             url = f"https://{platform_hostname}/identity/UserMgmt/RemoveUsers"
-            response = requests.post(
-                url, json={"Users": [user_id]}, headers=headers
-            )
+            response = requests.post(url, json={"Users": [user_id]}, headers=headers)
             result = _json_or_error(response)
             verify = search_platform_user(user_id)
             return {"result": result, "verification": verify}
@@ -207,9 +221,7 @@ def platform_user_management(
             if not user_id or payload is None:
                 raise ValueError("user_id and data required for update")
             payload.setdefault("ID", user_id)
-            url = (
-                f"https://{platform_hostname}/identity/CDirectoryService/ChangeUser"
-            )
+            url = f"https://{platform_hostname}/identity/CDirectoryService/ChangeUser"
             response = requests.post(url, json=payload, headers=headers)
             result = _json_or_error(response)
             verify = search_platform_user(
@@ -228,9 +240,11 @@ def platform_user_management(
         logger.exception("Platform user management action failed")
         return {"error": str(exc)}
 
+
 TOOLS = [
     ("platform_user_management", platform_user_management),
 ]
+
 
 def register(mcp):
     for name, func in TOOLS:

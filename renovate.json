@@ -1,6 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "local>DelineaXPM/renovate-config"
-  ]
+  "extends": ["local>DelineaXPM/renovate-config"]
 }

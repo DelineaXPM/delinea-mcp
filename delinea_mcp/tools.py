@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import time
-from typing import Any, Iterable
-import json
 from pathlib import Path
-import logging
-
+from typing import Any, Iterable
 
 from delinea_api import DelineaSession
+
 from . import constants
 
 logger = logging.getLogger(__name__)
@@ -231,6 +231,7 @@ def generate_sql_query(user_query: str) -> str:
         logger.exception("Failed to generate SQL")
         return f"Error generating SQL: {exc}"
 
+
 def check_secret_template(template_id: int) -> dict:  # pragma: no cover
     """Returns the template details for the given ID."""
     logger.debug("check_secret_template(%s)", template_id)
@@ -241,7 +242,10 @@ def check_secret_template(template_id: int) -> dict:  # pragma: no cover
         logger.exception("Failed to retrieve secret template %s", template_id)
         return {"error": f"Failed to retrieve secret template {template_id}: {exc}"}
 
-def get_secret_environment_variable(secret_id: int, environment: str) -> str:  # pragma: no cover
+
+def get_secret_environment_variable(
+    secret_id: int, environment: str
+) -> str:  # pragma: no cover
     """Return shell code to fetch a secret and store it in environment variables.
 
     Parameters
@@ -264,8 +268,8 @@ def get_secret_environment_variable(secret_id: int, environment: str) -> str:  #
     access_token = session.token
     if environment.lower() == "bash":
         return (
-            f'export SECRET_PASSWORD_{secret_id}="$(curl -H \"Authorization: Bearer {access_token}\" {url} | jq -r ".items[] | select(.fieldName == \"Password\") | .itemValue")"'
-            f'export SECRET_USERNAME_{secret_id}="$(curl -H \"Authorization: Bearer {access_token}\" {url} | jq -r ".items[] | select(.fieldName == \"Username\") | .itemValue")"'
+            f'export SECRET_PASSWORD_{secret_id}="$(curl -H "Authorization: Bearer {access_token}" {url} | jq -r ".items[] | select(.fieldName == "Password") | .itemValue")"'
+            f'export SECRET_USERNAME_{secret_id}="$(curl -H "Authorization: Bearer {access_token}" {url} | jq -r ".items[] | select(.fieldName == "Username") | .itemValue")"'
         )
     elif environment.lower() == "powershell":
         return (
@@ -273,8 +277,8 @@ def get_secret_environment_variable(secret_id: int, environment: str) -> str:  #
             f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
             f'$passwordItem = $response.items | Where-Object {{ $_.fieldName -eq "Password" }}\n'
             f'$usernameItem = $response.items | Where-Object {{ $_.fieldName -eq "Username" }}\n'
-            f'$env:SECRET_PASSWORD_{secret_id} = $passwordItem.itemValue\n'
-            f'$env:SECRET_USERNAME_{secret_id} = $usernameItem.itemValue'
+            f"$env:SECRET_PASSWORD_{secret_id} = $passwordItem.itemValue\n"
+            f"$env:SECRET_USERNAME_{secret_id} = $usernameItem.itemValue"
         )
     elif environment.lower() == "cmd":
         return (
@@ -360,10 +364,6 @@ def get_folder(id: int) -> dict:
         return {"error": f"Failed to retrieve folder {id}: {exc}"}
 
 
-
-
-
-
 def search_users(query: str) -> dict:
     """Search active users by text.
 
@@ -438,8 +438,9 @@ def search_folders(query: str, lookup: bool = False) -> dict:
         return {"error": f"Failed to search folders '{query}': {exc}"}
 
 
-
-def check_secret_template_field(template_id: int, field_id: str) -> dict:  # pragma: no cover
+def check_secret_template_field(
+    template_id: int, field_id: str
+) -> dict:  # pragma: no cover
     """Check if a field exists in the given secret template.
 
     Parameters
@@ -468,12 +469,22 @@ def check_secret_template_field(template_id: int, field_id: str) -> dict:  # pra
             },
         ).json()
         for field in result.get("records", []):
-            if str(field.get("id")) == str(field_id) or field.get("name") == str(field_id):
+            if str(field.get("id")) == str(field_id) or field.get("name") == str(
+                field_id
+            ):
                 return {"exists": True, "field": field}
-        return {"exists": False, "message": f"Field '{field_id}' not found in template {template_id}"}
+        return {
+            "exists": False,
+            "message": f"Field '{field_id}' not found in template {template_id}",
+        }
     except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("Failed to check secret template %s for field %s", template_id, field_id)
-        return {"error": f"Failed to check secret template {template_id} for field {field_id}: {exc}"}
+        logger.exception(
+            "Failed to check secret template %s for field %s", template_id, field_id
+        )
+        return {
+            "error": f"Failed to check secret template {template_id} for field {field_id}: {exc}"
+        }
+
 
 def get_secret_template_field(field_id: int) -> dict:
     """Retrieve details for a secret template field.
@@ -495,6 +506,7 @@ def get_secret_template_field(field_id: int) -> dict:
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to retrieve secret template field %s", field_id)
         return {"error": f"Failed to retrieve secret template field {field_id}: {exc}"}
+
 
 def handle_access_request(
     request_id: int,
@@ -526,7 +538,14 @@ def handle_access_request(
         API response from the update call and ``verification`` contains the
         request retrieved afterwards.
     """
-    logger.debug("handle_access_request(%s, %s, %s, %s, %s)", request_id, status, response_comment, start_date, expiration_date)
+    logger.debug(
+        "handle_access_request(%s, %s, %s, %s, %s)",
+        request_id,
+        status,
+        response_comment,
+        start_date,
+        expiration_date,
+    )
     session = _require_session()
     if status not in ["Approved", "Denied"]:
         return {"error": "Invalid status. Must be 'Approved' or 'Denied'."}
@@ -617,7 +636,12 @@ def get_inbox_messages(
     dict
         Raw JSON response from the ``/v1/inbox/messages`` endpoint.
     """
-    logger.debug("get_inbox_messages(read_status_filter=%s, take=%d, skip=%d)", read_status_filter, take, skip)
+    logger.debug(
+        "get_inbox_messages(read_status_filter=%s, take=%d, skip=%d)",
+        read_status_filter,
+        take,
+        skip,
+    )
     session = _require_session()
     params = {
         "take": take,
@@ -626,11 +650,7 @@ def get_inbox_messages(
     if read_status_filter:
         params["filter.readStatusFilter"] = read_status_filter
     try:
-        response = session.request(
-            "GET",
-            "/v1/inbox/messages",
-            params=params
-        )
+        response = session.request("GET", "/v1/inbox/messages", params=params)
         return response.json()
     except Exception as exc:
         logger.exception("Failed to get inbox messages")
@@ -661,12 +681,7 @@ def mark_inbox_messages_read(
 
     logger.debug("mark_inbox_messages_read(message_ids=%s, read=%s)", message_ids, read)
     session = _require_session()
-    payload = {
-        "data": {
-            "messageIds": message_ids,
-            "read": read
-        }
-    }
+    payload = {"data": {"messageIds": message_ids, "read": read}}
     try:
         response = session.request(
             "POST",
@@ -688,7 +703,6 @@ def mark_inbox_messages_read(
     except Exception as exc:
         logger.exception("Failed to mark inbox messages read/unread")
         return {"error": f"Failed to mark inbox messages read/unread: {exc}"}
-
 
 
 def user_management(
@@ -848,7 +862,7 @@ def role_management(
     "verification": ...}`` where ``result`` is the response from the write
     operation and ``verification`` is the data retrieved from the subsequent
     ``GET`` call.
-    
+
     Returns
     -------
     dict
@@ -872,9 +886,7 @@ def role_management(
         if action == "update":
             if role_id is None or data is None:
                 raise ValueError("role_id and data required for update")
-            result = session.request(
-                "PATCH", f"/v1/roles/{role_id}", json=data
-            ).json()
+            result = session.request("PATCH", f"/v1/roles/{role_id}", json=data).json()
             verify = {}
             try:
                 verify = session.request("GET", f"/v1/roles/{role_id}").json()
@@ -980,7 +992,7 @@ def group_management(
 
     ``"create"`` and ``"delete"`` actions perform a verifying ``GET`` after the
     write. The response contains ``{"result": ... , "verification": ...}``.
-    
+
     Returns
     -------
     dict
@@ -1186,9 +1198,7 @@ def folder_management(
             verify = {}
             if folder_id is not None:
                 try:
-                    verify = session.request(
-                        "GET", f"/v1/folders/{folder_id}"
-                    ).json()
+                    verify = session.request("GET", f"/v1/folders/{folder_id}").json()
                 except Exception as exc:  # pragma: no cover - network failures
                     logger.exception("Folder verification failed after create")
                     verify = {"error": str(exc)}
@@ -1294,15 +1304,25 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
             # The entire record JSON is returned as ``text``
             text = json.dumps(rec, sort_keys=True)
             url_map = {
-                "secret": f"{base}/v2/secrets/{rec_id}" if base else f"/v2/secrets/{rec_id}",
+                "secret": (
+                    f"{base}/v2/secrets/{rec_id}" if base else f"/v2/secrets/{rec_id}"
+                ),
                 "user": f"{base}/v1/users/{rec_id}" if base else f"/v1/users/{rec_id}",
-                "folder": f"{base}/v1/folders/{rec_id}" if base else f"/v1/folders/{rec_id}",
-                "group": f"{base}/v1/groups/{rec_id}" if base else f"/v1/groups/{rec_id}",
+                "folder": (
+                    f"{base}/v1/folders/{rec_id}" if base else f"/v1/folders/{rec_id}"
+                ),
+                "group": (
+                    f"{base}/v1/groups/{rec_id}" if base else f"/v1/groups/{rec_id}"
+                ),
                 "role": f"{base}/v1/roles/{rec_id}" if base else f"/v1/roles/{rec_id}",
             }
-            url = url_map.get(kind, f"{base}/{kind}/{rec_id}" if base else f"/{kind}/{rec_id}")
+            url = url_map.get(
+                kind, f"{base}/{kind}/{rec_id}" if base else f"/{kind}/{rec_id}"
+            )
             identifier = f"{kind}/{rec_id}"
-            results.append({"id": identifier, "title": title, "text": text or title, "url": url})
+            results.append(
+                {"id": identifier, "title": title, "text": text or title, "url": url}
+            )
     return {"results": results}
 
 
@@ -1395,7 +1415,7 @@ TOOLS = [
     ("get_pending_access_requests", get_pending_access_requests),
     ("get_inbox_messages", get_inbox_messages),
     ("mark_inbox_messages_read", mark_inbox_messages_read),
-    ("get_secret_template_field", get_secret_template_field)
+    ("get_secret_template_field", get_secret_template_field),
 ]
 
 

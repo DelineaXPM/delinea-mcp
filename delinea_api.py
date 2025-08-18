@@ -1,6 +1,7 @@
+import logging
 import os
 from dataclasses import dataclass
-import logging
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,9 @@ class DelineaSession:
         str
             Access token returned by the server.
         """
-        username = username or os.getenv("DELINEA_USERNAME") or os.getenv("DELINEA_USER")
+        username = (
+            username or os.getenv("DELINEA_USERNAME") or os.getenv("DELINEA_USER")
+        )
         password = password or os.getenv("DELINEA_PASSWORD")
         if not username or not password:
             raise ValueError("username and password required")

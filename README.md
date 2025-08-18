@@ -109,9 +109,9 @@ The configuration file supports the following keys:
 - **ssl_keyfile** – Path to the SSL key for HTTPS.
 - **ssl_certfile** – Path to the SSL certificate for HTTPS.
 - **registration_psk** – Pre‑shared key required to register OAuth clients.
- - **jwt_key_path** – Location of the RSA key pair used for OAuth tokens. Defaults to `data/jwt.json`.
-  - **oauth_db_path** – Path to the OAuth database file. Defaults to `data/oauth.db`.
-  - **enabled_tools** – List of tool names to register. An empty list enables all tools.
+- **jwt_key_path** – Location of the RSA key pair used for OAuth tokens. Defaults to `data/jwt.json`.
+- **oauth_db_path** – Path to the OAuth database file. Defaults to `data/oauth.db`.
+- **enabled_tools** – List of tool names to register. An empty list enables all tools.
 - **search_objects** – Allowed object types for the `search` tool. Defaults to
   `["secret"]` but can include `user`, `folder`, `group` and `role`.
 - **fetch_objects** – Allowed object types for the `fetch` tool. Defaults to
@@ -133,61 +133,62 @@ Server API.
 
 The server exposes several MCP tools for interacting with Secret Server:
 
-* `run_report(sql_query, report_name=None)` – create and execute a temporary report.
-* `ai_generate_and_run_report(description)` – generate SQL using Azure OpenAI and run it. Requires the Azure OpenAI variables.
-* `list_example_reports()` – list sample queries and table information.
-* `get_secret(id, summary=False)` – retrieve a secret or summary details.
-* `get_folder(id)` – fetch folder metadata and children.
-* `search_users(query)` – search active users.
-* `search_secrets(query, lookup=False)` – search or look up secrets.
-* `search_folders(query, lookup=False)` – search or look up folders.
-* `get_secret_environment_variable(secret_id, environment)` – output a script
+- `run_report(sql_query, report_name=None)` – create and execute a temporary report.
+- `ai_generate_and_run_report(description)` – generate SQL using Azure OpenAI and run it. Requires the Azure OpenAI variables.
+- `list_example_reports()` – list sample queries and table information.
+- `get_secret(id, summary=False)` – retrieve a secret or summary details.
+- `get_folder(id)` – fetch folder metadata and children.
+- `search_users(query)` – search active users.
+- `search_secrets(query, lookup=False)` – search or look up secrets.
+- `search_folders(query, lookup=False)` – search or look up folders.
+- `get_secret_environment_variable(secret_id, environment)` – output a script
   for fetching secret credentials in the specified shell.
-* `check_secret_template(template_id)` – fetch secret template details.
-* `check_secret_template_field(template_id, field_id)` – check if a template
+- `check_secret_template(template_id)` – fetch secret template details.
+- `check_secret_template_field(template_id, field_id)` – check if a template
   contains a field.
-* `get_secret_template_field(field_id)` – retrieve details about a specific
+- `get_secret_template_field(field_id)` – retrieve details about a specific
   secret template field by ID.
-* `handle_access_request(request_id, status, response_comment, start_date=None,
-  expiration_date=None)` – approve or deny an access request.
-* `get_pending_access_requests()` – list pending access requests.
-* `get_inbox_messages(read_status_filter=None, take=20, skip=0)` – retrieve
+- `handle_access_request(request_id, status, response_comment, start_date=None,
+expiration_date=None)` – approve or deny an access request.
+- `get_pending_access_requests()` – list pending access requests.
+- `get_inbox_messages(read_status_filter=None, take=20, skip=0)` – retrieve
   inbox messages.
-* `mark_inbox_messages_read(message_ids, read=True)` – mark messages as read or
+- `mark_inbox_messages_read(message_ids, read=True)` – mark messages as read or
   unread.
-* `user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` –
-  unified user operations. ``action`` accepts ``get``, ``create``, ``update``,
-  ``delete``, ``list_sessions``, ``reset_2fa``, ``reset_password`` or ``lock_out``.
-  Provide ``user_id`` when required and supply the request body via ``data`` for
+- `user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` –
+  unified user operations. `action` accepts `get`, `create`, `update`,
+  `delete`, `list_sessions`, `reset_2fa`, `reset_password` or `lock_out`.
+  Provide `user_id` when required and supply the request body via `data` for
   create, update and password reset actions. Example:
-  ``user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})``.
-* `role_management(action, role_id=None, data=None, params=None)` – manage roles.
-  ``action`` may be ``list``, ``get``, ``create`` or ``update``. Pass optional
-  query parameters with ``params`` when listing roles. Example:
-  ``role_management("update", role_id=3, data={"name": "New Role"})``.
-* `user_role_management(action, user_id, role_ids=None)` – assign or remove roles
-  from a user. ``action`` is ``get``, ``add`` or ``remove`` and ``role_ids`` is a
+  `user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
+- `role_management(action, role_id=None, data=None, params=None)` – manage roles.
+  `action` may be `list`, `get`, `create` or `update`. Pass optional
+  query parameters with `params` when listing roles. Example:
+  `role_management("update", role_id=3, data={"name": "New Role"})`.
+- `user_role_management(action, user_id, role_ids=None)` – assign or remove roles
+  from a user. `action` is `get`, `add` or `remove` and `role_ids` is a
   list of role identifiers for add/remove operations.
-* `group_management(action, group_id=None, data=None, params=None)` – handle
-  groups. ``action`` may be ``get``, ``list``, ``create`` or ``delete``. Provide
-  ``group_id`` for get/delete and ``data`` when creating a group.
-* `folder_management(action, folder_id=None, data=None, params=None)` – manage
-  folders. ``action`` may be ``get``, ``list``, ``create``, ``update`` or ``delete``.
-  Provide ``folder_id`` for get, update or delete and supply ``data`` when
+- `group_management(action, group_id=None, data=None, params=None)` – handle
+  groups. `action` may be `get`, `list`, `create` or `delete`. Provide
+  `group_id` for get/delete and `data` when creating a group.
+- `folder_management(action, folder_id=None, data=None, params=None)` – manage
+  folders. `action` may be `get`, `list`, `create`, `update` or `delete`.
+  Provide `folder_id` for get, update or delete and supply `data` when
   creating or updating a folder.
-* `user_group_management(action, user_id, group_ids=None)` – manage group
-  membership for a user. ``action`` is ``get``, ``add`` or ``remove``. Supply a
-  list of ``group_ids`` when adding or removing membership.
-* `group_role_management(action, group_id, role_ids=None)` – control roles on a
-  group. Use ``list``, ``add`` or ``remove`` actions. Provide ``role_ids`` when
+- `user_group_management(action, user_id, group_ids=None)` – manage group
+  membership for a user. `action` is `get`, `add` or `remove`. Supply a
+  list of `group_ids` when adding or removing membership.
+- `group_role_management(action, group_id, role_ids=None)` – control roles on a
+  group. Use `list`, `add` or `remove` actions. Provide `role_ids` when
   adding or removing.
-* `health_check()` – query the Secret Server health check endpoint and return the
+- `health_check()` – query the Secret Server health check endpoint and return the
   current service status.
 
 Use the server configuration variables described above to authenticate. The
 AI tool is automatically disabled if the Azure OpenAI variables are missing.
 Only the tool names listed in `config.json` will be registered. An empty list
 enables every tool.
+
 ## Use Cases
 
 The documentation covers several workflows for connecting tools to the server:
@@ -310,6 +311,7 @@ See [docs/release_notes.md](docs/release_notes.md) for a summary of the latest
 features and roadmap items.
 
 ## Roadmap
+
 1. Passthrough authentication
 2. Streaming HTTP transport support
 3. Expand tool coverage on the Delinea Platform and add other Delinea products

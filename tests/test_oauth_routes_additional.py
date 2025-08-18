@@ -1,5 +1,6 @@
 import os
 import sys
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -57,4 +58,3 @@ def test_token_unsupported_grant(monkeypatch):
         headers={"content-type": "application/json"},
     )
     assert r.status_code == 400
-

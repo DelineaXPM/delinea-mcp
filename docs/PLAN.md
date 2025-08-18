@@ -66,4 +66,3 @@ Based on the project TODO list in the README:
    code.
 8. Document usage with other tools besides Claude Desktop, both for local
    execution and via Docker.
-

@@ -1,0 +1,11 @@
+---
+name: assign
+on:
+  pull_request_target:
+    types: [opened, ready_for_review]
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  assign:
+    uses: delineaxpm/github-workflows/.github/workflows/assign.yml@main
+    secrets: inherit

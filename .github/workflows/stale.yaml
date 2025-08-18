@@ -1,0 +1,15 @@
+---
+name: stale
+on:
+  schedule:
+    - cron: 30 1 * * *
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    uses: delineaxpm/github-workflows/.github/workflows/stale.yml@main
+    secrets: inherit

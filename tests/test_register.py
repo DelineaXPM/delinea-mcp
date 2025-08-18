@@ -58,6 +58,7 @@ def test_server_reads_config(tmp_path, monkeypatch):
 
     monkeypatch.setattr(tools, "register", fake_register)
     import server
+
     monkeypatch.setattr(server, "mcp", DummyMCP())
     monkeypatch.setattr(server.tools, "register", fake_register)
     server.run_server([])

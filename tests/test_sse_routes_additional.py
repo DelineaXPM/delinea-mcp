@@ -1,6 +1,7 @@
+import types
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import types
 
 from delinea_mcp.transports.sse import mount_sse_routes
 
@@ -9,6 +10,7 @@ class DummyMCP:
     def __init__(self):
         async def run(*a, **k):
             return None
+
         self._mcp_server = types.SimpleNamespace(
             run=run,
             create_initialization_options=lambda: None,
@@ -24,5 +26,3 @@ def test_routes_mounted_and_post_accessible():
     client = TestClient(app)
     r = client.post("/messages")
     assert r.status_code == 400
-
-

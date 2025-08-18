@@ -1,10 +1,11 @@
-from urllib.parse import urlencode
-from fastapi import FastAPI, HTTPException, Request, Form
-from fastapi.responses import RedirectResponse, Response
 import html
+import logging
+from urllib.parse import urlencode
+
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse, Response
 
 from . import as_config
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,13 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
     key_path = cfg.get("jwt_key_path") if cfg else None
     as_config.init_keys(key_path)
     as_config.init_db(db_path)
+
     @app.get("/.well-known/oauth-authorization-server")
     async def well_known(request: Request):
         base = str(request.base_url).rstrip("/")
-        logger.debug("well_known from %s", request.client.host if request.client else "unknown")
+        logger.debug(
+            "well_known from %s", request.client.host if request.client else "unknown"
+        )
         return {
             "issuer": base,
             "authorization_endpoint": f"{base}/oauth/authorize",
@@ -42,7 +46,9 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
         return as_config.register_client(data.get("client_name"))
 
     @app.get("/oauth/authorize")
-    async def authorize_form(client_id: str, redirect_uri: str, scope: str, state: str | None = None):
+    async def authorize_form(
+        client_id: str, redirect_uri: str, scope: str, state: str | None = None
+    ):
         logger.debug("authorize_form %s", client_id)
         if client_id not in as_config.CLIENTS:
             raise HTTPException(status_code=400, detail="invalid client")
@@ -53,17 +59,17 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
         escaped_state = html.escape(state) if state else None
 
         html_content = (
-            "<form method=\"post\">"
-            "<input type=\"password\" name=\"secret\" placeholder=\"Enter approval secret\"/>"
-            f"<input type=\"hidden\" name=\"client_id\" value=\"{escaped_client_id}\"/>"
-            f"<input type=\"hidden\" name=\"redirect_uri\" value=\"{escaped_uri}\"/>"
-            f"<input type=\"hidden\" name=\"scope\" value=\"{escaped_scope}\"/>"
+            '<form method="post">'
+            '<input type="password" name="secret" placeholder="Enter approval secret"/>'
+            f'<input type="hidden" name="client_id" value="{escaped_client_id}"/>'
+            f'<input type="hidden" name="redirect_uri" value="{escaped_uri}"/>'
+            f'<input type="hidden" name="scope" value="{escaped_scope}"/>'
             + (
-                f"<input type=\"hidden\" name=\"state\" value=\"{escaped_state}\"/>"
+                f'<input type="hidden" name="state" value="{escaped_state}"/>'
                 if state
                 else ""
             )
-            + "<button type=\"submit\">Approve</button></form>"
+            + '<button type="submit">Approve</button></form>'
         )
         return Response(content=html_content, media_type="text/html")
 
@@ -77,7 +83,9 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
     ):
         logger.debug("authorize_submit for %s", client_id)
         if secret != registration_psk:
-            return Response(content="Invalid secret", status_code=401, media_type="text/html")
+            return Response(
+                content="Invalid secret", status_code=401, media_type="text/html"
+            )
         if client_id not in as_config.CLIENTS:
             raise HTTPException(status_code=400, detail="invalid client")
         code = as_config.create_code(client_id, scope.split())
@@ -113,7 +121,9 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
 
         if not client_id or not client_secret:
             raise HTTPException(status_code=400, detail="missing client credentials")
-        if client_id != auth["client_id"] or not as_config.verify_client_secret(client_id, client_secret):
+        if client_id != auth["client_id"] or not as_config.verify_client_secret(
+            client_id, client_secret
+        ):
             raise HTTPException(status_code=401, detail="invalid client credentials")
 
         audience = str(request.base_url).rstrip("/")
@@ -125,5 +135,3 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
             "expires_in": 3600,
             "scope": " ".join(auth["scopes"]),
         }
-
-

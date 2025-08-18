@@ -1,0 +1,12 @@
+# all others
+* @DelineaXPM/mcp-contributors
+
+# require admin review
+.github @DelineaXPM/dsv-admins
+CODEOWNERS @DelineaXPM/dsv-admins
+
+# renovate bot and no review required
+aqua.yaml
+
+# no extra review required for devcontainer updates
+.devcontainer/

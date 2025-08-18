@@ -1,0 +1,59 @@
+---
+name: lint
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+  merge_group:
+
+permissions:
+  pull-requests: write
+  checks: write
+  contents: read
+  statuses: write
+
+jobs:
+  lint:
+    uses: delineaxpm/github-workflows/.github/workflows/lint.yml@main
+    secrets: inherit
+
+  super-linter:
+    name: super-linter
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+      pull-requests: write
+      checks: write
+    steps:
+      - name: checkout-code
+        uses: actions/checkout@v4
+        with:
+          # Full git history is needed to get a proper list of changed files within `super-linter`
+          fetch-depth: 0
+
+      - name: run-super-linter
+        uses: super-linter/super-linter@v7
+        env:
+          # To report GitHub Actions status checks
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Security-focused linting
+          VALIDATE_ALL_CODEBASE: false
+          DEFAULT_BRANCH: main
+
+          # don't pass any validate to let all of them run
+
+          # Enable security-relevant linters
+          # VALIDATE_PYTHON_BANDIT: true
+          # VALIDATE_PYTHON_PYLINT: true
+          # VALIDATE_PYTHON_FLAKE8: true
+          # VALIDATE_DOCKERFILE_HADOLINT: true
+          # VALIDATE_YAML: true
+          # VALIDATE_JSON: true
+          # VALIDATE_MARKDOWN: true
+          # Disable overly verbose linters for this use case
+          VALIDATE_JSCPD: false
+          VALIDATE_NATURAL_LANGUAGE: false
