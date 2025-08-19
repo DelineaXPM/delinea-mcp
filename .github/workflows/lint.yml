@@ -53,7 +53,9 @@ jobs:
           # VALIDATE_DOCKERFILE_HADOLINT: true
           # VALIDATE_YAML: true
           # VALIDATE_JSON: true
-          # VALIDATE_MARKDOWN: true
           # Disable overly verbose linters for this use case
           VALIDATE_JSCPD: false
           VALIDATE_NATURAL_LANGUAGE: false
+          VALIDATE_CHECKOV: false # no infra code in here
+          VALIDATE_MARKDOWN: false # trunk handles
+          VALIDATE_MARKDOWN_PRETTIER: false # trunk handles
