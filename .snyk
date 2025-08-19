@@ -3,6 +3,6 @@ version: v1.25.0
 ignore: {}
 patch: {}
 exclude: {}
-  global:
+global:
     - vendor/
   #   - .devcontainer/
