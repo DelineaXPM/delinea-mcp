@@ -4,7 +4,8 @@ This document describes how to expose the Delinea MCP server over HTTPS/SSE and 
 
 ## Server Configuration
 
-Enable OAuth with SSE transport in `config.json`. Two common configurations are shown below.
+Enable OAuth with SSE transport in `config.json`.
+Two common configurations are shown below.
 
 ### Reporting Only
 
@@ -66,6 +67,7 @@ Allow all tools except `get_secret_environment_variable`.
 
 ## Connecting from Claude
 
-Add a custom connector pointing to the server's `/sse` endpoint and provide the OAuth client credentials. Claude will stream tool calls and responses over SSE.
+Add a custom connector pointing to the server's `/sse` endpoint and provide the OAuth client credentials.
+Claude will stream tool calls and responses over SSE.
 
 <!-- TODO: Screenshot of Claude remote connector configuration -->

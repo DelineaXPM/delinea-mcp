@@ -149,7 +149,7 @@ This page provides an overview of applications that support the Model Context Pr
 
 **Key features:**
 
-- Multi-LLM – We support most LLM APIs (OpenAI, Anthropic, Gemini, Ollama, and all OpenAI API Compatible).
+- Multi-LLM - We support most LLM APIs (OpenAI, Anthropic, Gemini, Ollama, and all OpenAI API Compatible).
 - Built-in support for MCP Servers.
 - Create agentic flows in a type- and memory-safe language like Rust.
 
@@ -261,7 +261,7 @@ The Claude desktop application provides comprehensive support for MCP, enabling 
 
 ### Cline
 
-[Cline](https://github.com/cline/cline) is an autonomous coding agent in VS Code that edits files, runs commands, uses a browser, and more–with your permission at each step.
+[Cline](https://github.com/cline/cline) is an autonomous coding agent in VS Code that edits files, runs commands, uses a browser, and more-with your permission at each step.
 
 **Key features:**
 
@@ -359,7 +359,7 @@ Think n8n + ChatGPT. FLUJO is an desktop application that integrates with MCP to
 - Integrated [MCP Server Directory](https://glama.ai/mcp/servers)
 - Integrated [MCP Tool Directory](https://glama.ai/mcp/tools)
 - Host MCP servers and access them via the Chat or SSE endpoints
-  – Ability to chat with multiple LLMs and MCP servers at once
+  - Ability to chat with multiple LLMs and MCP servers at once
 - Upload and analyze local files and data
 - Full-text search across all your chats and data
 
@@ -403,9 +403,9 @@ Programmatically assemble prompts for LLMs using [GenAIScript](https://microsoft
 
 - AI Commands: Simple APIs like page.ai(), page.extract() and executeTask() for any AI automation
 - Fallback to Regular Playwright: Use regular Playwright when AI isn't needed
-- Stealth Mode – Avoid detection with built-in anti-bot patches
-- Cloud Ready – Instantly scale to hundreds of sessions via [Hyperbrowser](https://www.hyperbrowser.ai/)
-- MCP Client – Connect to tools like Composio for full workflows (e.g. writing web data to Google Sheets)
+- Stealth Mode - Avoid detection with built-in anti-bot patches
+- Cloud Ready - Instantly scale to hundreds of sessions via [Hyperbrowser](https://www.hyperbrowser.ai/)
+- MCP Client - Connect to tools like Composio for full workflows (e.g. writing web data to Google Sheets)
 
 ### Klavis AI Slack/Discord/Web
 

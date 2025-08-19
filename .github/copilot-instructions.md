@@ -1,3 +1,5 @@
+# Github Copilot
+
 - Run `pytest -q` and ensure all tests, including the integration suite, pass before committing.
 - Add tests for any new functionality, including integration coverage where applicable.
 - The integration tests in `tests/integration` rely on environment variables providing credentials for the real Delinea API.

@@ -1,6 +1,7 @@
 # VSCode Copilot with Local MCP
 
-VSCode Copilot can use the Delinea MCP server to inject secrets at runtime. Configure Copilot to launch the local MCP server in the same way as Claude for Desktop.
+VSCode Copilot can use the Delinea MCP server to inject secrets at runtime.
+Configure Copilot to launch the local MCP server in the same way as Claude for Desktop.
 
 ## Configuration
 
@@ -21,9 +22,7 @@ Add the server to your Copilot configuration file (for example `~/.config/copilo
 }
 ```
 
-Limit the server to the tools required for coding agents:
-`get_secret_environment_variable`, `search_secrets`, `check_secret_template`,
-`check_secret_template_field` and `get_secret_template_field`.
+Limit the server to the tools required for coding agents: `get_secret_environment_variable`, `search_secrets`, `check_secret_template`, `check_secret_template_field` and `get_secret_template_field`.
 
 ```json
 {

@@ -4,7 +4,8 @@ openwebui can act as a front end for administrative tasks by connecting to the D
 
 ## Server Configuration
 
-Use the `stdio` transport mode. Most administration tasks require every tool except `get_secret_environment_variable`.
+Use the `stdio` transport mode.
+Most administration tasks require every tool except `get_secret_environment_variable`.
 
 ```json
 {

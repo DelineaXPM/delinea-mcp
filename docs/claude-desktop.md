@@ -21,6 +21,8 @@ Add an entry to `claude_desktop_config.json` pointing to the `server.py` script 
 }
 ```
 
-Store non‑secret options in `config.json` and point `configPath` at that file. `DELINEA_DEBUG` is optional and enables verbose logging. Set the Azure OpenAI key only if you plan to use the AI‑powered reporting helper.
+Store non‑secret options in `config.json` and point `configPath` at that file.
+`DELINEA_DEBUG` is optional and enables verbose logging.
+Set the Azure OpenAI key only if you plan to use the AI‑powered reporting helper.
 
 <!-- TODO: Screenshot of Claude Desktop configuration -->

@@ -28,18 +28,15 @@
 ## Features
 
 - Automatic authentication against Secret Server
-- Extensive Secret Server tool set for managing folders, secrets, users,
-  groups and roles. Includes inbox and access request helpers and coding
-  agent utilities.
-- ChatGPT compatibility tools (`search` and `fetch`) for controlled AI
-  interactions.
+- Extensive Secret Server tool set for managing folders, secrets, users, groups and roles.
+  Includes inbox and access request helpers and coding agent utilities.
+- ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
 - Supports either Server Sent Events or STDIO transport modes
 - OAuth 2.0 with dynamic client registration per the MCP specification
 - TLS support for secure connections
 - Ready-to-run Docker image and development server entry point
-- Tested with ChatGPT, Claude Desktop, remote Claude connector,
-  VSCode Copilot and openwebui
+- Tested with ChatGPT, Claude Desktop, remote Claude connector, VSCode Copilot and openwebui
 
 ## Installation
 
@@ -49,17 +46,14 @@ Install the required dependencies and the MCP SDK using the helper script:
 ./install.sh
 ```
 
-The script installs [uv](https://github.com/astral-sh/uv), creates a virtual
-environment, and installs the packages listed in `requirements.txt`. It also
-tries to install Node.js and npm if they are missing so the `mcp` CLI can run
-via `npx` in development mode.
+The script installs [uv](https://github.com/astral-sh/uv), creates a virtual environment, and installs the packages listed in `requirements.txt`.
+It also tries to install Node.js and npm if they are missing so the `mcp` CLI can run via `npx` in development mode.
 
 ## Configuration
 
-Secrets such as passwords continue to come from environment variables. Provide
-`DELINEA_PASSWORD` in your shell environment. Optional features rely on
-additional variables such as `AZURE_OPENAI_KEY` or
-`PLATFORM_SERVICE_PASSWORD`.
+Secrets such as passwords continue to come from environment variables.
+Provide `DELINEA_PASSWORD` in your shell environment.
+Optional features rely on additional variables such as `AZURE_OPENAI_KEY` or `PLATFORM_SERVICE_PASSWORD`.
 
 Non‑secret parameters belong in `config.json`:
 
@@ -88,34 +82,34 @@ Non‑secret parameters belong in `config.json`:
 ```
 
 For Secret Server Cloud simply use the cloud URL without `/SecretServer`.
-Specify `ssl_keyfile` and `ssl_certfile` to enable HTTPS. For Let's Encrypt,
-use the `privkey.pem` and `fullchain.pem` files.
+Specify `ssl_keyfile` and `ssl_certfile` to enable HTTPS.
+For Let's Encrypt, use the `privkey.pem` and `fullchain.pem` files.
 
 The configuration file supports the following keys:
 
-- **delinea_username** – Secret Server username.
-- **delinea_base_url** – Base URL of your Secret Server instance.
-- **platform_hostname** – Platform tenant hostname (enables Platform tools).
-- **platform_service_account** – Service account used with the Platform API.
-- **platform_tenant_id** – Tenant ID for Platform API requests.
-- **azure_openai_endpoint** – Azure OpenAI endpoint.
-- **azure_openai_deployment** – Deployment name for Azure OpenAI.
-- **auth_mode** – Authentication mode (`none` or `oauth`).
-- **transport_mode** – `stdio` for command line or `sse` for HTTP/SSE.
-- **chatgpt_disable_scope_checks** – Skip scope validation on ChatGPT requests.
-- **port** – Port for the HTTP server in `sse` mode.
-- **debug** – Enable verbose logging.
-- **external_hostname** – Hostname used when constructing OAuth token audiences.
-- **ssl_keyfile** – Path to the SSL key for HTTPS.
-- **ssl_certfile** – Path to the SSL certificate for HTTPS.
-- **registration_psk** – Pre‑shared key required to register OAuth clients.
-- **jwt_key_path** – Location of the RSA key pair used for OAuth tokens. Defaults to `data/jwt.json`.
-- **oauth_db_path** – Path to the OAuth database file. Defaults to `data/oauth.db`.
-- **enabled_tools** – List of tool names to register. An empty list enables all tools.
-- **search_objects** – Allowed object types for the `search` tool. Defaults to
-  `["secret"]` but can include `user`, `folder`, `group` and `role`.
-- **fetch_objects** – Allowed object types for the `fetch` tool. Defaults to
-  `["secret"]` but can include the same values as `search_objects`.
+- **delinea_username** - Secret Server username.
+- **delinea_base_url** - Base URL of your Secret Server instance.
+- **platform_hostname** - Platform tenant hostname (enables Platform tools).
+- **platform_service_account** - Service account used with the Platform API.
+- **platform_tenant_id** - Tenant ID for Platform API requests.
+- **azure_openai_endpoint** - Azure OpenAI endpoint.
+- **azure_openai_deployment** - Deployment name for Azure OpenAI.
+- **auth_mode** - Authentication mode (`none` or `oauth`).
+- **transport_mode** - `stdio` for command line or `sse` for HTTP/SSE.
+- **chatgpt_disable_scope_checks** - Skip scope validation on ChatGPT requests.
+- **port** - Port for the HTTP server in `sse` mode.
+- **debug** - Enable verbose logging.
+- **external_hostname** - Hostname used when constructing OAuth token audiences.
+- **ssl_keyfile** - Path to the SSL key for HTTPS.
+- **ssl_certfile** - Path to the SSL certificate for HTTPS.
+- **registration_psk** - Pre‑shared key required to register OAuth clients.
+- **jwt_key_path** - Location of the RSA key pair used for OAuth tokens. Defaults to `data/jwt.json`.
+- **oauth_db_path** - Path to the OAuth database file. Defaults to `data/oauth.db`.
+- **enabled_tools** - List of tool names to register. An empty list enables all tools.
+- **search_objects** - Allowed object types for the `search` tool.
+  Defaults to `["secret"]` but can include `user`, `folder`, `group` and `role`.
+- **fetch_objects** - Allowed object types for the `fetch` tool.
+  Defaults to `["secret"]` but can include the same values as `search_objects`.
 
 ## Running the Server
 
@@ -125,79 +119,68 @@ Start the server locally in development mode:
 python server.py
 ```
 
-On startup the server requests a bearer token and stores it for subsequent API
-requests. This project will be expanded to integrate further with the Secret
-Server API.
+On startup the server requests a bearer token and stores it for subsequent API requests.
+This project will be expanded to integrate further with the Secret Server API.
 
 ## MCP Tools
 
 The server exposes several MCP tools for interacting with Secret Server:
 
-- `run_report(sql_query, report_name=None)` – create and execute a temporary report.
-- `ai_generate_and_run_report(description)` – generate SQL using Azure OpenAI and run it. Requires the Azure OpenAI variables.
-- `list_example_reports()` – list sample queries and table information.
-- `get_secret(id, summary=False)` – retrieve a secret or summary details.
-- `get_folder(id)` – fetch folder metadata and children.
-- `search_users(query)` – search active users.
-- `search_secrets(query, lookup=False)` – search or look up secrets.
-- `search_folders(query, lookup=False)` – search or look up folders.
-- `get_secret_environment_variable(secret_id, environment)` – output a script
-  for fetching secret credentials in the specified shell.
-- `check_secret_template(template_id)` – fetch secret template details.
-- `check_secret_template_field(template_id, field_id)` – check if a template
-  contains a field.
-- `get_secret_template_field(field_id)` – retrieve details about a specific
-  secret template field by ID.
-- `handle_access_request(request_id, status, response_comment, start_date=None,
-expiration_date=None)` – approve or deny an access request.
-- `get_pending_access_requests()` – list pending access requests.
-- `get_inbox_messages(read_status_filter=None, take=20, skip=0)` – retrieve
-  inbox messages.
-- `mark_inbox_messages_read(message_ids, read=True)` – mark messages as read or
-  unread.
-- `user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` –
-  unified user operations. `action` accepts `get`, `create`, `update`,
-  `delete`, `list_sessions`, `reset_2fa`, `reset_password` or `lock_out`.
-  Provide `user_id` when required and supply the request body via `data` for
-  create, update and password reset actions. Example:
-  `user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
-- `role_management(action, role_id=None, data=None, params=None)` – manage roles.
-  `action` may be `list`, `get`, `create` or `update`. Pass optional
-  query parameters with `params` when listing roles. Example:
-  `role_management("update", role_id=3, data={"name": "New Role"})`.
-- `user_role_management(action, user_id, role_ids=None)` – assign or remove roles
-  from a user. `action` is `get`, `add` or `remove` and `role_ids` is a
-  list of role identifiers for add/remove operations.
-- `group_management(action, group_id=None, data=None, params=None)` – handle
-  groups. `action` may be `get`, `list`, `create` or `delete`. Provide
-  `group_id` for get/delete and `data` when creating a group.
-- `folder_management(action, folder_id=None, data=None, params=None)` – manage
-  folders. `action` may be `get`, `list`, `create`, `update` or `delete`.
-  Provide `folder_id` for get, update or delete and supply `data` when
-  creating or updating a folder.
-- `user_group_management(action, user_id, group_ids=None)` – manage group
-  membership for a user. `action` is `get`, `add` or `remove`. Supply a
-  list of `group_ids` when adding or removing membership.
-- `group_role_management(action, group_id, role_ids=None)` – control roles on a
-  group. Use `list`, `add` or `remove` actions. Provide `role_ids` when
-  adding or removing.
-- `health_check()` – query the Secret Server health check endpoint and return the
-  current service status.
+- `run_report(sql_query, report_name=None)` - create and execute a temporary report.
+- `ai_generate_and_run_report(description)` - generate SQL using Azure OpenAI and run it.
+  Requires the Azure OpenAI variables.
+- `list_example_reports()` - list sample queries and table information.
+- `get_secret(id, summary=False)` - retrieve a secret or summary details.
+- `get_folder(id)` - fetch folder metadata and children.
+- `search_users(query)` - search active users.
+- `search_secrets(query, lookup=False)` - search or look up secrets.
+- `search_folders(query, lookup=False)` - search or look up folders.
+- `get_secret_environment_variable(secret_id, environment)` - output a script for fetching secret credentials in the specified shell.
+- `check_secret_template(template_id)` - fetch secret template details.
+- `check_secret_template_field(template_id, field_id)` - check if a template contains a field.
+- `get_secret_template_field(field_id)` - retrieve details about a specific secret template field by ID.
+- `handle_access_request(request_id, status, response_comment, start_date=None, expiration_date=None)` - approve or deny an access request.
+- `get_pending_access_requests()` - list pending access requests.
+- `get_inbox_messages(read_status_filter=None, take=20, skip=0)` - retrieve inbox messages.
+- `mark_inbox_messages_read(message_ids, read=True)` - mark messages as read or unread.
+- `user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` - unified user operations.
+  `action` accepts `get`, `create`, `update`, `delete`, `list_sessions`, `reset_2fa`, `reset_password` or `lock_out`.
+  Provide `user_id` when required and supply the request body via `data` for create, update and password reset actions.
+  Example: `user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
+- `role_management(action, role_id=None, data=None, params=None)` - manage roles.
+  `action` may be `list`, `get`, `create` or `update`.
+  Pass optional query parameters with `params` when listing roles.
+  Example: `role_management("update", role_id=3, data={"name": "New Role"})`.
+- `user_role_management(action, user_id, role_ids=None)` - assign or remove roles from a user.
+  `action` is `get`, `add` or `remove` and `role_ids` is a list of role identifiers for add/remove operations.
+- `group_management(action, group_id=None, data=None, params=None)` - handle groups.
+  `action` may be `get`, `list`, `create` or `delete`.
+  Provide `group_id` for get/delete and `data` when creating a group.
+- `folder_management(action, folder_id=None, data=None, params=None)` - manage folders.
+  `action` may be `get`, `list`, `create`, `update` or `delete`.
+  Provide `folder_id` for get, update or delete and supply `data` when creating or updating a folder.
+- `user_group_management(action, user_id, group_ids=None)` - manage group membership for a user.
+  `action` is `get`, `add` or `remove`.
+  Supply a list of `group_ids` when adding or removing membership.
+- `group_role_management(action, group_id, role_ids=None)` - control roles on a group.
+  Use `list`, `add` or `remove` actions.
+  Provide `role_ids` when adding or removing.
+- `health_check()` - query the Secret Server health check endpoint and return the current service status.
 
-Use the server configuration variables described above to authenticate. The
-AI tool is automatically disabled if the Azure OpenAI variables are missing.
-Only the tool names listed in `config.json` will be registered. An empty list
-enables every tool.
+Use the server configuration variables described above to authenticate.
+The AI tool is automatically disabled if the Azure OpenAI variables are missing.
+Only the tool names listed in `config.json` will be registered.
+An empty list enables every tool.
 
 ## Use Cases
 
 The documentation covers several workflows for connecting tools to the server:
 
-- [ChatGPT Custom Connector](docs/chatgpt_connector.md)
-- [Claude Desktop](docs/claude_desktop.md)
-- [Remote Claude Connector](docs/claude_remote_connector.md)
-- [openwebui for Administration](docs/openwebui_admin.md)
-- [VSCode Copilot](docs/vscode_copilot.md)
+- [ChatGPT Custom Connector](docs/chatgpt-connector.md)
+- [Claude Desktop](docs/claude-desktop.md)
+- [Remote Claude Connector](docs/claude-remote-connector.md)
+- [openwebui for Administration](docs/openwebui-admin.md)
+- [VSCode Copilot](docs/vscode-copilot.md)
 
 ## Docker Quickstart
 
@@ -222,29 +205,25 @@ docker run --rm -p 8000:8000 \
 
 Populate `config.json` with your usernames and URLs as shown above.
 
-The container stores `oauth.db` and `jwt.json` in `/app/data`. Mount a
-volume (shown as `mcp-data` above) so these files and any HTTPS
-certificates persist between runs.
+The container stores `oauth.db` and `jwt.json` in `/app/data`.
+Mount a volume (shown as `mcp-data` above) so these files and any HTTPS certificates persist between runs.
 
-Replace `<https://your-secret-server/SecretServer>` with the base URL of your
-Secret Server instance to avoid connection errors.
+Replace `<https://your-secret-server/SecretServer>` with the base URL of your Secret Server instance to avoid connection errors.
 
 The server will start on port `8000` by default using `python server.py`.
-Set the `port` option in `config.json` to override the default. Enable
-`debug: true` to log all incoming HTTP requests.
+Set the `port` option in `config.json` to override the default.
+Enable `debug: true` to log all incoming HTTP requests.
 
 ## Example Scripts
 
-The `manual_secret_request.py` script shows how to retrieve an OAuth token for a
-specific secret ID:
+The `manual_secret_request.py` script shows how to retrieve an OAuth token for a specific secret ID:
 
 ```bash
 python scripts/manual_secret_request.py <Secret_ID>
 ```
 
-Set the environment variables `SECRET_USERNAME_<id>` and
-`SECRET_PASSWORD_<id>` for the secret before running the script. Optionally set
-`DELINEA_BASE_URL` to override the default `https://localhost/SecretServer`.
+Set the environment variables `SECRET_USERNAME_<id>` and `SECRET_PASSWORD_<id>` for the secret before running the script.
+Optionally set `DELINEA_BASE_URL` to override the default `https://localhost/SecretServer`.
 
 ## Running Tests
 
@@ -258,8 +237,8 @@ coverage report --omit "tests/*"
 
 ### Live Testing
 
-Some integration tests require valid credentials. Set the following environment
-variables and the optional `LIVE_SECRET_ID` before running the suite:
+Some integration tests require valid credentials.
+Set the following environment variables and the optional `LIVE_SECRET_ID` before running the suite:
 
 ```bash
 export DELINEA_PASSWORD=<password>
@@ -273,42 +252,32 @@ When these variables are present the live tests will perform real API requests.
 
 ## Production Deployment
 
-Dependencies are pinned in `requirements.txt` and releases are tagged using
-[Semantic Versioning](https://semver.org). Build the Docker image from a tagged
-commit and deploy it to your production environment, passing the required
-environment variables (`DELINEA_USERNAME`, `DELINEA_PASSWORD`, optionally
-`DELINEA_BASE_URL`). Optional features rely on additional variables:
+Dependencies are pinned in `requirements.txt` and releases are tagged using [Semantic Versioning](https://semver.org).
+Build the Docker image from a tagged commit and deploy it to your production environment, passing the required environment variables (`DELINEA_USERNAME`, `DELINEA_PASSWORD`, optionally `DELINEA_BASE_URL`).
+Optional features rely on additional variables:
 
-- `PLATFORM_SERVICE_PASSWORD` along with `PLATFORM_HOSTNAME`,
-  `PLATFORM_SERVICE_ACCOUNT`, and `PLATFORM_TENANT_ID` enables the user
-  management tools.
-- `AZURE_OPENAI_KEY` together with `AZURE_OPENAI_ENDPOINT` and
-  `AZURE_OPENAI_DEPLOYMENT` enables the AI report generation helper.
+- `PLATFORM_SERVICE_PASSWORD` along with `PLATFORM_HOSTNAME`, `PLATFORM_SERVICE_ACCOUNT`, and `PLATFORM_TENANT_ID` enables the user management tools.
+- `AZURE_OPENAI_KEY` together with `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` enables the AI report generation helper.
 
-When running with OAuth or SSE transport you may need to provide
-`registration_psk` and configure an `external_hostname` or HTTPS certificate
-files.
+When running with OAuth or SSE transport you may need to provide `registration_psk` and configure an `external_hostname` or HTTPS certificate files.
 
 ## Repository Layout
 
-- `delinea_mcp/` – package containing MCP tools.
-- `server.py` – thin entry point that registers everything with the MCP server.
-- `docs/` – project documentation and the generated `delinea-secret-server-openapi-spec.json`.
-- `scripts/` – helper examples including `manual_secret_request.py`.
+- `delinea_mcp/` - package containing MCP tools.
+- `server.py` - thin entry point that registers everything with the MCP server.
+- `docs/` - project documentation and the generated `delinea-secret-server-openapi-spec.json`.
+- `scripts/` - helper examples including `manual_secret_request.py`.
 
 ## Security Considerations
 
-The included OAuth endpoints are intended for development and testing. The
-`/oauth/authorize` route accepts any `redirect_uri` and will redirect the user
-without validation. Deployments **must** restrict this value to approved callback
-URLs; otherwise attackers could supply a malicious URL and capture authorization
-codes. See [Open Redirection](docs/MCP%20standard%20info.md#34-open-redirection)
-for background.
+The included OAuth endpoints are intended for development and testing.
+The `/oauth/authorize` route accepts any `redirect_uri` and will redirect the user without validation.
+Deployments **must** restrict this value to approved callback URLs; otherwise attackers could supply a malicious URL and capture authorization codes.
+See [Open Redirection](docs/mcp-standard-info.md#34-open-redirection) for background.
 
 ## Release Notes
 
-See [docs/release_notes.md](docs/release_notes.md) for a summary of the latest
-features and roadmap items.
+See [docs/release_notes.md](docs/release_notes.md) for a summary of the latest features and roadmap items.
 
 ## Roadmap
 
@@ -318,9 +287,9 @@ features and roadmap items.
 
 ## Contributing
 
-Contributions are welcome! Please open issues or pull requests for any
-improvements. All new code should include unit tests and pass the existing test
-suite.
+Contributions are welcome!
+Please open issues or pull requests for any improvements.
+All new code should include unit tests and pass the existing test suite.
 
 ## License
 
