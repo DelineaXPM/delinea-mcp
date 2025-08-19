@@ -52,9 +52,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: aqua-binary-manager-setup
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@5e54e5cee8a95ee2ce7c04cb993da6dfad13e59c # v3.1.2
         with:
-          aqua_version: v2.30.0
+          aqua_version: v2.53.9
           working_directory: .
           # TODO: Create aqua.yaml with goreleaser and other required binaries
 
@@ -78,9 +78,9 @@ jobs:
           fetch-depth: 0
 
       - name: aqua-toolchain-setup
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@5e54e5cee8a95ee2ce7c04cb993da6dfad13e59c # v3.1.2
         with:
-          aqua_version: v2.30.0
+          aqua_version: v2.53.9
           working_directory: .
 
       - name: uv-python-setup
