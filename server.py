@@ -115,7 +115,12 @@ def run_server(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", default="config.json")
     args = parser.parse_args(argv)
 
-    cfg = load_config(Path(args.config))
+    # Validate and sanitize the config path
+    config_path = os.path.abspath(args.config)
+    if not os.path.isfile(config_path):
+        raise ValueError(f"Invalid config file path: {config_path}")
+
+    cfg = load_config(Path(config_path))
     _init_from_config(cfg)
 
     auth_mode = cfg.get("auth_mode", "none").lower()
