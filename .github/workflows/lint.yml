@@ -30,13 +30,13 @@ jobs:
       checks: write
     steps:
       - name: checkout-code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
 
       - name: run-super-linter
-        uses: super-linter/super-linter@v7
+        uses: super-linter/super-linter@12150456a73e248bdc94d0794898f94e23127c88 # v7
         env:
           # To report GitHub Actions status checks
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
