@@ -21,7 +21,8 @@
 
 ## Installation
 
-> ![NOTE]
+> [!NOTE]
+> 
 > This project uses `uv` (https://github.com/astral-sh/uv), but if you prefer to run commands without this, you can do `pip` and `venv` commands as usual if desired.
 
 - [Install Uv](https://docs.astral.sh/uv/getting-started/installation/)
