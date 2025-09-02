@@ -39,7 +39,6 @@ archives:
       - README.md
       - LICENSE
       - requirements.txt
-      - install.sh
       - docs/**/*
       - src: config.json
         dst: config.json.template

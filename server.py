@@ -39,6 +39,7 @@ _debug = False
 
 mcp = FastMCP("DelineaMCP")
 delinea = None
+CURRENT_CONFIG: dict[str, Any] = {}
 
 
 def _init_from_config(cfg: dict[str, Any]) -> None:
@@ -83,8 +84,10 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
         logger.info("Platform tools disabled; no hostname in config")
 
 
-# Load default config on import
-_init_from_config(load_config(Path("config.json")))
+# Load default config on import using the config module's default resolution.
+# Store the loaded config so run_server can reuse it when --config is not passed.
+CURRENT_CONFIG = load_config()
+_init_from_config(CURRENT_CONFIG)
 
 
 def generate_sql_query(user_query: str) -> str:
@@ -112,16 +115,24 @@ def list_example_reports() -> str:
 
 def run_server(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.json")
+    # --config is optional; when omitted we use the module-level CURRENT_CONFIG
+    parser.add_argument("--config", default=None)
     args = parser.parse_args(argv)
 
-    # Validate and sanitize the config path
-    config_path = os.path.abspath(args.config)
-    if not os.path.isfile(config_path):
-        raise ValueError(f"Invalid config file path: {config_path}")
+    if args.config:
+        # Validate and sanitize the provided config path
+        config_path = os.path.abspath(args.config)
+        if not os.path.isfile(config_path):
+            raise ValueError(f"Invalid config file path: {config_path}")
 
-    cfg = load_config(Path(config_path))
-    _init_from_config(cfg)
+        cfg = load_config(Path(config_path))
+        # Re-initialize runtime from the provided config
+        _init_from_config(cfg)
+        # Update module-level current config
+        globals()["CURRENT_CONFIG"] = cfg
+    else:
+        # Use the already-loaded config from import-time initialization
+        cfg = CURRENT_CONFIG
 
     auth_mode = cfg.get("auth_mode", "none").lower()
     transport_mode = cfg.get("transport_mode", "stdio").lower()

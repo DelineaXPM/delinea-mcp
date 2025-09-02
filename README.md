@@ -6,25 +6,6 @@
 
 ---
 
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Server](#running-the-server)
-- [MCP Tools](#mcp-tools)
-- [Use Cases](#use-cases)
-- [Docker Quickstart](#docker-quickstart)
-- [Example Scripts](#example-scripts)
-- [Running Tests](#running-tests)
-- [Production Deployment](#production-deployment)
-- [Repository Layout](#repository-layout)
-- [Security Considerations](#security-considerations)
-- [Release Notes](#release-notes)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Features
 
 - Automatic authentication against Secret Server
@@ -40,14 +21,12 @@
 
 ## Installation
 
-Install the required dependencies and the MCP SDK using the helper script:
+> ![NOTE]
+> This project uses `uv` (https://github.com/astral-sh/uv), but if you prefer to run commands without this, you can do `pip` and `venv` commands as usual if desired.
 
-```bash
-./install.sh
-```
-
-The script installs [uv](https://github.com/astral-sh/uv), creates a virtual environment, and installs the packages listed in `requirements.txt`.
-It also tries to install Node.js and npm if they are missing so the `mcp` CLI can run via `npx` in development mode.
+- [Install Uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Initialize project: `uv pip sync requirements.txt`
+- Use `uv run server.py --config config.json`
 
 ## Configuration
 
@@ -55,7 +34,7 @@ Secrets such as passwords continue to come from environment variables.
 Provide `DELINEA_PASSWORD` in your shell environment.
 Optional features rely on additional variables such as `AZURE_OPENAI_KEY` or `PLATFORM_SERVICE_PASSWORD`.
 
-Non‑secret parameters belong in `config.json`:
+Non-secret parameters belong in `config.json`:
 
 ```json
 {
@@ -75,8 +54,8 @@ Non‑secret parameters belong in `config.json`:
   "ssl_keyfile": null,
   "ssl_certfile": null,
   "registration_psk": null,
-  "jwt_key_path": "data/jwt.json",
-  "oauth_db_path": "data/oauth.db",
+  "jwt_key_path": ".cache/jwt.json",
+  "oauth_db_path": ".cache/oauth.db",
   "enabled_tools": []
 }
 ```
@@ -102,9 +81,9 @@ The configuration file supports the following keys:
 - **external_hostname** - Hostname used when constructing OAuth token audiences.
 - **ssl_keyfile** - Path to the SSL key for HTTPS.
 - **ssl_certfile** - Path to the SSL certificate for HTTPS.
-- **registration_psk** - Pre‑shared key required to register OAuth clients.
-- **jwt_key_path** - Location of the RSA key pair used for OAuth tokens. Defaults to `data/jwt.json`.
-- **oauth_db_path** - Path to the OAuth database file. Defaults to `data/oauth.db`.
+- **registration_psk** - Pre-shared key required to register OAuth clients.
+- **jwt_key_path** - Location of the RSA key pair used for OAuth tokens. Defaults to `.cache/jwt.json`.
+- **oauth_db_path** - Path to the OAuth database file. Defaults to `.cache/oauth.db`.
 - **enabled_tools** - List of tool names to register. An empty list enables all tools.
 - **search_objects** - Allowed object types for the `search` tool.
   Defaults to `["secret"]` but can include `user`, `folder`, `group` and `role`.
@@ -189,7 +168,7 @@ A `Dockerfile` is provided for running the MCP server without installing Python 
 1. Build the image:
 
 ```bash
-docker build -t delineamcp .
+docker build -t dev.local/delineamcp .
 ```
 
 2. Run the server (pass your credentials via environment variables):
@@ -200,7 +179,7 @@ docker run --rm -p 8000:8000 \
   -e PLATFORM_SERVICE_PASSWORD=<password> \
   -v $(pwd)/config.json:/app/config.json:ro \
   -v mcp-data:/app/data \
-  delineamcp
+  dev.local/delineamcp
 ```
 
 Populate `config.json` with your usernames and URLs as shown above.

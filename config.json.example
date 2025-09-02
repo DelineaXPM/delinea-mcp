@@ -1,0 +1,21 @@
+{
+  "delinea_username": "<username>",
+  "delinea_base_url": "https://your-secret-server/SecretServer",
+  "platform_hostname": "<tenant>.secureplatform.io",
+  "platform_service_account": "<service_account>",
+  "platform_tenant_id": "<tenant_id>",
+  "azure_openai_endpoint": "https://example.openai.azure.com/",
+  "azure_openai_deployment": "<deployment_name>",
+  "auth_mode": "none",
+  "transport_mode": "stdio",
+  "chatgpt_disable_scope_checks": false,
+  "port": 8000,
+  "debug": false,
+  "external_hostname": null,
+  "ssl_keyfile": null,
+  "ssl_certfile": null,
+  "registration_psk": null,
+  "jwt_key_path": ".cache/jwt.json",
+  "oauth_db_path": ".cache/oauth.db",
+  "enabled_tools": []
+}

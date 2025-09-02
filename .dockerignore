@@ -1,3 +1,74 @@
+# Python and virtualenv
+venv/
+ENV/
+env/
+.venv/
+pip-wheel-metadata/
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage outputs
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+nosetests.xml
+
+# Docker files
+docker-compose.override.yml
+
+# Runtime / OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Git
+.git
+.gitignore
+
+# Secrets and environment overrides
+*.pem
+*.key
+*.crt
+.env
+.env.*
+secrets/
+
+# Logs and artifacts
+*.log
+.coverage
+.cache/
+.tox/
+
+# Large or generated files that should not be sent to daemon
+node_modules/
+.npm/
+.yarn/
+
+# Ignore tests and local-only tools
+tests/
+scripts/manual_secret_request.py
+
+# Keep Dockerfile and dependency manifests (explicitly allow)
+!Dockerfile
+!requirements.txt
+!pyproject.toml
+!delinea_mcp/**
 .git
 __pycache__
 *.py[cod]

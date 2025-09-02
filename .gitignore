@@ -232,3 +232,5 @@ pyrightconfig.json
 
 .cache/
 .artifacts/
+
+config.json
