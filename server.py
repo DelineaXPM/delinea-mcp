@@ -157,7 +157,12 @@ def run_server(argv: list[str] | None = None) -> None:
 
     scheme = "https" if ssl_keyfile and ssl_certfile else "http"
     host = cfg.get("external_hostname", "0.0.0.0")
-    audience = f"{scheme}://{host}:{port}"
+    if scheme == "http" and port == 80:
+        audience = f"{scheme}://{host}"
+    elif scheme == "https" and port == 443:
+        audience = f"{scheme}://{host}"
+    else:
+        audience = f"{scheme}://{host}:{port}"
 
     match auth_mode, transport_mode:
         case ("none", "stdio"):

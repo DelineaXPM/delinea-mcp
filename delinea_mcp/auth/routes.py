@@ -47,7 +47,7 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
 
     @app.get("/oauth/authorize")
     async def authorize_form(
-        client_id: str, redirect_uri: str, scope: str, state: str | None = None
+        client_id: str, redirect_uri: str, scope: str = "mcp.read mcp.write", state: str | None = None
     ):
         logger.debug("authorize_form %s", client_id)
         if client_id not in as_config.CLIENTS:
@@ -109,29 +109,52 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
 
         grant_type = data.get("grant_type")
         code = data.get("code")
+
+        # Support both client_secret_post and client_secret_basic
         client_id = data.get("client_id")
         client_secret = data.get("client_secret")
 
-        if grant_type != "authorization_code":
-            raise HTTPException(status_code=400, detail="unsupported grant")
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Basic "):
+            import base64
+            try:
+                decoded = base64.b64decode(auth_header.split(" ", 1)[1]).decode("utf-8")
+                basic_id, basic_secret = decoded.split(":", 1)
+                client_id = basic_id
+                client_secret = basic_secret
+            except Exception:
+                raise HTTPException(status_code=400, detail="invalid_client: malformed basic auth")
 
-        auth = as_config.AUTH_CODES.pop(code, None)
+        if grant_type != "authorization_code":
+            raise HTTPException(status_code=400, detail="unsupported grant type")
+
+        # Look up code without consuming yet
+        auth = as_config.AUTH_CODES.get(code)
         if not auth:
-            raise HTTPException(status_code=400, detail="invalid code")
+            raise HTTPException(status_code=400, detail="invalid_grant: unknown code")
 
         if not client_id or not client_secret:
-            raise HTTPException(status_code=400, detail="missing client credentials")
-        if client_id != auth["client_id"] or not as_config.verify_client_secret(
-            client_id, client_secret
-        ):
-            raise HTTPException(status_code=401, detail="invalid client credentials")
+            raise HTTPException(status_code=400, detail="invalid_client: missing credentials")
+        if client_id != auth["client_id"]:
+            raise HTTPException(status_code=400, detail="invalid_grant: client_id mismatch")
+        if not as_config.verify_client_secret(client_id, client_secret):
+            raise HTTPException(status_code=401, detail="invalid_client: bad secret")
+
+        # Optional: enforce redirect_uri match
+        redirect_uri = data.get("redirect_uri")
+        if auth.get("redirect_uri") and redirect_uri != auth.get("redirect_uri"):
+            raise HTTPException(status_code=400, detail="invalid_grant: redirect_uri mismatch")
 
         audience = str(request.base_url).rstrip("/")
         access = as_config.issue_token(auth["client_id"], auth["scopes"], audience)
         logger.debug("issued token for %s", auth["client_id"])
+
+        # Consume code only after validation succeeds
+        as_config.AUTH_CODES.pop(code, None)
+
         return {
             "access_token": access,
-            "token_type": "bearer",
+            "token_type": "Bearer",
             "expires_in": 3600,
             "scope": " ".join(auth["scopes"]),
         }
