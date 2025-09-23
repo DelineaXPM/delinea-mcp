@@ -16,6 +16,7 @@ WORKDIR /app
 
 # Install Node.js for the MCP CLI (if used) and supporting tools
 ARG NODE_VERSION=20
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=cache,target=/var/cache/apt/archives \
     apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg \
