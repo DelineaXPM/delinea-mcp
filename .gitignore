@@ -234,3 +234,4 @@ pyrightconfig.json
 .artifacts/
 
 config.json
+!.vscode/mcp.json

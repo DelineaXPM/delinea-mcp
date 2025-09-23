@@ -1,0 +1,44 @@
+{
+  "servers": {
+    "DelineaMCP": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-p",
+        "8000:8000",
+        "-e",
+        "DELINEA_PASSWORD=${input:DELINEA_PASSWORD}",
+        "-e",
+        "PLATFORM_SERVICE_PASSWORD=${input:PLATFORM_SERVICE_PASSWORD}",
+        "-e",
+        "DELINEA_DEBUG=1",
+        "-e",
+        "AZURE_OPENAI_KEY=${input:AZURE_OPENAI_KEY}",
+        "-v",
+        "${workspaceFolder}/config.json:/app/config.json:ro",
+        "-v",
+        "mcp-data:/app/data",
+        "dev.local/delinea-mcp:latest"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "id": "DELINEA_PASSWORD",
+      "description": "Delinea password for the container",
+      "type": "promptString"
+    },
+    {
+      "id": "PLATFORM_SERVICE_PASSWORD",
+      "description": "Platform service password for the container",
+      "type": "promptString"
+    },
+    {
+      "id": "AZURE_OPENAI_KEY",
+      "description": "Azure OpenAI API key",
+      "type": "promptString"
+    }
+  ]
+}

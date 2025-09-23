@@ -15,7 +15,9 @@ def load_config(path: str | Path = DEFAULT_PATH) -> dict[str, Any]:
     if not file.exists():
         return {}
     try:
-        return json.loads(file.read_text())
+        config_data = json.loads(file.read_text())
+        logger.info("Loaded config from %s", file)
+        return config_data
     except Exception:
         logger.exception("Failed to load config from %s", file)
         return {}
