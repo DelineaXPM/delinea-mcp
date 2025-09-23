@@ -1,16 +1,18 @@
 # Contributing
 
-Use `uv.
+While you can use python without `uv`, this project recommends it as the primary way to interact with the project to simplify dependency management and virtual environment setup.
 
 > uv provides a drop-in replacement for common pip, pip-tools, and virtualenv commands.
 
 ## UV Commands
 
-- Ensure requirements is `uv pip compile docs/requirements.in --universal --output-file docs/requirements.txt
+- To lock dependencies declared in a pyproject.toml: `uv pip compile pyproject.toml --universal -o requirements.txt`
+  - [Universal Resolution](https://docs.astral.sh/uv/concepts/resolution/#universal-resolution)
+  - [Locking Dependencies](https://docs.astral.sh/uv/pip/compile/#locking-requirements)
 
 ## Inspector
 
-Run the MCP Inspector (requires Node.js/npm)
+Run the MCP Inspector (requires Node.js/npm).
 
 ```shell
 # Run the MCP Inspector UI which will launch the server using uv
