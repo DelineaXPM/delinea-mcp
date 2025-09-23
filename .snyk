@@ -6,3 +6,11 @@ exclude: {}
 global:
     - vendor/
   #   - .devcontainer/
+
+# Ensure Snyk uses a modern Python version when resolving Pip projects.
+# Without this, SCM imports may default to Python 3.7, which can lead to
+# resolving older, vulnerable transitive versions (for example, anyio 3.x
+# or h11 0.14.x) even if requirements.txt pins newer, fixed releases.
+# Docs: https://docs.snyk.io/supported-languages/supported-languages-list/python/scm-integrations-and-python
+language-settings:
+  python: '3.13'
