@@ -1,5 +1,5 @@
-# syntax = docker/dockerfile:1.7
-FROM ghcr.io/astral-sh/uv@sha256:c4a67221d74ad160ddf4e114804bda0f8dd2d2e1aa5c16e0817cf8530ff8f5f6
+FROM ghcr.io/astral-sh/uv:0.8.22-python3.13-trixie-slim@sha256:dcbd347aea4390385eabf95e56c7dabe8be38696e1a74ec7084bf7dc0a9641e1
+
 
 # Ensure stdout/stderr are not buffered and bytecode files are not written
 # Use system Python by default with uv's pip interface
