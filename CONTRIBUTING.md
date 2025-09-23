@@ -1,6 +1,6 @@
 # Contributing
 
-While you can use python without `uv`, this project recommends as the primary way to interacting to simplify dependency management and virtual environment setup.
+While you can use python without `uv`, this project recommends it as the primary way to interact with the project to simplify dependency management and virtual environment setup.
 
 > uv provides a drop-in replacement for common pip, pip-tools, and virtualenv commands.
 
