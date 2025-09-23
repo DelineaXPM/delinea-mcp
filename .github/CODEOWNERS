@@ -2,8 +2,8 @@
 * @DelineaXPM/mcp-contributors
 
 # require admin review
-.github @DelineaXPM/dsv-admins
-CODEOWNERS @DelineaXPM/dsv-admins
+.github @DelineaXPM/mcp-admins
+CODEOWNERS @DelineaXPM/mcp-admins
 
 # renovate bot and no review required
 aqua.yaml
