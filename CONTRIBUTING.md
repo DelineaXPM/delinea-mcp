@@ -6,9 +6,9 @@ While you can use python without `uv`, this project recommends it as the primary
 
 ## UV Commands
 
-- To lock dependencies declared in a pyproject.toml: `uv pip compile pyproject.toml --universal -o requirements.txt`
-  - [Universal Resolution](https://docs.astral.sh/uv/concepts/resolution/#universal-resolution)
-  - [Locking Dependencies](https://docs.astral.sh/uv/pip/compile/#locking-requirements)
+- `uv pip sync requirements.txt`: Install dependencies from `uv.lock` into a virtual environment.
+- [Universal Resolution](https://docs.astral.sh/uv/concepts/resolution/#universal-resolution)
+- [Locking Dependencies](https://docs.astral.sh/uv/pip/compile/#locking-requirements)
 
 ## Inspector
 
