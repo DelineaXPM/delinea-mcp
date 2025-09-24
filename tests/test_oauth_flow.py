@@ -104,7 +104,10 @@ async def test_token_invalid_secret(monkeypatch):
     app = setup_server(monkeypatch)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        r = await client.post("/oauth/register", json={"client_name": "c", "redirect_uris": ["http://localhost/callback"]})
+        r = await client.post(
+            "/oauth/register",
+            json={"client_name": "c", "redirect_uris": ["http://localhost/callback"]},
+        )
         data = r.json()
         cid = data["client_id"]
         code = as_config.create_code(cid, ["mcp.read"])

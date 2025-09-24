@@ -26,7 +26,10 @@ def test_registration_psk():
     app = FastAPI()
     mount_oauth_routes(app, {"registration_psk": "sekret", "oauth_db_path": ":memory:"})
     client = TestClient(app)
-    r = client.post("/oauth/register", json={"client_name": "t", "redirect_uris": ["http://localhost/callback"]})
+    r = client.post(
+        "/oauth/register",
+        json={"client_name": "t", "redirect_uris": ["http://localhost/callback"]},
+    )
     assert r.status_code == 200
     data = r.json()
     assert "client_id" in data and "client_secret" in data
