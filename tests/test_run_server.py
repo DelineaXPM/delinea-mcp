@@ -27,7 +27,7 @@ def test_none_stdio(monkeypatch, tmp_path):
     sys.modules.pop("server", None)
     server = importlib.import_module("server")
     monkeypatch.setattr(server, "mcp", DummyMCP())
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert server.mcp.called == "stdio"
 
 
@@ -47,7 +47,7 @@ def test_none_sse(monkeypatch, tmp_path):
     monkeypatch.setitem(
         sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
     )
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called == {}
 
 
@@ -76,7 +76,7 @@ def test_none_sse_https(monkeypatch, tmp_path):
     monkeypatch.setitem(
         sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
     )
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called.get("ssl_keyfile") == "key.pem"
     assert called.get("ssl_certfile") == "cert.pem"
 
@@ -102,7 +102,7 @@ def test_port_and_debug(monkeypatch, tmp_path):
     monkeypatch.setitem(
         sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
     )
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called["port"] == 1234
     assert called["middleware_count"] == 1
 
@@ -140,7 +140,7 @@ def test_oauth_sse(monkeypatch, tmp_path):
         "mount_sse_routes",
         lambda app, mcp, dep=None: called.setdefault("sse", True),
     )
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called["run"] and called["oauth"] and called["sse"]
 
 
@@ -196,7 +196,7 @@ def test_oauth_sse_https_audience(monkeypatch, tmp_path):
         return dep
 
     monkeypatch.setattr(validators, "require_scopes", fake_require_scopes)
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called["audience"] == "https://0.0.0.0:8000"
 
 
@@ -251,5 +251,5 @@ def test_oauth_sse_external_hostname(monkeypatch, tmp_path):
         return dep
 
     monkeypatch.setattr(validators, "require_scopes", fake_require_scopes)
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called["audience"] == "http://example.com:8000"

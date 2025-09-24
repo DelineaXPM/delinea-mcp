@@ -38,5 +38,5 @@ def test_server_registers_platform_tools(monkeypatch, tmp_path):
     monkeypatch.setattr(server, "mcp", DummyMCP())
     monkeypatch.setattr(server.user_platform_tools, "register", fake_register)
     monkeypatch.setattr(server.user_platform_tools, "configure", fake_configure)
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert called["reg"] and called["cfg"]

@@ -26,7 +26,7 @@ def test_registration_psk():
     app = FastAPI()
     mount_oauth_routes(app, {"registration_psk": "sekret", "oauth_db_path": ":memory:"})
     client = TestClient(app)
-    r = client.post("/oauth/register", json={"client_name": "t"})
+    r = client.post("/oauth/register", json={"client_name": "t", "redirect_uris": ["http://localhost/callback"]})
     assert r.status_code == 200
     data = r.json()
     assert "client_id" in data and "client_secret" in data
@@ -73,7 +73,7 @@ def test_registration_persistence(tmp_path):
     db = tmp_path / "oauth.db"
     as_config.init_db(db)
     as_config.reset_state()
-    info = as_config.register_client("t")
+    info = as_config.register_client("t", ["http://localhost/callback"])
     cid = info["client_id"]
     # simulate restart
     as_config.init_db(db)
@@ -100,6 +100,7 @@ def test_authorize_form_escapes_html():
     as_config.CLIENTS[malicious_cid] = {
         "client_secret": as_config._hash_secret("s"),
         "name": "bad",
+        "redirect_uris": ["http://host/cb?x=<script>"],
     }
 
     params = {
