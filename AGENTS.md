@@ -22,7 +22,7 @@ uv sync --frozen
 uv pip sync requirements.txt
 ```
 
-### Running the Server
+### Running the Serverver
 
 ```bash
 # Development mode (STDIO transport)
@@ -63,6 +63,18 @@ uv pip compile pyproject.toml --universal -o requirements.txt
 # Lint check
 uv run python -m py_compile server.py
 uv run python -m py_compile delinea_api.py
+```
+
+### Linting && Formatting
+
+Prior to any completion of work, ensure code linting and formatting is applied with the `trunk` tool.
+
+You can install with: `curl https://get.trunk.io -fsSL | bash -s -- -y`.
+
+For windows usage, this should be run in `git bash` or `wsl2` or it will fail.
+
+```bash
+trunk fmt && trunk check --fix
 ```
 
 ### Docker Development
