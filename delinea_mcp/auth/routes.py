@@ -43,7 +43,17 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
             raise HTTPException(status_code=400, detail="Registration disabled")
         data = await request.json()
         logger.debug("register client %s", data.get("client_name"))
-        return as_config.register_client(data.get("client_name"))
+
+        client_name = data.get("client_name")
+        redirect_uris = data.get("redirect_uris", [])
+
+        if not redirect_uris:
+            raise HTTPException(status_code=400, detail="redirect_uris required")
+
+        try:
+            return as_config.register_client(client_name, redirect_uris)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/oauth/authorize")
     async def authorize_form(
@@ -52,6 +62,10 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
         logger.debug("authorize_form %s", client_id)
         if client_id not in as_config.CLIENTS:
             raise HTTPException(status_code=400, detail="invalid client")
+
+        # Validate redirect URI
+        if not as_config.validate_redirect_uri(client_id, redirect_uri):
+            raise HTTPException(status_code=400, detail="invalid redirect_uri")
 
         escaped_client_id = html.escape(client_id)
         escaped_uri = html.escape(redirect_uri)
@@ -88,6 +102,10 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
             )
         if client_id not in as_config.CLIENTS:
             raise HTTPException(status_code=400, detail="invalid client")
+
+        # Validate redirect URI
+        if not as_config.validate_redirect_uri(client_id, redirect_uri):
+            raise HTTPException(status_code=400, detail="invalid redirect_uri")
         code = as_config.create_code(client_id, scope.split())
         params = {"code": code}
         if state:

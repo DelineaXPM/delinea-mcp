@@ -71,18 +71,30 @@ def init_db(path: str | Path) -> None:
     _DB_CONN = sqlite3.connect(str(path), check_same_thread=False)
     with _DB_CONN:
         _DB_CONN.execute(
-            "CREATE TABLE IF NOT EXISTS clients (client_id TEXT PRIMARY KEY, client_secret TEXT, name TEXT)"
+            "CREATE TABLE IF NOT EXISTS clients (client_id TEXT PRIMARY KEY, client_secret TEXT, name TEXT, redirect_uris TEXT)"
         )
+        # Add redirect_uris column to existing tables if it doesn't exist
+        try:
+            _DB_CONN.execute("ALTER TABLE clients ADD COLUMN redirect_uris TEXT")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
     if str(path) != ":memory:":
         try:
             os.chmod(path, 0o600)
         except Exception:
             logger.exception("Failed to set permissions on %s", path)
     CLIENTS.clear()
-    for cid, secret, name in _DB_CONN.execute(
-        "SELECT client_id, client_secret, name FROM clients"
+    for row in _DB_CONN.execute(
+        "SELECT client_id, client_secret, name, redirect_uris FROM clients"
     ):
-        CLIENTS[cid] = {"client_secret": secret, "name": name}
+        cid, secret, name, redirect_uris = row
+        redirect_uri_list = json.loads(redirect_uris) if redirect_uris else []
+        CLIENTS[cid] = {
+            "client_secret": secret,
+            "name": name,
+            "redirect_uris": redirect_uri_list,
+        }
     logger.debug("OAuth DB initialised at %s", path)
 
 
@@ -95,17 +107,35 @@ def reset_state() -> None:
     logger.debug("OAuth state reset")
 
 
-def register_client(client_name: str | None = None) -> dict:
+def register_client(
+    client_name: str | None = None, redirect_uris: list[str] | None = None
+) -> dict:
     logger.debug("register_client(%s)", client_name)
+
+    # Validate redirect URIs
+    if not redirect_uris:
+        raise ValueError("At least one redirect URI must be provided")
+
+    for uri in redirect_uris:
+        if not uri or not uri.startswith(("http://", "https://")):
+            raise ValueError(f"Invalid redirect URI: {uri}")
+
     client_id = secrets.token_urlsafe(8)
     client_secret = secrets.token_urlsafe(16)
     hashed = _hash_secret(client_secret)
-    CLIENTS[client_id] = {"client_secret": hashed, "name": client_name or ""}
+    redirect_uris_json = json.dumps(redirect_uris)
+
+    CLIENTS[client_id] = {
+        "client_secret": hashed,
+        "name": client_name or "",
+        "redirect_uris": redirect_uris,
+    }
+
     if _DB_CONN:
         with _DB_CONN:
             _DB_CONN.execute(
-                "INSERT INTO clients (client_id, client_secret, name) VALUES (?, ?, ?)",
-                (client_id, hashed, client_name or ""),
+                "INSERT INTO clients (client_id, client_secret, name, redirect_uris) VALUES (?, ?, ?, ?)",
+                (client_id, hashed, client_name or "", redirect_uris_json),
             )
     logger.debug("registered %s", client_id)
     return {"client_id": client_id, "client_secret": client_secret}
@@ -124,6 +154,16 @@ def verify_client_secret(client_id: str, secret: str) -> bool:
     if not entry:
         return False
     return entry.get("client_secret") == _hash_secret(secret)
+
+
+def validate_redirect_uri(client_id: str, redirect_uri: str) -> bool:
+    """Validate that the redirect URI is registered for the given client."""
+    entry = CLIENTS.get(client_id)
+    if not entry:
+        return False
+
+    allowed_uris = entry.get("redirect_uris", [])
+    return redirect_uri in allowed_uris
 
 
 def issue_token(

@@ -22,7 +22,7 @@
 ## Installation
 
 > [!NOTE]
-> 
+>
 > This project uses `uv` (https://github.com/astral-sh/uv), but if you prefer to run commands without this, you can do `pip` and `venv` commands as usual if desired.
 
 - [Install Uv](https://docs.astral.sh/uv/getting-started/installation/)
@@ -169,7 +169,7 @@ A `Dockerfile` is provided for running the MCP server without installing Python 
 1. Build the image:
 
 ```bash
-docker build -t dev.local/delineamcp .
+docker build -t dev.local/delinea-mcp:latest .
 ```
 
 2. Run the server (pass your credentials via environment variables):
@@ -178,9 +178,11 @@ docker build -t dev.local/delineamcp .
 docker run --rm -p 8000:8000 \
   -e DELINEA_PASSWORD=<password> \
   -e PLATFORM_SERVICE_PASSWORD=<password> \
+  -e DELINEA_DEBUG=1 \
+  -e AZURE_OPENAI_KEY=<your-key-or-appropriate-token> \
   -v $(pwd)/config.json:/app/config.json:ro \
   -v mcp-data:/app/data \
-  dev.local/delineamcp
+  dev.local/delinea-mcp:latest
 ```
 
 Populate `config.json` with your usernames and URLs as shown above.
