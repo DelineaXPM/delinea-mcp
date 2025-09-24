@@ -7,6 +7,7 @@ While you can use python without `uv`, this project recommends it as the primary
 ## UV Commands
 
 - `uv pip sync requirements.txt`: Install dependencies from `uv.lock` into a virtual environment.
+- `uv export --format requirements-txt --no-hashes > requirements.txt` : Export dependencies to a `requirements.txt` file.
 - [Universal Resolution](https://docs.astral.sh/uv/concepts/resolution/#universal-resolution)
 - [Locking Dependencies](https://docs.astral.sh/uv/pip/compile/#locking-requirements)
 
