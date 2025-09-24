@@ -4,3 +4,6 @@ version = "0.1.0"
 description = "MCP server for the Delinea Secret Server and Platform APIs"
 readme = "README.md"
 requires-python = ">=3.13"
+
+[dependency-groups]
+test = ["authlib>=1.6.4", "fastapi>=0.117.1", "httpx>=0.28.1", "pytest>=8.4.2"]

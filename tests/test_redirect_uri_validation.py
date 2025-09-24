@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi import HTTPException
+
 from delinea_mcp.auth import as_config
 
 
@@ -46,20 +47,26 @@ def test_validate_redirect_uri():
     as_config.reset_state()
 
     # Register client with specific redirect URIs
-    result = as_config.register_client("test_client", [
-        "https://app.example.com/callback",
-        "http://localhost:8080/callback"
-    ])
+    result = as_config.register_client(
+        "test_client",
+        ["https://app.example.com/callback", "http://localhost:8080/callback"],
+    )
     client_id = result["client_id"]
 
     # Valid URIs should pass
-    assert as_config.validate_redirect_uri(client_id, "https://app.example.com/callback")
+    assert as_config.validate_redirect_uri(
+        client_id, "https://app.example.com/callback"
+    )
     assert as_config.validate_redirect_uri(client_id, "http://localhost:8080/callback")
 
     # Invalid URIs should fail
     assert not as_config.validate_redirect_uri(client_id, "https://evil.com/steal")
-    assert not as_config.validate_redirect_uri(client_id, "https://app.example.com/different")
-    assert not as_config.validate_redirect_uri(client_id, "http://app.example.com/callback")  # Different scheme
+    assert not as_config.validate_redirect_uri(
+        client_id, "https://app.example.com/different"
+    )
+    assert not as_config.validate_redirect_uri(
+        client_id, "http://app.example.com/callback"
+    )  # Different scheme
 
     # Non-existent client should fail
     assert not as_config.validate_redirect_uri("fake_client", "https://example.com")
@@ -70,22 +77,30 @@ def test_redirect_uri_exact_match():
     as_config.init_db(":memory:")
     as_config.reset_state()
 
-    result = as_config.register_client("test_client", ["https://app.example.com/callback"])
+    result = as_config.register_client(
+        "test_client", ["https://app.example.com/callback"]
+    )
     client_id = result["client_id"]
 
     # Exact match should work
-    assert as_config.validate_redirect_uri(client_id, "https://app.example.com/callback")
+    assert as_config.validate_redirect_uri(
+        client_id, "https://app.example.com/callback"
+    )
 
     # Partial matches should fail
-    assert not as_config.validate_redirect_uri(client_id, "https://app.example.com/callback/extra")
+    assert not as_config.validate_redirect_uri(
+        client_id, "https://app.example.com/callback/extra"
+    )
     assert not as_config.validate_redirect_uri(client_id, "https://app.example.com")
-    assert not as_config.validate_redirect_uri(client_id, "https://sub.app.example.com/callback")
+    assert not as_config.validate_redirect_uri(
+        client_id, "https://sub.app.example.com/callback"
+    )
 
 
 def test_database_persistence():
     """Test that redirect URIs are persisted in database."""
-    import tempfile
     import os
+    import tempfile
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
         db_path = tmp.name
@@ -94,17 +109,23 @@ def test_database_persistence():
         # Register client with redirect URIs
         as_config.init_db(db_path)
         as_config.reset_state()
-        result = as_config.register_client("test_client", ["https://example.com/callback"])
+        result = as_config.register_client(
+            "test_client", ["https://example.com/callback"]
+        )
         client_id = result["client_id"]
 
         # Verify validation works
-        assert as_config.validate_redirect_uri(client_id, "https://example.com/callback")
+        assert as_config.validate_redirect_uri(
+            client_id, "https://example.com/callback"
+        )
 
         # Restart (simulate server restart)
         as_config.init_db(db_path)
 
         # Should still work after restart
-        assert as_config.validate_redirect_uri(client_id, "https://example.com/callback")
+        assert as_config.validate_redirect_uri(
+            client_id, "https://example.com/callback"
+        )
         assert not as_config.validate_redirect_uri(client_id, "https://evil.com")
 
     finally:

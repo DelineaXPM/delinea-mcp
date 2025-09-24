@@ -90,7 +90,11 @@ def init_db(path: str | Path) -> None:
     ):
         cid, secret, name, redirect_uris = row
         redirect_uri_list = json.loads(redirect_uris) if redirect_uris else []
-        CLIENTS[cid] = {"client_secret": secret, "name": name, "redirect_uris": redirect_uri_list}
+        CLIENTS[cid] = {
+            "client_secret": secret,
+            "name": name,
+            "redirect_uris": redirect_uri_list,
+        }
     logger.debug("OAuth DB initialised at %s", path)
 
 
@@ -103,7 +107,9 @@ def reset_state() -> None:
     logger.debug("OAuth state reset")
 
 
-def register_client(client_name: str | None = None, redirect_uris: list[str] | None = None) -> dict:
+def register_client(
+    client_name: str | None = None, redirect_uris: list[str] | None = None
+) -> dict:
     logger.debug("register_client(%s)", client_name)
 
     # Validate redirect URIs
@@ -122,7 +128,7 @@ def register_client(client_name: str | None = None, redirect_uris: list[str] | N
     CLIENTS[client_id] = {
         "client_secret": hashed,
         "name": client_name or "",
-        "redirect_uris": redirect_uris
+        "redirect_uris": redirect_uris,
     }
 
     if _DB_CONN:

@@ -46,10 +46,10 @@ async def test_full_oauth_flow(monkeypatch):
     app = setup_server(monkeypatch)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        r = await client.post("/oauth/register", json={
-            "client_name": "c",
-            "redirect_uris": ["http://testserver/cb"]
-        })
+        r = await client.post(
+            "/oauth/register",
+            json={"client_name": "c", "redirect_uris": ["http://testserver/cb"]},
+        )
         data = r.json()
         cid = data["client_id"]
         cs = data["client_secret"]

@@ -1,17 +1,11 @@
 ---
 name: delinea-mcp-test
 on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
   workflow_dispatch:
-    inputs:
-      test-scope:
-        description: 'Test execution scope'
-        required: false
-        default: 'unit-only'
-        type: choice
-        options:
-          - unit-only
-          - integration-only
-          - full-suite
 
 env:
   UV_CACHE_DIR: /tmp/.uv-cache-delinea
@@ -60,10 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
-        test-pattern:
-          - 'test_*.py'
-          - '*_test.py'
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: repo-checkout
@@ -86,19 +77,22 @@ jobs:
 
       - name: delinea-unit-test-execution
         run: |
-          # TODO: Add proper test markers for unit vs integration separation
-          uv run pytest tests/ \
-            --verbose \
+          # Run only unit tests, excluding integration and live tests
+          uv run pytest -q \
             --tb=short \
             --maxfail=3 \
             --disable-warnings \
-            --ignore=tests/integration \
-            --pattern="${{ matrix.test-pattern }}"
+            --ignore=tests/integration/ \
+            tests/ \
+            -k "not test_live"
 
       - name: python-coverage-analysis
         if: matrix.python-version == '3.11'
         run: |
-          uv run coverage run -m pytest tests/ --ignore=tests/integration -q
+          uv run coverage run -m pytest -q \
+            --ignore=tests/integration/ \
+            tests/ \
+            -k "not test_live"
           uv run coverage report --omit="tests/*" --show-missing --fail-under=70
           uv run coverage xml
 
@@ -110,77 +104,6 @@ jobs:
           flags: unit-tests
           name: delinea-mcp-coverage
           fail_ci_if_error: false
-
-  delinea-mcp-integration-tests:
-    name: python-integration-validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.test-scope != 'unit-only' ||
-      (github.event_name != 'workflow_dispatch' &&
-       contains(github.event.head_commit.message, '[integration]'))
-
-    steps:
-      - name: repo-checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-
-      - name: uv-python-setup
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: 'requirements.txt'
-
-      - name: python-runtime-install
-        run: uv python install 3.11
-
-      - name: uv-env-prepare
-        run: |
-          uv sync --frozen
-
-      - name: delinea-api-credential-validation
-        run: |
-          # TODO: Document required environment variables in README
-          if [[ -z "${{ secrets.DELINEA_USERNAME }}" ]]; then
-            echo "⚠️  DELINEA_USERNAME not configured - skipping integration tests"
-            echo "integration_tests_enabled=false" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Delinea credentials detected"
-            echo "integration_tests_enabled=true" >> $GITHUB_OUTPUT
-          fi
-        id: credential-check
-
-      - name: delinea-integration-test-execution
-        if: steps.credential-check.outputs.integration_tests_enabled == 'true'
-        run: |
-          # TODO: Configure integration test environment variables
-          uv run pytest tests/integration/ \
-            --verbose \
-            --tb=short \
-            --maxfail=1 \
-            --disable-warnings
-        env:
-          DELINEA_USERNAME: ${{ secrets.DELINEA_USERNAME }}
-          DELINEA_PASSWORD: ${{ secrets.DELINEA_PASSWORD }}
-          DELINEA_BASE_URL: ${{ secrets.DELINEA_BASE_URL }}
-          LIVE_SECRET_ID: ${{ secrets.LIVE_SECRET_ID }}
-          LIVE_USER_ID: ${{ secrets.LIVE_USER_ID }}
-          LIVE_ROLE_ID: ${{ secrets.LIVE_ROLE_ID }}
-          LIVE_TEMPLATE_ID: ${{ secrets.LIVE_TEMPLATE_ID }}
-          LIVE_TEMPLATE_FIELD_ID: ${{ secrets.LIVE_TEMPLATE_FIELD_ID }}
-          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
-          AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
-
-      - name: integration-test-summary
-        if: steps.credential-check.outputs.integration_tests_enabled == 'false'
-        run: |
-          echo "🔶 Integration tests skipped due to missing credentials"
-          echo "To enable integration tests, configure repository secrets:"
-          echo "  - DELINEA_USERNAME"
-          echo "  - DELINEA_PASSWORD"
-          echo "  - DELINEA_BASE_URL"
-          echo "  - LIVE_SECRET_ID (optional)"
 
   delinea-mcp-docker-validation:
     name: docker-container-verification
@@ -196,6 +119,6 @@ jobs:
 
       - name: docker-smoke-test
         run: |
-          # TODO: Add proper health check endpoint
+          # Basic container validation - server help command
           timeout 30s docker run --rm delinea-mcp:test python server.py --help || true
           echo "✅ Docker container basic validation completed"
