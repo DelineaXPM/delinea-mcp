@@ -38,7 +38,7 @@ jobs:
 
       - name: uv-dependency-sync
         run: |
-          uv sync --frozen
+          uv sync --frozen --group=test --group=dev
           uv pip list
 
       - name: python-lint-check
@@ -71,7 +71,7 @@ jobs:
 
       - name: uv-venv-create-sync
         run: |
-          uv sync --frozen
+          uv sync --frozen --group=test --group=dev
           uv run python --version
           uv pip list --format=json | jq '.[] | select(.name=="pytest") | .version'
 
@@ -89,6 +89,7 @@ jobs:
       - name: python-coverage-analysis
         if: matrix.python-version == '3.11'
         run: |
+          uv add --group=dev coverage
           uv run coverage run -m pytest -q \
             --ignore=tests/integration/ \
             tests/ \
