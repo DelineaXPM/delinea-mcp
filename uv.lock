@@ -161,6 +161,9 @@ version = "0.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
 test = [
     { name = "authlib" },
     { name = "fastapi" },
@@ -171,6 +174,7 @@ test = [
 [package.metadata]
 
 [package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.4.2" }]
 test = [
     { name = "authlib", specifier = ">=1.6.4" },
     { name = "fastapi", specifier = ">=0.117.1" },
