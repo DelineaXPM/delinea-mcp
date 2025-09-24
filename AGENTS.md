@@ -22,7 +22,7 @@ uv sync --frozen
 uv pip sync requirements.txt
 ```
 
-### Running the Serverver
+### Running the Server
 
 ```bash
 # Development mode (STDIO transport)
