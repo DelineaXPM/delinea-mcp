@@ -61,5 +61,5 @@ def test_server_reads_config(tmp_path, monkeypatch):
 
     monkeypatch.setattr(server, "mcp", DummyMCP())
     monkeypatch.setattr(server.tools, "register", fake_register)
-    server.run_server([])
+    server.run_server(["--config", "config.json"])
     assert captured["enabled"] == {"get_user"}

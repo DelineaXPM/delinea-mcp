@@ -134,11 +134,13 @@ def test_generate_sql_query(monkeypatch):
             )
 
     sys.modules["openai"] = SimpleNamespace(ChatCompletion=DummyChat)
+    # Clear the config to ensure we only use environment variables in test
+    tools._CFG.clear()
     monkeypatch.setitem(os.environ, "AZURE_OPENAI_ENDPOINT", "e")
     monkeypatch.setitem(os.environ, "AZURE_OPENAI_KEY", "k")
     monkeypatch.setitem(os.environ, "AZURE_OPENAI_DEPLOYMENT", "dep")
     sql = tools.generate_sql_query("desc")
-    assert captured["model"] == "dep"
+    assert captured["model"] == "dep"  # Uses environment variable, not config
     assert "desc" in captured["messages"][1]["content"]
     assert sql == "SELECT 1"
 

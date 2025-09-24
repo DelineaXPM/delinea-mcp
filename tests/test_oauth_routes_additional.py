@@ -50,7 +50,10 @@ def test_token_unsupported_content_type(monkeypatch):
 def test_token_unsupported_grant(monkeypatch):
     client = make_client()
     # register and create code
-    data = client.post("/oauth/register", json={"client_name": "c"}).json()
+    data = client.post(
+        "/oauth/register",
+        json={"client_name": "c", "redirect_uris": ["http://localhost/callback"]},
+    ).json()
     code = as_config.create_code(data["client_id"], ["mcp.read"])
     r = client.post(
         "/oauth/token",
