@@ -5,6 +5,8 @@ from urllib.parse import urlencode
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 
+import base64
+
 from . import as_config
 
 logger = logging.getLogger(__name__)
@@ -134,7 +136,6 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
 
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Basic "):
-            import base64
             try:
                 decoded = base64.b64decode(auth_header.split(" ", 1)[1]).decode("utf-8")
                 basic_id, basic_secret = decoded.split(":", 1)
