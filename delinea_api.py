@@ -27,13 +27,15 @@ def _get_token_from_cli(timeout=10):
             text=True,
             timeout=timeout,
         )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"The tss command has not responded in the allotted time.")
+    except subprocess.TimeoutExpired as err:
+        raise RuntimeError(
+            "The tss command has not responded in the allotted time."
+        ) from err
     except subprocess.CalledProcessError as e:
         err = (e.stderr or "").strip()
         raise RuntimeError(
             f"'The tss command threw an error (code {e.returncode}). {err}'"
-        )
+        ) from e
 
     token = (proc.stdout or "").strip().strip('"').strip("'")
     if not token:
