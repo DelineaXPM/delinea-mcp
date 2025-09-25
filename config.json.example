@@ -1,4 +1,5 @@
 {
+  "delinea_use_sdk": false,
   "delinea_username": "<username>",
   "delinea_base_url": "https://your-secret-server/SecretServer",
   "platform_hostname": "<tenant>.secureplatform.io",
