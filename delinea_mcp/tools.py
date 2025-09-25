@@ -326,7 +326,10 @@ def list_example_reports() -> str:
 
 
 def get_secret(id: int, summary: bool = False) -> dict:
-    """Retrieve a secret or its summary.
+    """Retrieve a secret or its summary. Due to Secret safety concerns
+    before retrieval the user must explicitly confirm they want the full
+    secret and be warned it'll exist in the session logs. otherwise only
+    use ``summary=True``, which is safe.
 
     Parameters
     ----------
