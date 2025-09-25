@@ -131,8 +131,17 @@ def run_server(argv: list[str] | None = None) -> None:
         # Update module-level current config
         globals()["CURRENT_CONFIG"] = cfg
     else:
-        # Use the already-loaded config from import-time initialization
-        cfg = CURRENT_CONFIG
+        # Try to read config from current directory, fallback to cached config
+        current_dir_config = Path("config.json")
+        if current_dir_config.exists():
+            cfg = load_config(current_dir_config)
+            # Re-initialize runtime from the current directory config
+            _init_from_config(cfg)
+            # Update module-level current config
+            globals()["CURRENT_CONFIG"] = cfg
+        else:
+            # Use the already-loaded config from import-time initialization
+            cfg = CURRENT_CONFIG
 
     auth_mode = cfg.get("auth_mode", "none").lower()
     transport_mode = cfg.get("transport_mode", "stdio").lower()
@@ -157,7 +166,12 @@ def run_server(argv: list[str] | None = None) -> None:
 
     scheme = "https" if ssl_keyfile and ssl_certfile else "http"
     host = cfg.get("external_hostname", "0.0.0.0")
-    audience = f"{scheme}://{host}:{port}"
+    if scheme == "http" and port == 80:
+        audience = f"{scheme}://{host}"
+    elif scheme == "https" and port == 443:
+        audience = f"{scheme}://{host}"
+    else:
+        audience = f"{scheme}://{host}:{port}"
 
     match auth_mode, transport_mode:
         case ("none", "stdio"):

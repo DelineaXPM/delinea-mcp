@@ -37,7 +37,16 @@ def configure(cfg: dict[str, Any]) -> None:
 
 
 def _cfg_or_env(key: str) -> str | None:
-    return _CFG.get(key.lower()) or os.getenv(key)
+    """Return a config value with placeholder-aware fallback to environment."""
+
+    cfg_val = _CFG.get(key.lower())
+    if isinstance(cfg_val, str):
+        stripped = cfg_val.strip()
+        if not stripped or (stripped.startswith("<") and stripped.endswith(">")):
+            cfg_val = None
+    if cfg_val is not None:
+        return cfg_val
+    return os.getenv(key)
 
 
 def _api_base_url() -> str:
@@ -317,7 +326,10 @@ def list_example_reports() -> str:
 
 
 def get_secret(id: int, summary: bool = False) -> dict:
-    """Retrieve a secret or its summary.
+    """Retrieve a secret or its summary. Due to Secret safety concerns
+    before retrieval the user must explicitly confirm they want the full
+    secret and be warned it'll exist in the session logs. otherwise only
+    use ``summary=True``, which is safe.
 
     Parameters
     ----------
