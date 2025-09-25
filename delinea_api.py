@@ -1,8 +1,8 @@
 import logging
 import os
-from dataclasses import dataclass
-import subprocess
 import shutil
+import subprocess
+from dataclasses import dataclass
 
 import requests
 
@@ -11,6 +11,7 @@ if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
     logging.basicConfig(level=logging.DEBUG)  # pragma: no cover - config
 
 DEFAULT_TIMEOUT = 10
+
 
 def _get_token_from_cli(timeout=10):
     """Get token from the tss CLI directly"""
@@ -30,13 +31,16 @@ def _get_token_from_cli(timeout=10):
         raise RuntimeError(f"The tss command has not responded in the allotted time.")
     except subprocess.CalledProcessError as e:
         err = (e.stderr or "").strip()
-        raise RuntimeError(f"'The tss command threw an error (code {e.returncode}). {err}'")
+        raise RuntimeError(
+            f"'The tss command threw an error (code {e.returncode}). {err}'"
+        )
 
     token = (proc.stdout or "").strip().strip('"').strip("'")
     if not token:
         raise RuntimeError("'The tss command didn't return any token.")
 
     return token
+
 
 @dataclass
 class DelineaSession:
@@ -65,7 +69,10 @@ class DelineaSession:
         self.authenticate(use_sdk=self.use_sdk or False, username=self.username or None)
 
     def authenticate(
-        self, use_sdk: bool | None = None, username: str | None = None, password: str | None = None
+        self,
+        use_sdk: bool | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> str:
         """Authenticate and store bearer token.
 
@@ -88,7 +95,7 @@ class DelineaSession:
             self.session.headers.update({"Authorization": f"Bearer {token}"})
             logger.debug("Authentication using sdk CLI succeeded, token stored")
             return token
-        
+
         username = (
             username or os.getenv("DELINEA_USERNAME") or os.getenv("DELINEA_USER")
         )

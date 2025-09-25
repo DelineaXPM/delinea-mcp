@@ -53,12 +53,12 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
         logging.getLogger().setLevel(logging.DEBUG)
     if not cfg.get("delinea_username"):
         os.environ.pop("DELINEA_USERNAME", None)
-    
-    use_sdk  = cfg.get("delinea_use_sdk")    
+
+    use_sdk = cfg.get("delinea_use_sdk")
     username = cfg.get("delinea_username")
     password = os.getenv("DELINEA_PASSWORD")
     base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
-    
+
     if use_sdk:
         delinea = DelineaSession(use_sdk=True)
     elif username and password:
