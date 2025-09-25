@@ -74,7 +74,7 @@ The configuration file supports the following keys:
 - **platform_tenant_id** - Tenant ID for Platform API requests.
 - **azure_openai_endpoint** - Azure OpenAI endpoint. Only if you want the automatic report generation (most agents can generate their own report SQL so don't enable unless you need it).
 - **azure_openai_deployment** - Deployment name for Azure OpenAI.
-- **auth_mode** - Authentication mode (`none` or `oauth`). OAuth obvisouly doesn't work with sstdio transport.
+- **auth_mode** - Authentication mode (`none` or `oauth`). OAuth obviously doesn't work with stdio transport.
 - **transport_mode** - `stdio` for command line or `sse` for HTTP/SSE.
 - **chatgpt_disable_scope_checks** - Skip scope validation on ChatGPT requests. Enable only if you encounter problems connecting to ChatGPT.
 - **port** - Port for the HTTP server in `sse` mode.
