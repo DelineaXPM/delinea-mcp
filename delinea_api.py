@@ -27,16 +27,15 @@ def _get_token_from_cli(timeout=10):
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        raise RuntimeError(f"The tss command has not responding in the aloted time.")
+        raise RuntimeError(f"The tss command has not responded in the allotted time.")
     except subprocess.CalledProcessError as e:
         err = (e.stderr or "").strip()
-        raise RuntimeError(f"'The tss command has thrown an error (code {e.returncode}). {err}")
+        raise RuntimeError(f"'The tss command threw an error (code {e.returncode}). {err}'")
 
     token = (proc.stdout or "").strip().strip('"').strip("'")
     if not token:
-        raise AnsibleError("'The tss command didn't give any token.")
+        raise RuntimeError("'The tss command didn't return any token.")
 
-    _CLI_TOKEN_CACHE = token
     return token
 
 @dataclass
