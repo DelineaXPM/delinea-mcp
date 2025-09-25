@@ -37,7 +37,16 @@ def configure(cfg: dict[str, Any]) -> None:
 
 
 def _cfg_or_env(key: str) -> str | None:
-    return _CFG.get(key.lower()) or os.getenv(key)
+    """Return a config value with placeholder-aware fallback to environment."""
+
+    cfg_val = _CFG.get(key.lower())
+    if isinstance(cfg_val, str):
+        stripped = cfg_val.strip()
+        if not stripped or (stripped.startswith("<") and stripped.endswith(">")):
+            cfg_val = None
+    if cfg_val is not None:
+        return cfg_val
+    return os.getenv(key)
 
 
 def _api_base_url() -> str:
