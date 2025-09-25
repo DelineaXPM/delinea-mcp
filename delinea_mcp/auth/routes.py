@@ -142,7 +142,8 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
                 client_id = basic_id
                 client_secret = basic_secret
             except Exception:
-                raise HTTPException(status_code=400, detail="invalid_client: malformed basic auth")
+                raise HTTPException(status_code=400, detail="invalid_client: malformed basic auth") from None
+
         if grant_type != "authorization_code":
             raise HTTPException(status_code=400, detail="unsupported grant type")
 
