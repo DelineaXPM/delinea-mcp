@@ -8,7 +8,7 @@
 
 ## Features
 
-- Automatic authentication against Secret Server
+- Automatic authentication against Secret Server (with tss sdk CLI support)
 - Extensive Secret Server tool set for managing folders, secrets, users, groups and roles.
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
@@ -39,6 +39,7 @@ Non-secret parameters belong in `config.json`:
 
 ```json
 {
+  "delinea_use_sdk": false,
   "delinea_username": "<username>",
   "delinea_base_url": "https://your-secret-server/SecretServer",
   "platform_hostname": "<tenant>.secureplatform.io",
@@ -67,6 +68,7 @@ For Let's Encrypt, use the `privkey.pem` and `fullchain.pem` files.
 
 The configuration file supports the following keys:
 
+- **delinea_use_sdk** - If set to `true`, the `delinea_username` parameter will be ignored and the `tss token` command will be executed to get a valid oauth token instead. The tss CLI must be available on the PATH, and must have been enrolled in the same directory than the server, using the `tss init` command.
 - **delinea_username** - Secret Server username. Must be a programmatic user with permission to do the tasks you want.
 - **delinea_base_url** - Base URL of your Secret Server instance.
 - **platform_hostname** - Platform tenant hostname (enables Platform tools).

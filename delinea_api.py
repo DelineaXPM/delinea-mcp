@@ -1,5 +1,7 @@
 import logging
 import os
+import shutil
+import subprocess
 from dataclasses import dataclass
 
 import requests
@@ -9,6 +11,37 @@ if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
     logging.basicConfig(level=logging.DEBUG)  # pragma: no cover - config
 
 DEFAULT_TIMEOUT = 10
+
+
+def _get_token_from_cli(timeout=10):
+    """Get token from the tss CLI directly"""
+    exe = shutil.which("tss")
+    if not exe:
+        raise RuntimeError("Command 'tss' not found in PATH!")
+
+    try:
+        proc = subprocess.run(
+            [exe, "token"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise RuntimeError(
+            "The tss command has not responded in the allotted time."
+        ) from err
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or "").strip()
+        raise RuntimeError(
+            f"'The tss command threw an error (code {e.returncode}). {err}'"
+        ) from e
+
+    token = (proc.stdout or "").strip().strip('"').strip("'")
+    if not token:
+        raise RuntimeError("'The tss command didn't return any token.")
+
+    return token
 
 
 @dataclass
@@ -22,6 +55,7 @@ class DelineaSession:
 
     # base_url is read at runtime so that tests may override the environment
     # variable after importing this module.
+    use_sdk: bool = None
     base_url: str = ""
     username: str = ""
 
@@ -34,15 +68,19 @@ class DelineaSession:
         self.token: str | None = None
         # Automatically authenticate using the provided username or environment
         # variables so that requests may be sent immediately.
-        self.authenticate(username=self.username or None)
+        self.authenticate(use_sdk=self.use_sdk or False, username=self.username or None)
 
     def authenticate(
-        self, username: str | None = None, password: str | None = None
+        self,
+        use_sdk: bool | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> str:
         """Authenticate and store bearer token.
 
         Parameters
         ----------
+        use_sdk: optional use SDK CLI flag, defaults to False
         username: optional username, defaults to ``DELINEA_USERNAME`` env var.
         password: optional password, defaults to ``DELINEA_PASSWORD`` env var.
 
@@ -51,6 +89,15 @@ class DelineaSession:
         str
             Access token returned by the server.
         """
+
+        if use_sdk:
+            logger.debug("Authenticating using sdk CLI")
+            token = _get_token_from_cli()
+            self.token = token
+            self.session.headers.update({"Authorization": f"Bearer {token}"})
+            logger.debug("Authentication using sdk CLI succeeded, token stored")
+            return token
+
         username = (
             username or os.getenv("DELINEA_USERNAME") or os.getenv("DELINEA_USER")
         )
