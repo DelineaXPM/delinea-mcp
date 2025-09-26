@@ -60,7 +60,7 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
 
     if use_sdk:
-        delinea = DelineaSession(use_sdk=True)
+        delinea = DelineaSession(base_url=base_url, use_sdk=True)
     elif username and password:
         delinea = DelineaSession(base_url=base_url or "", username=username)
     else:
