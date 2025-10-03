@@ -1,0 +1,7 @@
+# Git blame ignore revisions
+# This file contains commits that should be ignored by git blame
+# Configure git to use this file with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# yamlfmt whitespace changes
+c4fbc7d384154c88b69978633e3543eae65b4978
