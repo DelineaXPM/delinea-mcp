@@ -1,0 +1,5 @@
+# reference: https://github.com/google/yamlfmt/blob/main/docs/config-file.md
+line_ending: lf
+formatter:
+  type: basic
+  include_document_start: true

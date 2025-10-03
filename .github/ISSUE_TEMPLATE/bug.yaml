@@ -1,0 +1,59 @@
+---
+name: Bug Report
+description: File a bug report.
+title: '🐛 '
+labels: ['bug', 'triage']
+projects: ['DelineaXPM/delinea-mcp']
+assignees:
+  - '@DelineaXPM/mcp-contributors'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: You can get this by running `git rev-parse --short HEAD`
+      placeholder: ex. abc1234
+    validations:
+      required: false
+  - type: input
+    id: uv-python-version
+    attributes:
+      label: UV/Python Version
+      description: Run `uv --version` if using the CLI tool, or `python --version` if not. If using a published docker image, then provide that image and version number.
+      placeholder: ex. uv 0.1.0 or Python 3.11.5
+    validations:
+      required: true
+  - type: input
+    id: os-info
+    attributes:
+      label: Operating System
+      description: What OS are you running?
+      placeholder: example macOS 26.0, Windows 11, Ubuntu 22.04
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. **Ensure no sensitive content (passwords, tokens, secrets) is included.** This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/DelineaXPM/delinea-mcp?tab=coc-ov-file#readme){:target="_blank"}.
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
