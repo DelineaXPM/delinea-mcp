@@ -86,8 +86,9 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
 
 # Load default config on import using the config module's default resolution.
 # Store the loaded config so run_server can reuse it when --config is not passed.
+# NOTE: Do not call _init_from_config here - initialization happens in run_server()
+# to avoid duplicate tool registration warnings.
 CURRENT_CONFIG = load_config()
-_init_from_config(CURRENT_CONFIG)
 
 
 def generate_sql_query(user_query: str) -> str:
