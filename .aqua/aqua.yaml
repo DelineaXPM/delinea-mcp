@@ -2,16 +2,66 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/aqua-yaml.json
 # aqua - Declarative CLI Version Manager
 # https://aquaproj.github.io/
-# checksum:
-#   enabled: true
-#   require_checksum: true
-#   supported_envs:
-#   - all
+checksum:
+  enabled: true
+  require_checksum: true
+  supported_envs:
+  - all
 registries:
   - type: standard
-    ref: v4.403.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.238.0
 packages:
-  - name: astral-sh/uv@0.8.12
-  - name: goreleaser/goreleaser@v2.11.2
-  - name: cli/cli@v2.76.2
-  - name: mikefarah/yq@v4.47.1
+  # Release automation
+  - name: goreleaser/goreleaser
+    version: v2.4.1
+    tags:
+      - release
+      - build
+  # Changelog management
+  - name: miniscruff/changie
+    version: v1.21.0
+    tags:
+      - release
+      - changelog
+  # Container tools
+  - name: docker/buildx
+    version: v0.18.0
+    tags:
+      - docker
+      - build
+  # Security scanning
+  - name: aquasecurity/trivy
+    version: v0.58.1
+    tags:
+      - security
+      - scan
+  # JSON processing
+  - name: jqlang/jq
+    version: jq-1.7.1
+    tags:
+      - json
+      - util
+  # Git tooling
+  - name: cli/cli
+    version: v2.62.0
+    tags:
+      - git
+      - github
+  # File operations
+  - name: charmbracelet/gum
+    version: v0.14.5
+    tags:
+      - ui
+      - util
+  # YAML processing
+  - name: mikefarah/yq
+    version: v4.44.5
+    tags:
+      - yaml
+      - util
+  # Development tools
+  - name: trunk-io/launcher
+    version: 1.3.4
+    tags:
+      - lint
+      - format
