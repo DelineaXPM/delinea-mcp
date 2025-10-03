@@ -8,29 +8,24 @@ on:
         required: false
         default: false
         type: boolean
-
 permissions:
   contents: write
   packages: write
   pull-requests: write
   checks: write
   id-token: write
-
 concurrency:
   group: delinea-mcp-release-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   delinea-code-quality:
     name: lint-format-validation
     uses: ./.github/workflows/lint.yml
     secrets: inherit
-
   delinea-test-suite:
     name: comprehensive-testing
     uses: ./.github/workflows/test.yml
     secrets: inherit
-
   delinea-security-scan:
     name: security-vulnerability-check
     runs-on: ubuntu-latest
@@ -38,17 +33,14 @@ jobs:
     steps:
       - name: repo-checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-
       - name: uv-setup
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
-
       - name: python-security-audit
         run: |
           uv python install 3.11
           uv sync --frozen
           # TODO: Add security scanning with safety or bandit
           uv pip list --format=json | jq '.[] | select(.name | contains("security"))'
-
   delinea-release-automation:
     name: automated-release-creation
     needs:
@@ -56,15 +48,12 @@ jobs:
       - delinea-test-suite
       - delinea-security-scan
     if: >
-      always() &&
-      (needs.delinea-code-quality.result == 'success') &&
-      (needs.delinea-test-suite.result == 'success') &&
-      (needs.delinea-security-scan.result == 'success')
+      always() && (needs.delinea-code-quality.result == 'success') && (needs.delinea-test-suite.result == 'success') && (needs.delinea-security-scan.result == 'success')
+
     uses: ./.github/workflows/release.yml
     secrets: inherit
     with:
       release-type: auto
-
   post-release-notification:
     name: release-success-notification
     needs: delinea-release-automation

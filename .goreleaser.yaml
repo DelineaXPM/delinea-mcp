@@ -1,22 +1,18 @@
 ---
 version: 2
 project_name: delinea-mcp
-
 env:
   - DELINEA_MCP_VERSION={{ .Version }}
   - DELINEA_BUILD_TIMESTAMP={{ .Timestamp }}
-
 builds:
   - id: mcp-python-wheel
     skip: true
     # TODO: Configure Python wheel building with uv when goreleaser supports uv builder
     # For now, use GitHub Actions to build Python packages
-
   - id: mcp-python-dist
     skip: true
     # TODO: Configure Python sdist building with uv when goreleaser supports uv builder
     # For now, use GitHub Actions to build Python packages
-
 archives:
   - id: delinea-mcp-dist
     # TODO: Re-enable when Python builds are configured
@@ -24,13 +20,7 @@ archives:
     #   - mcp-python-wheel
     #   - mcp-python-dist
     name_template: >-
-      delinea-mcp_
-      {{- .Version }}_
-      {{- if eq .Os "darwin" }}macOS
-      {{- else }}{{ .Os }}{{ end }}_
-      {{- if eq .Arch "amd64" }}x64
-      {{- else if eq .Arch "386" }}x32
-      {{- else }}{{ .Arch }}{{ end }}
+      delinea-mcp_ {{- .Version }}_ {{- if eq .Os "darwin" }}macOS {{- else }}{{ .Os }}{{ end }}_ {{- if eq .Arch "amd64" }}x64 {{- else if eq .Arch "386" }}x32 {{- else }}{{ .Arch }}{{ end }}
     wrap_in_directory: true
     format_overrides:
       - goos: windows
@@ -42,7 +32,6 @@ archives:
       - docs/**/*
       - src: config.json
         dst: config.json.template
-
 # TODO: Re-enable Docker builds when Python packaging is ready
 # dockers:
 #   - ids:
@@ -59,11 +48,9 @@ archives:
 #       - "--label=org.opencontainers.image.title=Delinea MCP Server"
 #       - "--label=org.opencontainers.image.description=MCP server for Delinea Secret Server and Platform APIs"
 #       - "--platform=linux/amd64"
-
 checksum:
   name_template: 'delinea-mcp_{{ .Version }}_checksums.txt'
   algorithm: sha256
-
 release:
   github:
     owner: DelineaXPM
@@ -85,7 +72,6 @@ release:
     # Python Package
     pip install delinea-mcp=={{ .Tag }}
     ```
-
 changelog:
   use: github
   sort: asc

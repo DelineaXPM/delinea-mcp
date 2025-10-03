@@ -6,18 +6,15 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
-
 env:
   UV_CACHE_DIR: /tmp/.uv-cache-delinea
   UV_HTTP_TIMEOUT: 120
   UV_CONCURRENT_DOWNLOADS: 10
   PYTHONDONTWRITEBYTECODE: 1
   PYTHONUNBUFFERED: 1
-
 defaults:
   run:
     shell: bash
-
 jobs:
   uv-lint-format:
     name: code-quality-checks
@@ -26,27 +23,22 @@ jobs:
     steps:
       - name: repo-checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-
       - name: uv-setup-env
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           enable-cache: true
           cache-dependency-glob: 'requirements.txt'
-
       - name: python-install-runtime
         run: uv python install 3.11
-
       - name: uv-dependency-sync
         run: |
           uv sync --frozen --group=test --group=dev
           uv pip list
-
       - name: python-lint-check
         run: |
           # TODO: Configure ruff/black settings in pyproject.toml
           uv run python -m py_compile server.py
           uv run python -m py_compile delinea_api.py
-
   delinea-mcp-unit-tests:
     name: python-unit-validation
     runs-on: ubuntu-latest
@@ -55,26 +47,21 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13']
-
     steps:
       - name: repo-checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-
       - name: uv-python-setup
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           enable-cache: true
           cache-dependency-glob: 'requirements.txt'
-
       - name: python-version-install
         run: uv python install ${{ matrix.python-version }}
-
       - name: uv-venv-create-sync
         run: |
           uv sync --frozen --group=test --group=dev
           uv run python --version
           uv pip list --format=json | jq '.[] | select(.name=="pytest") | .version'
-
       - name: delinea-unit-test-execution
         run: |
           # Run only unit tests, excluding integration and live tests
@@ -85,7 +72,6 @@ jobs:
             --ignore=tests/integration/ \
             tests/ \
             -k "not test_live"
-
       - name: python-coverage-analysis
         if: matrix.python-version == '3.11'
         run: |
@@ -96,7 +82,6 @@ jobs:
             -k "not test_live"
           uv run coverage report --omit="tests/*" --show-missing --fail-under=70
           uv run coverage xml
-
       - name: coverage-upload-codecov
         if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
@@ -105,7 +90,6 @@ jobs:
           flags: unit-tests
           name: delinea-mcp-coverage
           fail_ci_if_error: false
-
   delinea-mcp-docker-validation:
     name: docker-container-verification
     runs-on: ubuntu-latest
@@ -113,11 +97,9 @@ jobs:
     steps:
       - name: repo-checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-
       - name: docker-build-test
         run: |
           docker build -t delinea-mcp:test .
-
       - name: docker-smoke-test
         run: |
           # Basic container validation - server help command

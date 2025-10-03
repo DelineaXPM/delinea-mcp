@@ -21,21 +21,17 @@ on:
         required: false
         default: 'auto'
         type: string
-
 permissions:
   contents: write
   packages: write
   id-token: write
   pull-requests: read
-
 env:
   DELINEA_DOCKER_REGISTRY: quay.io/delinea
   UV_CACHE_DIR: /tmp/.uv-cache-release
-
 defaults:
   run:
     shell: bash
-
 jobs:
   prepare-release-environment:
     name: release-env-setup
@@ -50,21 +46,18 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: aqua-binary-manager-setup
         uses: aquaproj/aqua-installer@5e54e5cee8a95ee2ce7c04cb993da6dfad13e59c # v3.1.2
         with:
           aqua_version: v2.53.9
           working_directory: .
           # TODO: Create aqua.yaml with goreleaser and other required binaries
-
       - name: release-version-detection
         id: version-detect
         run: |
           # TODO: Implement proper version detection logic
           echo "version=v0.1.0" >> $GITHUB_OUTPUT
           echo "should-release=true" >> $GITHUB_OUTPUT
-
   delinea-mcp-release-execution:
     name: goreleaser-python-release
     needs: prepare-release-environment
@@ -76,25 +69,21 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           fetch-depth: 0
-
       - name: aqua-toolchain-setup
         uses: aquaproj/aqua-installer@5e54e5cee8a95ee2ce7c04cb993da6dfad13e59c # v3.1.2
         with:
           aqua_version: v2.53.9
           working_directory: .
-
       - name: uv-python-setup
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           enable-cache: true
           cache-dependency-glob: 'requirements.txt'
-
       - name: python-runtime-install
         run: |
           uv python install 3.11
           uv sync --frozen
           uv pip list --format=json | jq '.[] | select(.name=="mcp") | .version'
-
       - name: docker-registry-auth-quay
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
@@ -102,20 +91,17 @@ jobs:
           username: ${{ secrets.QUAY_DELINEA_USERNAME }}
           password: ${{ secrets.QUAY_DELINEA_TOKEN }}
           # TODO: Configure Quay.io registry credentials
-
       - name: docker-registry-auth-dockerhub
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           # TODO: Configure Docker Hub registry credentials (optional)
-
       - name: delinea-pre-release-validation
         run: |
           # TODO: Add pre-release validation checks
           uv run pytest tests/ -x --tb=line -m "not integration"
           echo "✅ Pre-release validation completed"
-
       - name: goreleaser-release-execution
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
@@ -129,19 +115,16 @@ jobs:
           QUAY_TOKEN: ${{ secrets.QUAY_DELINEA_TOKEN }}
           # TODO: Configure PyPI publishing
           # PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-
       - name: release-artifact-validation
         run: |
           # TODO: Add post-release artifact validation
           ls -la dist/
           echo "✅ Release artifacts validated"
-
       - name: release-notification-prep
         if: success()
         run: |
           echo "🚀 Delinea MCP release ${{ needs.prepare-release-environment.outputs.release-version }} completed successfully"
           # TODO: Add Slack/Teams notification logic
-
   release-verification:
     name: post-release-verification
     needs: [prepare-release-environment, delinea-mcp-release-execution]
@@ -154,7 +137,6 @@ jobs:
           # TODO: Add Docker image smoke test
           docker pull quay.io/delinea/delinea-mcp:${{ needs.prepare-release-environment.outputs.release-version }}
           echo "✅ Docker image verification completed"
-
       - name: release-github-validation
         run: |
           # TODO: Validate GitHub release was created properly
