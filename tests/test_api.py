@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from delinea_mcp import tools
+from delinea_mcp.session import SessionManager
 
 
 class DummyResponse:
@@ -184,7 +185,8 @@ def test_run_report_delete_failure(monkeypatch):
         else:
             raise RuntimeError("boom")
 
-    monkeypatch.setattr(tools, "delinea", SimpleNamespace(request=fake_request))
+    mock_session = SimpleNamespace(request=fake_request)
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.run_report("SELECT 1", report_name="t")
     assert result["rows"] == [[1]]
     assert calls[-1] == "/v1/reports/1"

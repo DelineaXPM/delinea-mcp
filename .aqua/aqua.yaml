@@ -6,7 +6,7 @@ checksum:
   enabled: true
   require_checksum: true
   supported_envs:
-  - all
+    - all
 registries:
   - type: standard
     ref: v4.238.0

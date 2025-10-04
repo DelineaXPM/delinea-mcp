@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from delinea_api import DelineaSession
 from delinea_mcp import tools, user_platform_tools
 from delinea_mcp.config import load_config
+from delinea_mcp.session import SessionManager
 from delinea_mcp.tools import (
     check_secret_template,
     check_secret_template_field,
@@ -38,14 +39,13 @@ logger = logging.getLogger(__name__)
 _debug = False
 
 mcp = FastMCP("DelineaMCP")
-delinea = None
 CURRENT_CONFIG: dict[str, Any] = {}
 
 
 def _init_from_config(cfg: dict[str, Any]) -> None:
     """Initialise sessions and tool registration from a config dict."""
     tools.configure(cfg)
-    global delinea, _debug
+    global _debug
     _debug = bool(cfg.get("debug", False))
     if _debug and not logging.getLogger().handlers:
         logging.basicConfig(level=logging.DEBUG)
@@ -58,16 +58,8 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
 
     if username and password:
-        delinea = DelineaSession(base_url=base_url or "", username=username)
-    else:
-
-        class DummySession:
-            def request(self, *a, **k):
-                raise RuntimeError("Delinea session not initialised")
-
-        delinea = DummySession()
-
-    tools.init(delinea)
+        session = DelineaSession(base_url=base_url or "", username=username)
+        SessionManager.init(session)
     enabled = set(cfg.get("enabled_tools", []))
     tools.register(mcp, enabled)
 

@@ -1,6 +1,7 @@
 import pytest
 
 from delinea_mcp import tools
+from delinea_mcp.session import SessionManager
 
 
 class DummySession:
@@ -34,7 +35,8 @@ def test_parse_json_data_bad():
     ],
 )
 def test_user_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
@@ -47,13 +49,15 @@ def test_user_management_missing(monkeypatch, func, args, msg):
     ],
 )
 def test_role_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_role_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.role_management("xxx")
     assert result["error"] == "Unknown action: xxx"
 
@@ -70,13 +74,15 @@ def test_role_management_unknown(monkeypatch):
     ],
 )
 def test_user_role_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_user_role_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.user_role_management("xxx", 1)
     assert result["error"] == "Unknown action: xxx"
 
@@ -89,13 +95,15 @@ def test_user_role_management_unknown(monkeypatch):
     ],
 )
 def test_group_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_group_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.group_management("xxx")
     assert result["error"] == "Unknown action: xxx"
 
@@ -112,13 +120,15 @@ def test_group_management_unknown(monkeypatch):
     ],
 )
 def test_user_group_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_user_group_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.user_group_management("xxx", 1)
     assert result["error"] == "Unknown action: xxx"
 
@@ -135,13 +145,15 @@ def test_user_group_management_unknown(monkeypatch):
     ],
 )
 def test_group_role_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_group_role_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.group_role_management("xxx", 1)
     assert result["error"] == "Unknown action: xxx"
 
@@ -159,12 +171,14 @@ def test_group_role_management_unknown(monkeypatch):
     ],
 )
 def test_folder_management_missing(monkeypatch, func, args, msg):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = func(*args)
     assert result["error"] == msg
 
 
 def test_folder_management_unknown(monkeypatch):
-    monkeypatch.setattr(tools, "delinea", DummySession())
+    mock_session = DummySession()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.folder_management("xxx")
     assert result["error"] == "Unknown action: xxx"

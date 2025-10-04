@@ -9,9 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-from delinea_api import DelineaSession
-
 from . import constants
+from .session import SessionManager
 
 logger = logging.getLogger(__name__)
 if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
@@ -52,21 +51,15 @@ def _cfg_or_env(key: str) -> str | None:
 def _api_base_url() -> str:
     """Return the full API base URL including `/api` if configured."""
     base = _cfg_or_env("DELINEA_BASE_URL")
-    if delinea and getattr(delinea, "base_url", None):
-        base = delinea.base_url
+    try:
+        session = SessionManager.get()
+        if getattr(session, "base_url", None):
+            base = session.base_url
+    except RuntimeError:
+        pass  # Session not initialized yet, use config
     if not base:
         return ""
     return base.rstrip("/") + "/api"
-
-
-delinea: DelineaSession | None = None
-
-
-def _require_session() -> DelineaSession:
-    """Return the active :class:`DelineaSession` or raise an error."""
-    if delinea is None:  # pragma: no cover
-        raise RuntimeError("Delinea session not initialised")  # pragma: no cover
-    return delinea
 
 
 def _parse_json_data(data: dict | str | None) -> dict | None:
@@ -78,13 +71,6 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
             logger.exception("Failed to parse JSON string")
             raise ValueError("Invalid JSON data")
     return data
-
-
-def init(session: DelineaSession) -> None:
-    """Store the session for use by reporting helpers."""
-    global delinea
-    delinea = session
-    logger.debug("Tools session initialised")
 
 
 def create_report(report_name: str, sql_query: str) -> int:
@@ -103,7 +89,7 @@ def create_report(report_name: str, sql_query: str) -> int:
         Identifier of the newly created report.
     """
     logger.debug("create_report(%s)", report_name)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         response = session.request(
             "POST",
@@ -135,7 +121,7 @@ def execute_report(report_id: int) -> dict:
         Raw execution result from the API.
     """
     logger.debug("execute_report(%s)", report_id)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         response = session.request(
             "POST",
@@ -165,7 +151,7 @@ def run_report(sql_query: str, report_name: str | None = None) -> dict:
         or an ``error`` key on failure.
     """
     logger.debug("run_report(%s)", sql_query)
-    session = _require_session()
+    session = SessionManager.get()
     name = report_name or "MCP Generated Report"
     try:
         report_id = create_report(name, sql_query)
@@ -244,7 +230,7 @@ def generate_sql_query(user_query: str) -> str:
 def check_secret_template(template_id: int) -> dict:  # pragma: no cover
     """Returns the template details for the given ID."""
     logger.debug("check_secret_template(%s)", template_id)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         return session.request("GET", f"/v1/secret-templates/{template_id}").json()
     except Exception as exc:  # pragma: no cover - network failures
@@ -272,7 +258,7 @@ def get_secret_environment_variable(
         ``SECRET_PASSWORD_<id>`` and ``SECRET_USERNAME_<id>``.
     """
 
-    session = _require_session()
+    session = SessionManager.get()
     url = f"{session.base_url}/api/v2/secrets/{secret_id}"
     access_token = session.token
     if environment.lower() == "bash":
@@ -344,7 +330,7 @@ def get_secret(id: int, summary: bool = False) -> dict:
         JSON representation of the secret on success or an ``error`` key.
     """
     logger.debug("get_secret(%s, summary=%s)", id, summary)
-    session = _require_session()
+    session = SessionManager.get()
     path = f"/v1/secrets/{id}/summary" if summary else f"/v2/secrets/{id}"
     try:
         return session.request("GET", path).json()
@@ -367,7 +353,7 @@ def get_folder(id: int) -> dict:
         Folder metadata including children or an ``error`` message.
     """
     logger.debug("get_folder(%s)", id)
-    session = _require_session()
+    session = SessionManager.get()
     params = {"getAllChildren": "true"}
     try:
         return session.request("GET", f"/v1/folders/{id}", params=params).json()
@@ -390,7 +376,7 @@ def search_users(query: str) -> dict:
         Raw search results as returned by the API.
     """
     logger.debug("search_users(%s)", query)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         return session.request(
             "GET", "/v1/users", params={"filter.searchText": query}
@@ -416,7 +402,7 @@ def search_secrets(query: str, lookup: bool = False) -> dict:
         JSON response from the appropriate search endpoint.
     """
     logger.debug("search_secrets(%s, lookup=%s)", query, lookup)
-    session = _require_session()
+    session = SessionManager.get()
     path = "/v1/secrets/lookup" if lookup else "/v2/secrets"
     try:
         return session.request("GET", path, params={"filter.searchText": query}).json()
@@ -441,7 +427,7 @@ def search_folders(query: str, lookup: bool = False) -> dict:
         JSON payload from the search call.
     """
     logger.debug("search_folders(%s, lookup=%s)", query, lookup)
-    session = _require_session()
+    session = SessionManager.get()
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
         return session.request("GET", path, params={"filter.searchText": query}).json()
@@ -469,7 +455,7 @@ def check_secret_template_field(
         present.
     """
     logger.debug("check_secret_template_field(%s, %s)", template_id, field_id)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         result = session.request(
             "GET",
@@ -512,7 +498,7 @@ def get_secret_template_field(field_id: int) -> dict:
         JSON object describing the field or an ``error`` key on failure.
     """
     logger.debug("get_secret_template_field(%s)", field_id)
-    session = _require_session()
+    session = SessionManager.get()
     try:
         return session.request("GET", f"/v1/secret-templates/fields/{field_id}").json()
     except Exception as exc:  # pragma: no cover - network failures
@@ -558,7 +544,7 @@ def handle_access_request(
         start_date,
         expiration_date,
     )
-    session = _require_session()
+    session = SessionManager.get()
     if status not in ["Approved", "Denied"]:
         return {"error": "Invalid status. Must be 'Approved' or 'Denied'."}
     payload = {
@@ -608,7 +594,7 @@ def get_pending_access_requests() -> dict:  # pragma: no cover
         failure.
     """
     logger.debug("get_pending_access_requests")
-    session = _require_session()
+    session = SessionManager.get()
     try:
         response = session.request(
             "GET",
@@ -654,7 +640,7 @@ def get_inbox_messages(
         take,
         skip,
     )
-    session = _require_session()
+    session = SessionManager.get()
     params = {
         "take": take,
         "skip": skip,
@@ -692,7 +678,7 @@ def mark_inbox_messages_read(
     """
 
     logger.debug("mark_inbox_messages_read(message_ids=%s, read=%s)", message_ids, read)
-    session = _require_session()
+    session = SessionManager.get()
     payload = {"data": {"messageIds": message_ids, "read": read}}
     try:
         response = session.request(
@@ -774,7 +760,7 @@ def user_management(
     logger.debug(
         "user_management(action=%s, user_id=%s, data=%s)", action, user_id, data
     )
-    session = _require_session()
+    session = SessionManager.get()
 
     data = _parse_json_data(data)
 
@@ -885,7 +871,7 @@ def role_management(
     logger.debug(
         "role_management(action=%s, role_id=%s, data=%s)", action, role_id, data
     )
-    session = _require_session()
+    session = SessionManager.get()
     data = _parse_json_data(data)
 
     try:
@@ -952,7 +938,7 @@ def user_role_management(
         user_id,
         role_ids,
     )
-    session = _require_session()
+    session = SessionManager.get()
 
     try:
         if action == "get":
@@ -1015,7 +1001,7 @@ def group_management(
     logger.debug(
         "group_management(action=%s, group_id=%s, data=%s)", action, group_id, data
     )
-    session = _require_session()
+    session = SessionManager.get()
     data = _parse_json_data(data)
 
     try:
@@ -1081,7 +1067,7 @@ def user_group_management(
         user_id,
         group_ids,
     )
-    session = _require_session()
+    session = SessionManager.get()
 
     try:
         if action == "get":
@@ -1133,7 +1119,7 @@ def group_role_management(
         group_id,
         role_ids,
     )
-    session = _require_session()
+    session = SessionManager.get()
 
     try:
         if action == "list":
@@ -1192,7 +1178,7 @@ def folder_management(
         folder_id,
         data,
     )
-    session = _require_session()
+    session = SessionManager.get()
     data = _parse_json_data(data)
 
     try:
@@ -1251,7 +1237,7 @@ def health_check() -> dict:
     when the server is operational.
     """
     logger.debug("health_check")
-    session = _require_session()
+    session = SessionManager.get()
     try:
         return session.request("GET", "/v1/healthcheck", params={"noBus": True}).json()
     except Exception as exc:  # pragma: no cover - network failures

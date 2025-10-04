@@ -3,6 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from delinea_mcp.session import SessionManager
 
 
 # Patch DelineaSession before importing server to avoid network calls
@@ -27,40 +28,43 @@ class DummyResponse:
 
 
 def test_get_secret_detail(monkeypatch):
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         assert method == "GET"
         assert path == "/v2/secrets/1"
         assert kwargs == {}
         return DummyResponse({"id": 1, "name": "detail"})
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     assert server.get_secret(1) == {"id": 1, "name": "detail"}
 
 
 def test_get_secret_summary(monkeypatch):
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         assert method == "GET"
         assert path == "/v1/secrets/1/summary"
         return DummyResponse({"id": 1, "name": "summary"})
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     assert server.get_secret(1, summary=True) == {"id": 1, "name": "summary"}
 
 
 def test_get_folder_children(monkeypatch):
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         assert path == "/v1/folders/5"
         assert kwargs.get("params") == {"getAllChildren": "true"}
         return DummyResponse({"id": 5, "children": []})
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     assert server.get_folder(5) == {"id": 5, "children": []}
 
 
 def test_user_details_and_search(monkeypatch):
     calls = []
 
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v1/users/2":
             return DummyResponse({"id": 2, "name": "bob"})
@@ -70,7 +74,8 @@ def test_user_details_and_search(monkeypatch):
         else:
             raise AssertionError("unexpected path")
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     user = server.user_management("get", user_id=2)
     search = server.search_users("bob")
     assert user == {"id": 2, "name": "bob"}
@@ -82,7 +87,7 @@ def test_user_details_and_search(monkeypatch):
 def test_secret_search_and_lookup(monkeypatch):
     calls = []
 
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v2/secrets":
             assert kwargs.get("params") == {"filter.searchText": "foo"}
@@ -93,7 +98,8 @@ def test_secret_search_and_lookup(monkeypatch):
         else:
             raise AssertionError("unexpected path")
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     data = server.search_secrets("foo")
     meta = server.search_secrets("foo", lookup=True)
     assert data == {"records": ["full"]}
@@ -105,7 +111,7 @@ def test_secret_search_and_lookup(monkeypatch):
 def test_folder_search_and_lookup(monkeypatch):
     calls = []
 
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v1/folders":
             assert kwargs.get("params") == {"filter.searchText": "bar"}
@@ -116,7 +122,8 @@ def test_folder_search_and_lookup(monkeypatch):
         else:
             raise AssertionError("unexpected path")
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     data = server.search_folders("bar")
     meta = server.search_folders("bar", lookup=True)
     assert data == {"records": ["folder"]}
