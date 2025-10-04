@@ -3,6 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from delinea_mcp.session import SessionManager
 
 
 # patch DelineaSession before importing server to avoid network
@@ -29,7 +30,7 @@ class DummyResponse:
 def test_run_report(monkeypatch):
     calls = []
 
-    def fake_request(method, path, **kwargs):
+    def fake_request(self, method, path, **kwargs):
         calls.append((method, path, kwargs))
         if path == "/v1/reports":
             assert method == "POST"
@@ -45,7 +46,8 @@ def test_run_report(monkeypatch):
         else:
             raise AssertionError("unexpected path")
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    mock_session = type("MockSession", (), {"request": fake_request})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = server.run_report("SELECT 1", report_name="t")
     assert result == {"columns": ["c"], "rows": [[1]]}
     assert calls[0][1] == "/v1/reports"
@@ -72,7 +74,8 @@ def test_ai_generate_and_run_report(monkeypatch):
 def test_run_report_error(monkeypatch):
     from delinea_mcp import tools
 
-    monkeypatch.setattr(tools, "delinea", object())
+    mock_session = type("MockSession", (), {"request": lambda *a, **k: None})()
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
 
     def fail_create(name, sql):
         raise RuntimeError("boom")

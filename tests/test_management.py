@@ -1,6 +1,8 @@
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import server
+from delinea_mcp.session import SessionManager
 
 
 class DummyResponse:
@@ -25,7 +27,10 @@ def patch_request(monkeypatch, expected_calls, responses=None):
         data = resps.pop(0)
         return DummyResponse(data)
 
-    monkeypatch.setattr(server.delinea, "request", fake_request)
+    # Create a mock session with the fake_request method
+    mock_session = Mock()
+    mock_session.request = fake_request
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
 
 
 def test_user_management(monkeypatch):
