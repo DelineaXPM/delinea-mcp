@@ -13,7 +13,7 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-authlib==1.6.4
+authlib==1.6.5
     # via delinea-mcp
 certifi==2025.8.3
     # via
