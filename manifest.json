@@ -1,0 +1,32 @@
+{
+  "manifest_version": "0.2",
+  "name": "Delinea MCP",
+  "version": "0.1.0",
+  "description": "MCP server for the Delinea Secret Server and Platform APIs",
+  "long_description": "MCP server for the Delinea Secret Server and Platform APIs",
+  "author": {
+    "name": "Delinea",
+    "url": "https://delinea.com/"
+  },
+  "homepage": "https://github.com/DelineaXPM/delinea-mcp",
+  "support": "https://github.com/DelineaXPM/delinea-mcp/issues",
+  "icon": "./delinea_logo.jpeg",
+  "server": {
+    "type": "python",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": [
+        "${__dirname}/server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "${__dirname}/server/lib"
+      }
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DelineaXPM/delinea-mcp"
+  }
+}
