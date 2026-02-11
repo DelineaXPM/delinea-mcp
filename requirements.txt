@@ -32,7 +32,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   pytest
     #   tqdm
 coverage==7.10.7
-cryptography==46.0.1
+cryptography==46.0.5
     # via authlib
 distro==1.9.0
     # via openai
