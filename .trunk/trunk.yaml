@@ -52,6 +52,9 @@ lint:
     - shfmt@3.6.0
     - yamllint@1.37.1
   ignore:
+    - linters: [bandit]
+      paths:
+        - 'tests/**'
     - linters: [ALL]
       paths:
         - 'vendor/**'
