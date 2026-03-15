@@ -16,6 +16,7 @@ from delinea_mcp.session import SessionManager
 from delinea_mcp.tools import (
     check_secret_template,
     check_secret_template_field,
+    create_secret_with_generated_password,
     fetch,
     folder_management,
     get_folder,
@@ -30,6 +31,8 @@ from delinea_mcp.tools import (
     search_folders,
     search_secrets,
     search_users,
+    set_secret_field_environment_variable,
+    update_secret_generated_password,
     user_group_management,
     user_management,
     user_role_management,
@@ -57,8 +60,15 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     password = os.getenv("DELINEA_PASSWORD")
     base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
 
+    platform_hostname = cfg.get("platform_hostname") or os.getenv(
+        "PLATFORM_HOSTNAME", ""
+    )
     if username and password:
-        session = DelineaSession(base_url=base_url or "", username=username)
+        session = DelineaSession(
+            base_url=base_url or "",
+            username=username,
+            platform_hostname=platform_hostname,
+        )
         SessionManager.init(session)
     enabled = set(cfg.get("enabled_tools", []))
     tools.register(mcp, enabled)
@@ -266,6 +276,9 @@ __all__ = [
     "check_secret_template",
     "check_secret_template_field",
     "get_secret_template_field",
+    "create_secret_with_generated_password",
+    "set_secret_field_environment_variable",
+    "update_secret_generated_password",
 ]
 
 if __name__ == "__main__":
