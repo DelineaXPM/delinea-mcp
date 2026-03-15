@@ -246,7 +246,10 @@ def _check_secret_approval(
         summary = session.request("GET", f"/v1/secrets/{secret_id}/summary").json()
     except Exception:
         return None  # can't check — let the actual call surface the error
-    if summary.get("requiresApproval") and not comment:
+    # requiresApproval may be None even when approval is enforced;
+    # isRestricted is a more reliable indicator of access-controlled secrets.
+    needs_approval = summary.get("requiresApproval") or summary.get("isRestricted")
+    if needs_approval and not comment:
         return {
             "error": (
                 f"Secret {secret_id} requires approval. "
