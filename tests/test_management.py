@@ -485,6 +485,8 @@ def test_update_secret_generated_password_success(monkeypatch):
     patch_request(
         monkeypatch,
         [
+            # approval pre-check
+            ("GET", "/v1/secrets/42/summary", {}),
             ("POST", "/v1/secret-templates/generate-password/108", {}),
             (
                 "PUT",
@@ -494,6 +496,7 @@ def test_update_secret_generated_password_success(monkeypatch):
             ("GET", "/v1/secrets/42/summary", {}),
         ],
         responses=[
+            {"id": 42, "requiresApproval": False, "requiresComment": False},
             "R0tated!",
             "R0tated!",
             {"id": 42, "name": "db-prod"},
@@ -510,10 +513,146 @@ def test_update_secret_generated_password_success(monkeypatch):
 def test_update_secret_generated_password_empty_error(monkeypatch):
     patch_request(
         monkeypatch,
-        [("POST", "/v1/secret-templates/generate-password/108", {})],
-        responses=[""],
+        [
+            ("GET", "/v1/secrets/42/summary", {}),
+            ("POST", "/v1/secret-templates/generate-password/108", {}),
+        ],
+        responses=[
+            {"id": 42, "requiresApproval": False},
+            "",
+        ],
     )
     result = server.update_secret_generated_password(
         secret_id=42, field_slug="password", password_field_id=108
     )
     assert "error" in result
+
+
+# -- Iris AI approval workflow tests ------------------------------------------
+
+
+def test_update_secret_approval_required_no_comment(monkeypatch):
+    """requiresApproval=True without comment returns guidance error."""
+    patch_request(
+        monkeypatch,
+        [("GET", "/v1/secrets/42/summary", {})],
+        responses=[{"id": 42, "requiresApproval": True}],
+    )
+    result = server.update_secret_generated_password(
+        secret_id=42, field_slug="password", password_field_id=108
+    )
+    assert "error" in result
+    assert "requires approval" in result["error"]
+
+
+def test_update_secret_requires_comment_no_comment(monkeypatch):
+    """requiresComment=True without comment returns guidance error."""
+    patch_request(
+        monkeypatch,
+        [("GET", "/v1/secrets/42/summary", {})],
+        responses=[{"id": 42, "requiresComment": True}],
+    )
+    result = server.update_secret_generated_password(
+        secret_id=42, field_slug="password", password_field_id=108
+    )
+    assert "error" in result
+    assert "requires a comment" in result["error"]
+
+
+def test_update_secret_with_comment_passes_params(monkeypatch):
+    """When comment is provided, autoCheckout params are passed on the PUT."""
+    patch_request(
+        monkeypatch,
+        [
+            ("GET", "/v1/secrets/42/summary", {}),
+            ("POST", "/v1/secret-templates/generate-password/108", {}),
+            (
+                "PUT",
+                "/v1/secrets/42/fields/password",
+                {
+                    "json": {"value": "NewPwd!"},
+                    "params": {
+                        "autoCheckout": "true",
+                        "autoCheckIn": "true",
+                        "autoComment": "JIRA-123: rotating DB creds",
+                    },
+                },
+            ),
+            ("GET", "/v1/secrets/42/summary", {}),
+        ],
+        responses=[
+            {"id": 42, "requiresComment": True},
+            "NewPwd!",
+            "NewPwd!",
+            {"id": 42, "name": "db-prod"},
+        ],
+    )
+    result = server.update_secret_generated_password(
+        secret_id=42,
+        field_slug="password",
+        password_field_id=108,
+        comment="JIRA-123: rotating DB creds",
+    )
+    assert result["result"]["password_rotated"] is True
+
+
+def test_set_field_env_approval_check(monkeypatch):
+    """set_secret_field_environment_variable returns error when approval needed."""
+    _patch_session_attrs(monkeypatch)
+    # Override request on the stub to return approval-required summary
+    stub = SessionManager._session
+    stub.request = lambda method, path, **kw: type(
+        "R", (), {"json": lambda self: {"requiresApproval": True}}
+    )()
+    result = server.set_secret_field_environment_variable(
+        secret_id=99, field_slug="api-key", environment="bash"
+    )
+    assert isinstance(result, dict)
+    assert "requires approval" in result["error"]
+
+
+def test_set_field_env_with_comment_appends_params(monkeypatch):
+    """When comment is provided, URL includes checkout query params."""
+    _patch_session_attrs(monkeypatch)
+    # Stub returns no approval required
+    stub = SessionManager._session
+    stub.request = lambda method, path, **kw: type(
+        "R", (), {"json": lambda self: {"requiresApproval": False}}
+    )()
+    script = server.set_secret_field_environment_variable(
+        secret_id=5,
+        field_slug="password",
+        environment="bash",
+        source="env:MY_VAR",
+        comment="INC-456: deploying hotfix",
+    )
+    assert "autoCheckout=true" in script
+    assert "autoCheckIn=true" in script
+    assert "INC-456" in script
+
+
+def test_get_secret_env_approval_check(monkeypatch):
+    """get_secret_environment_variable returns error when approval needed."""
+    _patch_session_attrs(monkeypatch)
+    stub = SessionManager._session
+    stub.request = lambda method, path, **kw: type(
+        "R", (), {"json": lambda self: {"requiresApproval": True}}
+    )()
+    result = server.get_secret_environment_variable(secret_id=10, environment="bash")
+    assert isinstance(result, dict)
+    assert "requires approval" in result["error"]
+
+
+def test_get_secret_env_with_comment_appends_params(monkeypatch):
+    """When comment is provided, URL includes checkout query params."""
+    _patch_session_attrs(monkeypatch)
+    stub = SessionManager._session
+    stub.request = lambda method, path, **kw: type(
+        "R", (), {"json": lambda self: {"requiresApproval": False}}
+    )()
+    script = server.get_secret_environment_variable(
+        secret_id=10, environment="bash", comment="CHG-789: reading creds for deploy"
+    )
+    assert isinstance(script, str)
+    assert "autoCheckout=true" in script
+    assert "CHG-789" in script
