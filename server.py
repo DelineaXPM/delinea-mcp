@@ -162,9 +162,7 @@ def run_server(argv: list[str] | None = None) -> None:
             ) from exc
 
     if auth_mode == "oauth" and transport_mode not in ("sse", "streamable-http"):
-        raise ValueError(
-            "OAuth mode requires TRANSPORT_MODE=sse or streamable-http"
-        )
+        raise ValueError("OAuth mode requires TRANSPORT_MODE=sse or streamable-http")
 
     uvicorn_kwargs = {}
     if ssl_keyfile and ssl_certfile:
@@ -272,7 +270,7 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_fn(app)
-            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # noqa: S104
         case ("oauth", "streamable-http"):
             import uvicorn
             from fastapi import FastAPI, Request
@@ -287,9 +285,7 @@ def run_server(argv: list[str] | None = None) -> None:
             auth_config = {
                 "audience": audience,
                 "scopes": ["mcp.read", "mcp.write"],
-                "chatgpt_no_scope_check": bool(
-                    cfg.get("chatgpt_disable_scope_checks")
-                ),
+                "chatgpt_no_scope_check": bool(cfg.get("chatgpt_disable_scope_checks")),
             }
             lifespan, mount_fn = mount_streamable_http_routes(
                 mcp,
@@ -315,7 +311,7 @@ def run_server(argv: list[str] | None = None) -> None:
 
             mount_oauth_routes(app, cfg)
             mount_fn(app)
-            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # noqa: S104
         case ("passthrough", _):
             raise NotImplementedError(
                 "Passthrough auth is slated for a future release."

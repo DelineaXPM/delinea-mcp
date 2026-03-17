@@ -14,12 +14,11 @@ from collections.abc import AsyncIterator, Callable
 from http import HTTPStatus
 from typing import Any
 
+from mcp.server.fastmcp import FastMCP
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.datastructures import Headers
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-from mcp.server.fastmcp import FastMCP
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 from delinea_mcp.auth import as_config
 

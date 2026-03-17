@@ -1,10 +1,8 @@
 """Tests for delinea_mcp.transports.streamable_http module."""
 
-import asyncio
-import contextlib
 import types
 from http import HTTPStatus
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -12,7 +10,6 @@ from delinea_mcp.transports.streamable_http import (
     OAuthASGIMiddleware,
     mount_streamable_http_routes,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -37,8 +34,13 @@ def _make_scope(method="POST", path="/mcp", headers=None):
         "type": "http",
         "method": method,
         "path": path,
-        "headers": [(k.encode() if isinstance(k, str) else k,
-                      v.encode() if isinstance(v, str) else v) for k, v in headers],
+        "headers": [
+            (
+                k.encode() if isinstance(k, str) else k,
+                v.encode() if isinstance(v, str) else v,
+            )
+            for k, v in headers
+        ],
         "query_string": b"",
     }
 
@@ -245,6 +247,37 @@ class TestOAuthASGIMiddlewareAuth:
         with caplog.at_level(logging.WARNING):
             await _collect_response(middleware, scope)
         assert any("Missing bearer token" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_non_http_scope_passes_through_without_auth(self, middleware, inner_app):
+        """Non-HTTP scopes (e.g., lifespan) bypass auth entirely."""
+        scope = {"type": "lifespan"}
+        receive = AsyncMock()
+        send = AsyncMock()
+        await middleware(scope, receive, send)
+        inner_app.assert_called_once_with(scope, receive, send)
+
+
+# ---------------------------------------------------------------------------
+# Startup-window guard — passthrough when ready [DA-001]
+# ---------------------------------------------------------------------------
+
+
+class TestStartupGuardPassthrough:
+    @pytest.mark.asyncio
+    async def test_passes_through_when_session_manager_ready(self):
+        """When _task_group is set, requests pass through to inner app."""
+        from delinea_mcp.transports.streamable_http import _StartupGuard
+
+        inner = AsyncMock()
+        manager = types.SimpleNamespace(_task_group="not-none")
+        guard = _StartupGuard(inner, manager)
+
+        scope = _make_scope()
+        receive = AsyncMock()
+        send = AsyncMock()
+        await guard(scope, receive, send)
+        inner.assert_called_once_with(scope, receive, send)
 
 
 # ---------------------------------------------------------------------------
