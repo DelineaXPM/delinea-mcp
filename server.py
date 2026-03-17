@@ -152,15 +152,19 @@ def run_server(argv: list[str] | None = None) -> None:
     ssl_keyfile = cfg.get("ssl_keyfile")
     ssl_certfile = cfg.get("ssl_certfile")
 
-    if transport_mode == "sse" or auth_mode == "oauth":
+    if transport_mode in ("sse", "streamable-http") or auth_mode == "oauth":
         try:
             import fastapi  # noqa: F401
             import uvicorn  # noqa: F401
         except Exception as exc:
-            raise RuntimeError("fastapi and uvicorn are required for SSE mode") from exc
+            raise RuntimeError(
+                "fastapi and uvicorn are required for SSE/streamable-http mode"
+            ) from exc
 
-    if auth_mode == "oauth" and transport_mode != "sse":
-        raise ValueError("OAuth mode requires TRANSPORT_MODE=sse")
+    if auth_mode == "oauth" and transport_mode not in ("sse", "streamable-http"):
+        raise ValueError(
+            "OAuth mode requires TRANSPORT_MODE=sse or streamable-http"
+        )
 
     uvicorn_kwargs = {}
     if ssl_keyfile and ssl_certfile:
@@ -237,6 +241,80 @@ def run_server(argv: list[str] | None = None) -> None:
                     ),
                 ),
             )
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
+        case ("none", "streamable-http"):
+            import uvicorn
+            from fastapi import FastAPI, Request
+
+            from delinea_mcp.transports.streamable_http import (
+                mount_streamable_http_routes,
+            )
+
+            stateless = bool(cfg.get("streamable_http_stateless", False))
+            json_response = bool(cfg.get("streamable_http_json_response", False))
+            lifespan, mount_fn = mount_streamable_http_routes(
+                mcp, stateless=stateless, json_response=json_response
+            )
+            app = FastAPI(title="Delinea MCP", lifespan=lifespan)
+            if _debug:
+
+                @app.middleware("http")
+                async def log_requests(request: Request, call_next):
+                    if not request.url.path.startswith("/mcp"):
+                        body = await request.body()
+                        logger.debug(
+                            "Request from %s to %s headers=%s body=%s",
+                            request.client.host if request.client else "unknown",
+                            request.url.path,
+                            dict(request.headers),
+                            body.decode("utf-8", "replace"),
+                        )
+                    return await call_next(request)
+
+            mount_fn(app)
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
+        case ("oauth", "streamable-http"):
+            import uvicorn
+            from fastapi import FastAPI, Request
+
+            from delinea_mcp.auth.routes import mount_oauth_routes
+            from delinea_mcp.transports.streamable_http import (
+                mount_streamable_http_routes,
+            )
+
+            stateless = bool(cfg.get("streamable_http_stateless", False))
+            json_response = bool(cfg.get("streamable_http_json_response", False))
+            auth_config = {
+                "audience": audience,
+                "scopes": ["mcp.read", "mcp.write"],
+                "chatgpt_no_scope_check": bool(
+                    cfg.get("chatgpt_disable_scope_checks")
+                ),
+            }
+            lifespan, mount_fn = mount_streamable_http_routes(
+                mcp,
+                auth_config=auth_config,
+                stateless=stateless,
+                json_response=json_response,
+            )
+            app = FastAPI(title="Delinea MCP (OAuth)", lifespan=lifespan)
+            if _debug:
+
+                @app.middleware("http")
+                async def log_requests(request: Request, call_next):
+                    if not request.url.path.startswith("/mcp"):
+                        body = await request.body()
+                        logger.debug(
+                            "Request from %s to %s headers=%s body=%s",
+                            request.client.host if request.client else "unknown",
+                            request.url.path,
+                            dict(request.headers),
+                            body.decode("utf-8", "replace"),
+                        )
+                    return await call_next(request)
+
+            mount_oauth_routes(app, cfg)
+            mount_fn(app)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("passthrough", _):
             raise NotImplementedError(

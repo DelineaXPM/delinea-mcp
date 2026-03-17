@@ -253,3 +253,157 @@ def test_oauth_sse_external_hostname(monkeypatch, tmp_path):
     monkeypatch.setattr(validators, "require_scopes", fake_require_scopes)
     server.run_server(["--config", "config.json"])
     assert called["audience"] == "http://example.com:8000"
+
+
+def test_none_streamable_http(monkeypatch, tmp_path):
+    cfg = tmp_path / "config.json"
+    cfg.write_text(
+        json.dumps({"auth_mode": "none", "transport_mode": "streamable-http"})
+    )
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    called = {}
+
+    def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
+        called["run"] = True
+
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
+    )
+    import delinea_mcp.transports.streamable_http as sh
+
+    monkeypatch.setattr(
+        sh,
+        "mount_streamable_http_routes",
+        lambda mcp, **kw: (None, lambda app: called.setdefault("mounted", True)),
+    )
+    server.run_server(["--config", "config.json"])
+    assert called.get("run") and called.get("mounted")
+
+
+def test_oauth_streamable_http(monkeypatch, tmp_path):
+    cfg = tmp_path / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "auth_mode": "oauth",
+                "transport_mode": "streamable-http",
+                "registration_psk": "x",
+            }
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    called = {}
+
+    def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
+        called["run"] = True
+
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
+    )
+    import delinea_mcp.auth.routes as routes
+    import delinea_mcp.transports.streamable_http as sh
+
+    monkeypatch.setattr(
+        routes,
+        "mount_oauth_routes",
+        lambda app, cfg=None: called.setdefault("oauth", True),
+    )
+
+    def fake_mount(mcp, auth_config=None, **kw):
+        called["auth_config"] = auth_config
+        return (None, lambda app: called.setdefault("mounted", True))
+
+    monkeypatch.setattr(sh, "mount_streamable_http_routes", fake_mount)
+    server.run_server(["--config", "config.json"])
+    assert called["run"] and called["oauth"] and called["mounted"]
+    assert called["auth_config"]["scopes"] == ["mcp.read", "mcp.write"]
+
+
+def test_oauth_streamable_http_audience(monkeypatch, tmp_path):
+    """Verify audience is computed and passed in auth_config [DA-007]."""
+    cfg = tmp_path / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "auth_mode": "oauth",
+                "transport_mode": "streamable-http",
+                "registration_psk": "x",
+                "ssl_keyfile": "key.pem",
+                "ssl_certfile": "cert.pem",
+            }
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    called = {}
+
+    def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
+        called["run"] = True
+
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
+    )
+    import delinea_mcp.auth.routes as routes
+    import delinea_mcp.transports.streamable_http as sh
+
+    monkeypatch.setattr(
+        routes,
+        "mount_oauth_routes",
+        lambda app, cfg=None: called.setdefault("oauth", True),
+    )
+
+    def fake_mount(mcp, auth_config=None, **kw):
+        called["audience"] = auth_config["audience"] if auth_config else None
+        return (None, lambda app: None)
+
+    monkeypatch.setattr(sh, "mount_streamable_http_routes", fake_mount)
+    server.run_server(["--config", "config.json"])
+    assert called["audience"] == "https://0.0.0.0:8000"
+
+
+def test_debug_middleware_excludes_mcp_path(monkeypatch, tmp_path):
+    """Debug middleware must not consume body for /mcp paths [DA-003]."""
+    cfg = tmp_path / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "auth_mode": "none",
+                "transport_mode": "streamable-http",
+                "debug": True,
+            }
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    called = {}
+
+    def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
+        called["app"] = app
+        called["middleware_count"] = len(app.user_middleware)
+
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
+    )
+    import delinea_mcp.transports.streamable_http as sh
+
+    monkeypatch.setattr(
+        sh,
+        "mount_streamable_http_routes",
+        lambda mcp, **kw: (None, lambda app: None),
+    )
+    server.run_server(["--config", "config.json"])
+    assert called["middleware_count"] == 1

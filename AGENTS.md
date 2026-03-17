@@ -119,6 +119,7 @@ DelineaMCP is an MCP server built on FastMCP that provides AI assistants with se
 **Transport Layer**: `delinea_mcp/transports/`
 
 - `sse.py` - Server-Sent Events transport for HTTP-based clients
+- `streamable_http.py` - Streamable HTTP transport (MCP spec recommended HTTP transport)
 
 ### Configuration System
 
@@ -128,8 +129,9 @@ Key configuration patterns:
 
 - Non-secret values in `config.json` (usernames, URLs, feature flags)
 - Sensitive data via environment variables (`DELINEA_PASSWORD`, `AZURE_OPENAI_KEY`)
-- Transport mode selection (`stdio` vs `sse`)
+- Transport mode selection (`stdio`, `sse`, or `streamable-http`)
 - Authentication mode (`none` vs `oauth`)
+- Streamable HTTP options: `streamable_http_stateless` (bool), `streamable_http_json_response` (bool)
 
 ### Transport Modes
 
@@ -137,7 +139,9 @@ Key configuration patterns:
 
 **SSE Mode**: HTTP Server-Sent Events for web-based integrations like ChatGPT
 
-The server auto-detects transport mode from configuration and initializes the appropriate handler.
+**Streamable HTTP Mode**: Modern MCP HTTP transport using a single `/mcp` endpoint supporting POST (messages), GET (SSE stream), and DELETE (session termination). Recommended over SSE for new integrations. Supports stateful sessions (default) or stateless mode. Uses `StreamableHTTPSessionManager` from the `mcp` library. OAuth authentication uses a custom `OAuthASGIMiddleware` (ASGI-native, not FastAPI dependency-based). Note: SSE and Streamable HTTP cannot coexist on the same server instance due to mount path prefix capture.
+
+The server selects transport mode from the `transport_mode` configuration key and initializes the appropriate handler.
 
 ### Tool Registration
 

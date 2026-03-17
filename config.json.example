@@ -8,6 +8,8 @@
   "azure_openai_deployment": "<deployment_name>",
   "auth_mode": "none",
   "transport_mode": "stdio",
+  "streamable_http_stateless": false,
+  "streamable_http_json_response": false,
   "chatgpt_disable_scope_checks": false,
   "port": 8000,
   "debug": false,
