@@ -270,7 +270,7 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_fn(app)
-            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # noqa: S104
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # nosec B104
         case ("oauth", "streamable-http"):
             import uvicorn
             from fastapi import FastAPI, Request
@@ -311,7 +311,7 @@ def run_server(argv: list[str] | None = None) -> None:
 
             mount_oauth_routes(app, cfg)
             mount_fn(app)
-            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # noqa: S104
+            uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # nosec B104
         case ("passthrough", _):
             raise NotImplementedError(
                 "Passthrough auth is slated for a future release."

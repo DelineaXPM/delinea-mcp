@@ -249,7 +249,9 @@ class TestOAuthASGIMiddlewareAuth:
         assert any("Missing bearer token" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_non_http_scope_passes_through_without_auth(self, middleware, inner_app):
+    async def test_non_http_scope_passes_through_without_auth(
+        self, middleware, inner_app
+    ):
         """Non-HTTP scopes (e.g., lifespan) bypass auth entirely."""
         scope = {"type": "lifespan"}
         receive = AsyncMock()
