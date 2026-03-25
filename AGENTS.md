@@ -139,7 +139,13 @@ Key configuration patterns:
 
 **SSE Mode**: HTTP Server-Sent Events for web-based integrations like ChatGPT
 
-**Streamable HTTP Mode**: Modern MCP HTTP transport using a single `/mcp` endpoint supporting POST (messages), GET (SSE stream), and DELETE (session termination). Recommended over SSE for new integrations. Supports stateful sessions (default) or stateless mode. Uses `StreamableHTTPSessionManager` from the `mcp` library. OAuth authentication uses a custom `OAuthASGIMiddleware` (ASGI-native, not FastAPI dependency-based). Note: SSE and Streamable HTTP cannot coexist on the same server instance due to mount path prefix capture.
+**Streamable HTTP Mode**: Modern MCP HTTP transport using a single `/mcp` endpoint
+supporting POST (messages), GET (SSE stream), and DELETE (session termination).
+Recommended over SSE for new integrations. Supports stateful sessions (default)
+or stateless mode. Uses `StreamableHTTPSessionManager` from the `mcp` library.
+OAuth authentication uses a custom `OAuthASGIMiddleware` (ASGI-native, not FastAPI
+dependency-based). Note: SSE and Streamable HTTP cannot coexist on the same server
+instance due to mount path prefix capture.
 
 The server selects transport mode from the `transport_mode` configuration key and initializes the appropriate handler.
 
