@@ -7,13 +7,14 @@ import sqlite3
 import time
 from pathlib import Path
 
-from authlib.jose import JsonWebKey, jwt
+from joserfc import jwt
+from joserfc.jwk import RSAKey
 
 logger = logging.getLogger(__name__)
 
-_PRIVATE_KEY: JsonWebKey | None = None
+_PRIVATE_KEY: RSAKey | None = None
 _PUBLIC_JWK: dict | None = None
-_PUBLIC_KEY: JsonWebKey | None = None
+_PUBLIC_KEY: RSAKey | None = None
 _KEY_FILE: Path | None = None
 
 CLIENTS: dict[str, dict] = {}
@@ -31,9 +32,9 @@ def init_keys(path: str | Path | None) -> None:
     global _PRIVATE_KEY, _PUBLIC_JWK, _PUBLIC_KEY, _KEY_FILE
     if path is None or str(path) == ":memory:":
         _KEY_FILE = None
-        _PRIVATE_KEY = JsonWebKey.generate_key("RSA", 2048, is_private=True)
-        _PUBLIC_JWK = _PRIVATE_KEY.as_dict(is_private=False)
-        _PUBLIC_KEY = JsonWebKey.import_key(_PUBLIC_JWK)
+        _PRIVATE_KEY = RSAKey.generate_key(2048, private=True)
+        _PUBLIC_JWK = _PRIVATE_KEY.as_dict(private=False)
+        _PUBLIC_KEY = RSAKey.import_key(_PUBLIC_JWK)
         logger.debug("Generated ephemeral OAuth keys")
         return
 
@@ -42,19 +43,19 @@ def init_keys(path: str | Path | None) -> None:
     if _KEY_FILE.exists():
         try:
             data = json.loads(_KEY_FILE.read_text())
-            _PRIVATE_KEY = JsonWebKey.import_key(data)
-            _PUBLIC_JWK = _PRIVATE_KEY.as_dict(is_private=False)
-            _PUBLIC_KEY = JsonWebKey.import_key(_PUBLIC_JWK)
+            _PRIVATE_KEY = RSAKey.import_key(data)
+            _PUBLIC_JWK = _PRIVATE_KEY.as_dict(private=False)
+            _PUBLIC_KEY = RSAKey.import_key(_PUBLIC_JWK)
             logger.debug("Loaded OAuth keys from %s", _KEY_FILE)
             return
         except Exception:
             logger.exception("Failed to load JWT keys from %s", _KEY_FILE)
 
-    _PRIVATE_KEY = JsonWebKey.generate_key("RSA", 2048, is_private=True)
-    _PUBLIC_JWK = _PRIVATE_KEY.as_dict(is_private=False)
-    _PUBLIC_KEY = JsonWebKey.import_key(_PUBLIC_JWK)
+    _PRIVATE_KEY = RSAKey.generate_key(2048, private=True)
+    _PUBLIC_JWK = _PRIVATE_KEY.as_dict(private=False)
+    _PUBLIC_KEY = RSAKey.import_key(_PUBLIC_JWK)
     try:
-        _KEY_FILE.write_text(json.dumps(_PRIVATE_KEY.as_dict()))
+        _KEY_FILE.write_text(json.dumps(_PRIVATE_KEY.as_dict(private=True)))
         logger.debug("Generated new OAuth keys at %s", _KEY_FILE)
     except Exception:
         logger.exception("Failed to write JWT keys to %s", _KEY_FILE)
@@ -176,7 +177,7 @@ def issue_token(
         "exp": int(time.time()) + expires_in,
         "client_id": client_id,
     }
-    token = jwt.encode(header, payload, _PRIVATE_KEY).decode()
+    token = jwt.encode(header, payload, _PRIVATE_KEY)
     logger.debug("issued token for %s", client_id)
     return token
 
@@ -188,7 +189,7 @@ def public_jwk() -> dict:
 
 def verify_token(token: str, audience: str | None = None) -> dict:
     logger.debug("verifying token")
-    claims = jwt.decode(token, _PUBLIC_KEY)
+    claims = jwt.decode(token, _PUBLIC_KEY).claims
     if audience and claims.get("aud") != audience:
         raise ValueError("audience mismatch")
     if claims.get("exp") and int(claims["exp"]) < int(time.time()):
