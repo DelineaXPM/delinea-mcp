@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from delinea_mcp import tools
+from delinea_mcp import secretserver_users, tools
 from delinea_mcp.session import SessionManager
 
 
@@ -26,9 +26,11 @@ def test_get_secret_template_field(monkeypatch):
 def test_user_management_extra(monkeypatch):
     s = Session()
     monkeypatch.setattr(SessionManager, "_session", s)
-    res = tools.user_management("list_sessions", skip=0, take=1, is_exporting=True)
+    res = secretserver_users.secretserver_local_user_management(
+        "list_sessions", skip=0, take=1, is_exporting=True
+    )
     assert res == {"ok": True}
     assert s.calls[0][2]["params"]["isExporting"]
 
-    res = tools.user_management("unknown")
+    res = secretserver_users.secretserver_local_user_management("unknown")
     assert res["error"] == "Unknown action: unknown"

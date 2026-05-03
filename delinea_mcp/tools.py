@@ -816,30 +816,6 @@ def get_folder(id: int) -> dict:
         return {"error": f"Failed to retrieve folder {id}: {exc}"}
 
 
-def search_users(query: str) -> dict:
-    """Search active users by text.
-
-    Parameters
-    ----------
-    query:
-        Text to search for in usernames or display names.
-
-    Returns
-    -------
-    dict
-        Raw search results as returned by the API.
-    """
-    logger.debug("search_users(%s)", query)
-    session = SessionManager.get()
-    try:
-        return session.request(
-            "GET", "/v1/users", params={"filter.searchText": query}
-        ).json()
-    except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("Failed to search users %s", query)
-        return {"error": f"Failed to search users '{query}': {exc}"}
-
-
 def search_secrets(query: str, lookup: bool = False) -> dict:
     """Search or look up secrets.
 
@@ -1155,133 +1131,6 @@ def mark_inbox_messages_read(
     except Exception as exc:
         logger.exception("Failed to mark inbox messages read/unread")
         return {"error": f"Failed to mark inbox messages read/unread: {exc}"}
-
-
-def user_management(
-    action: str,
-    user_id: int | None = None,
-    data: dict | None = None,
-    *,
-    skip: int = 0,
-    take: int = 20,
-    is_exporting: bool = False,
-) -> dict:
-    """Manage users via a single helper.
-
-    Parameters
-    ----------
-    action:
-        Operation to perform: ``"get"``, ``"create"``, ``"update"``, ``"delete"``,
-        ``"list_sessions"``, ``"reset_2fa"``, ``"reset_password"`` or ``"lock_out"``.
-    user_id:
-        Target user identifier. Required for all actions except ``"create"`` and
-        ``"list_sessions"``.
-    data:
-        JSON body for ``"create"``, ``"update"`` and ``"reset_password"``.
-    skip, take:
-        Pagination controls for ``"list_sessions"``.
-    is_exporting:
-        Include the ``isExporting`` flag when listing sessions.
-
-    When ``action`` is ``"create"``, ``data`` must include the required keys
-    ``userName``, ``password`` and ``displayName``. Optional keys such as
-    ``adGuid``, ``domainId``, ``duoTwoFactor``, ``emailAddress``, ``enabled``,
-    ``fido2TwoFactor``, ``isApplicationAccount``, ``oathTwoFactor``,
-    ``radiusTwoFactor``, ``radiusUserName``, ``twoFactor`` and
-    ``unixAuthenticationMethod`` may also be supplied. Password must adhere
-    to password security rules otherwise a 400 failure may occur.
-    When ``action`` is ``"update"``, you need to do a get first, update the
-    relevant fields and post everything back.
-
-    For ``"create"``, ``"update"`` and ``"delete"`` actions the function
-    performs an additional ``GET`` request after the operation to verify the
-    result. The returned dictionary contains two keys: ``result`` with the
-    original API response and ``verification`` with the data retrieved by the
-    follow-up ``GET``.
-
-    Returns
-    -------
-    dict
-        Dictionary with ``result`` from the write action and ``verification``
-        from the subsequent ``GET``.
-
-    Examples
-    --------
-    >>> user_management("get", user_id=10)
-    >>> user_management("create", data={"username": "alice"})
-    """
-
-    logger.debug(
-        "user_management(action=%s, user_id=%s, data=%s)", action, user_id, data
-    )
-    session = SessionManager.get()
-
-    data = _parse_json_data(data)
-
-    try:
-        if action == "get":
-            if user_id is None:
-                raise ValueError("user_id required for get")
-            return session.request("GET", f"/v1/users/{user_id}").json()
-        if action == "create":
-            result = session.request("POST", "/v1/users", json=data or {}).json()
-            user_id = result.get("id") or result.get("userId")
-            verify = {}
-            if user_id is not None:
-                try:
-                    verify = session.request("GET", f"/v1/users/{user_id}").json()
-                except Exception as exc:  # pragma: no cover - network failures
-                    logger.exception("User verification failed after create")
-                    verify = {"error": str(exc)}
-            return {"result": result, "verification": verify}
-        if action == "update":
-            if user_id is None or data is None:
-                raise ValueError("user_id and data required for update")
-            result = session.request("PUT", f"/v1/users/{user_id}", json=data).json()
-            verify = {}
-            try:
-                verify = session.request("GET", f"/v1/users/{user_id}").json()
-            except Exception as exc:  # pragma: no cover - network failures
-                logger.exception("User verification failed after update")
-                verify = {"error": str(exc)}
-            return {"result": result, "verification": verify}
-        if action == "delete":
-            if user_id is None:
-                raise ValueError("user_id required for delete")
-            result = session.request("DELETE", f"/v1/users/{user_id}").json()
-            verify = {}
-            try:
-                verify = session.request("GET", f"/v1/users/{user_id}").json()
-            except Exception as exc:  # pragma: no cover - network failures
-                verify = {"error": str(exc)}
-            return {"result": result, "verification": verify}
-        if action == "list_sessions":
-            params = {"skip": skip, "take": take}
-            if is_exporting:
-                params["isExporting"] = True
-            return session.request("GET", "/v1/users/sessions", params=params).json()
-        if action == "reset_2fa":
-            if user_id is None:
-                raise ValueError("user_id required for reset_2fa")
-            return session.request(
-                "POST", f"/v1/users/{user_id}/reset-two-factor", json=data or {}
-            ).json()
-        if action == "reset_password":
-            if user_id is None or data is None:
-                raise ValueError("user_id and data required for reset_password")
-            return session.request(
-                "POST", f"/v1/users/{user_id}/password-reset", json=data
-            ).json()
-        if action == "lock_out":
-            if user_id is None:
-                raise ValueError("user_id required for lock_out")
-            return session.request(
-                "POST", f"/v1/users/{user_id}/lock-out", json=data or {}
-            ).json()
-        raise ValueError(f"Unknown action: {action}")
-    except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("User management action failed")
-        return {"error": str(exc)}
 
 
 def role_management(
@@ -1714,9 +1563,11 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
         defined by the MCP specification.
     """
     logger.debug("search(%s)", query)
+    from . import secretserver_users
+
     mapping = {
         "secret": search_secrets,
-        "user": search_users,
+        "user": secretserver_users.search_secretserver_local_users,
         "folder": search_folders,
         "group": lambda q: group_management("list", params={"filter.searchText": q}),
         "role": lambda q: role_management("list", params={"filter.searchText": q}),
@@ -1801,9 +1652,13 @@ def fetch(id: str) -> Dict[str, Any]:
     if kind not in _FETCH_ALLOWED:
         raise ValueError(f"fetch for {kind} not enabled")
 
+    from . import secretserver_users
+
     mapping = {
         "secret": lambda i: get_secret(int(i)),
-        "user": lambda i: user_management("get", user_id=int(i)),
+        "user": lambda i: secretserver_users.secretserver_local_user_management(
+            "get", user_id=int(i)
+        ),
         "folder": lambda i: get_folder(int(i)),
         "group": lambda i: group_management("get", group_id=int(i)),
         "role": lambda i: role_management("get", role_id=int(i)),
@@ -1841,6 +1696,349 @@ def fetch(id: str) -> Dict[str, Any]:
     }
 
 
+def update_secret_fields(
+    secret_id: int,
+    field_updates: dict[str, str] | str,
+    comment: str | None = None,
+    *,
+    allow_password_fields: bool = False,
+) -> dict:
+    """Edit non-sensitive fields on an existing secret.
+
+    Composes the read-mutate-verify flow:
+
+    1. ``GET /v1/secrets/{id}/summary`` to check approval / comment
+       requirements via :func:`_check_secret_approval`.
+    2. ``GET /v1/secrets/{id}`` (template lookup) to identify which slugs
+       are password fields.
+    3. ``PUT /v1/secrets/{id}/fields/{slug}`` per entry in *field_updates*.
+    4. ``GET /v1/secrets/{id}/summary`` for verification.
+
+    By default, slugs whose template field has ``isPassword=True`` are
+    refused — the model should not see plaintext password values.  Use
+    :func:`set_secret_field_environment_variable` (which emits a shell
+    script that reads the value locally and PUTs it without the value
+    ever passing through the model) for password-class fields, or set
+    ``allow_password_fields=True`` to override (not recommended).
+
+    Parameters
+    ----------
+    secret_id:
+        Identifier of the secret to update.
+    field_updates:
+        Mapping of ``field_slug -> new_value`` (or a JSON string).  Use
+        slugs (e.g. ``"notes"``, ``"url"``, ``"hostname"``) discoverable
+        via :func:`check_secret_template`.
+    comment:
+        Audit comment recorded against each field update.  Required when
+        the secret has ``requiresComment`` or ``requiresApproval`` set.
+        Must explain **why** the change is being made and reference any
+        related ticket, incident, or change request.
+    allow_password_fields:
+        Set to ``True`` to permit updating password-class fields.  Doing
+        so means the new value passes through the model — prefer
+        :func:`set_secret_field_environment_variable` for those fields.
+
+    Returns
+    -------
+    dict
+        ``{"result": {...}, "verification": {...}}`` where ``result`` lists
+        per-field outcomes and ``verification`` is the post-update summary.
+    """
+
+    logger.debug(
+        "update_secret_fields(secret_id=%s, field_count=%s)",
+        secret_id,
+        len(field_updates) if hasattr(field_updates, "__len__") else "?",
+    )
+    session = SessionManager.get()
+
+    parsed = (
+        _parse_json_data(field_updates)
+        if isinstance(field_updates, str)
+        else field_updates
+    )
+    if not isinstance(parsed, dict) or not parsed:
+        return {"error": "field_updates must be a non-empty mapping of slug -> value"}
+
+    # Pre-check approval requirements
+    check = _check_secret_approval(session, secret_id, comment)
+    if check is not None:
+        return check
+
+    # Identify password-class fields on this secret's template
+    password_slugs: set[str] = set()
+    if not allow_password_fields:
+        try:
+            secret = session.request("GET", f"/v2/secrets/{secret_id}").json()
+            template_id = secret.get("secretTemplateId")
+            if template_id is not None:
+                tmpl = session.request(
+                    "GET", f"/v1/secret-templates/{template_id}"
+                ).json()
+                for f in tmpl.get("fields", []) or []:
+                    if f.get("isPassword"):
+                        slug = (
+                            f.get("fieldSlugName") or f.get("slugName") or f.get("name")
+                        )
+                        if slug:
+                            password_slugs.add(str(slug).lower())
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.exception("Failed to inspect template for password fields")
+            return {
+                "error": (
+                    f"Failed to verify password-field safety for secret {secret_id}: "
+                    f"{exc}. Pass allow_password_fields=True to override."
+                )
+            }
+
+    refused = [slug for slug in parsed if str(slug).lower() in password_slugs]
+    if refused:
+        return {
+            "error": (
+                f"Refusing to update password-class field(s) {refused} via this tool. "
+                "Use set_secret_field_environment_variable so the value never enters "
+                "the model context, or pass allow_password_fields=True to override."
+            )
+        }
+
+    common_params = None
+    if comment:
+        common_params = {
+            "autoCheckout": "true",
+            "autoCheckIn": "true",
+            "autoComment": comment,
+        }
+
+    per_field: list[dict] = []
+    for slug, value in parsed.items():
+        try:
+            kwargs: dict[str, Any] = {"json": {"value": value}}
+            if common_params:
+                kwargs["params"] = common_params
+            session.request("PUT", f"/v1/secrets/{secret_id}/fields/{slug}", **kwargs)
+            per_field.append({"slug": slug, "updated": True})
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.exception("Failed to update field %s on secret %s", slug, secret_id)
+            per_field.append({"slug": slug, "updated": False, "error": str(exc)})
+
+    verify: dict = {}
+    try:
+        verify = session.request("GET", f"/v1/secrets/{secret_id}/summary").json()
+    except Exception as exc:  # pragma: no cover - network failures
+        logger.exception("Secret verification failed after field updates")
+        verify = {"error": str(exc)}
+
+    return {
+        "result": {
+            "secret_id": secret_id,
+            "fields": per_field,
+            "all_updated": all(r.get("updated") for r in per_field),
+        },
+        "verification": verify,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# bulk_user_response                                                          #
+# --------------------------------------------------------------------------- #
+
+
+# Each scenario is an ordered list of (label, path, body-builder).  The body
+# builder receives the user_ids list and returns the JSON body for the POST.
+def _bulk_user_body(user_ids: list[int]) -> dict:
+    return {"data": {"userIds": user_ids}}
+
+
+_BULK_USER_SCENARIOS: dict[str, list[tuple[str, str]]] = {
+    # Compromise response: kill sessions, lock, disable account, strip 2FA so
+    # the attacker can't re-enrol.  Order matters: force-logout first to evict
+    # active sessions before the account is disabled.
+    "compromise": [
+        ("force_logout", "/v1/bulk-user-operations/force-logout"),
+        ("lock", "/v1/bulk-user-operations/lock"),
+        ("disable", "/v1/bulk-user-operations/disable"),
+        ("reset_fido2", "/v1/bulk-user-operations/reset-fido2-two-factor"),
+        ("reset_totp", "/v1/bulk-user-operations/reset-totp-auth"),
+    ],
+    # Offboarding: more graceful.  Disable the account and force logout, but
+    # keep 2FA factors registered so audit trails remain intact.
+    "offboard": [
+        ("force_logout", "/v1/bulk-user-operations/force-logout"),
+        ("disable", "/v1/bulk-user-operations/disable"),
+    ],
+    # Restore access after a temporary lockout / IR action.
+    "unlock": [
+        ("unlock", "/v1/bulk-user-operations/unlock"),
+        ("enable", "/v1/bulk-user-operations/enable"),
+    ],
+    # Re-enable a disabled-but-not-locked account.
+    "reenable": [
+        ("enable", "/v1/bulk-user-operations/enable"),
+    ],
+    # Just kick active sessions.
+    "force_logout": [
+        ("force_logout", "/v1/bulk-user-operations/force-logout"),
+    ],
+}
+
+
+def bulk_user_response(
+    user_ids: list[int] | str,
+    scenario: str,
+    comment: str,
+    *,
+    confirm: bool = False,
+) -> dict:
+    """Apply an opinionated sequence of bulk user operations.
+
+    .. warning::
+        This tool can lock out, disable, or strip 2FA from many users in a
+        single call.  It is intended for incident response (e.g. compromised
+        accounts), bulk offboarding, or break-glass restoration.  **Always
+        verify the user_ids list with the caller before invoking** and
+        require an explicit ``confirm=True`` plus a meaningful audit
+        ``comment`` referencing the ticket/incident.
+
+    Composes calls to ``POST /v1/bulk-user-operations/*`` endpoints in the
+    sequence prescribed by *scenario*.
+
+    Scenarios
+    ---------
+    ``"compromise"``
+        Force-logout → lock → disable → reset FIDO2 → reset TOTP.  Use when
+        an account is suspected of compromise and you want the strongest
+        possible response.
+    ``"offboard"``
+        Force-logout → disable.  Less aggressive — keeps 2FA registrations
+        so audit trails remain meaningful.
+    ``"unlock"``
+        Unlock → enable.  Reverses a prior lockout/disable.
+    ``"reenable"``
+        Enable only.  Use after ``"compromise"`` was applied in error.
+    ``"force_logout"``
+        Just terminate active sessions.
+
+    Parameters
+    ----------
+    user_ids:
+        List of user identifiers (or JSON string of the same).
+    scenario:
+        One of the scenario names listed above.
+    comment:
+        Required audit comment.  Must reference the ticket/incident and
+        explain *why* this action is being taken.  An empty comment is
+        rejected.
+    confirm:
+        Must be set to ``True`` to actually run any destructive scenario.
+        ``"unlock"``, ``"reenable"`` and ``"force_logout"`` also require
+        confirmation, but planning calls (``confirm=False``) return a
+        preview of what the tool would do.
+
+    Returns
+    -------
+    dict
+        On preview (``confirm=False``): ``{"preview": {...}}`` with the
+        list of steps and target user_ids, no API calls made.
+        On execute: ``{"result": {...}, "verification": {...}}`` where
+        ``result`` lists per-step API responses and ``verification`` is
+        a fresh user listing for the affected ids.
+    """
+
+    logger.debug(
+        "bulk_user_response(scenario=%s, n_users=%s, confirm=%s)",
+        scenario,
+        len(user_ids) if hasattr(user_ids, "__len__") else "?",
+        confirm,
+    )
+
+    if scenario not in _BULK_USER_SCENARIOS:
+        return {
+            "error": (
+                f"Unknown scenario {scenario!r}. "
+                f"Valid: {sorted(_BULK_USER_SCENARIOS)}"
+            )
+        }
+
+    if isinstance(user_ids, str):
+        try:
+            user_ids = json.loads(user_ids)
+        except Exception:
+            return {"error": "user_ids must be a list or a JSON-encoded list"}
+    if not isinstance(user_ids, list) or not user_ids:
+        return {"error": "user_ids must be a non-empty list"}
+    try:
+        ids = [int(i) for i in user_ids]
+    except Exception:
+        return {"error": "user_ids must contain integers"}
+
+    if not isinstance(comment, str) or not comment.strip():
+        return {
+            "error": (
+                "comment is required and must explain why this bulk action "
+                "is being taken (include ticket/incident reference)"
+            )
+        }
+
+    steps = _BULK_USER_SCENARIOS[scenario]
+
+    if not confirm:
+        return {
+            "preview": {
+                "scenario": scenario,
+                "user_ids": ids,
+                "user_count": len(ids),
+                "steps": [label for label, _ in steps],
+                "comment": comment,
+                "note": (
+                    "No API calls were made. Pass confirm=True to execute. "
+                    "Verify the user_ids list with a human before confirming."
+                ),
+            }
+        }
+
+    session = SessionManager.get()
+    body = _bulk_user_body(ids)
+
+    per_step: list[dict] = []
+    for label, path in steps:
+        try:
+            resp = session.request("POST", path, json=body)
+            payload = resp.json() if resp.content else {"success": True}
+            per_step.append({"step": label, "ok": True, "response": payload})
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.exception("bulk_user_response step %s failed", label)
+            per_step.append({"step": label, "ok": False, "error": str(exc)})
+
+    # Verification: re-fetch each affected user record so the caller can
+    # confirm enabled/lockedOut/loginFailures fields reflect the change.
+    verification: list[dict] = []
+    for uid in ids:
+        try:
+            user = session.request("GET", f"/v1/users/{uid}").json()
+            verification.append(
+                {
+                    "userId": uid,
+                    "enabled": user.get("enabled"),
+                    "isLockedOut": user.get("isLockedOut"),
+                    "lastLogin": user.get("lastLogin"),
+                }
+            )
+        except Exception as exc:  # pragma: no cover - network failures
+            verification.append({"userId": uid, "error": str(exc)})
+
+    return {
+        "result": {
+            "scenario": scenario,
+            "user_ids": ids,
+            "comment": comment,
+            "steps": per_step,
+            "all_ok": all(s["ok"] for s in per_step),
+        },
+        "verification": verification,
+    }
+
+
 TOOLS = [
     ("search", search),
     ("fetch", fetch),
@@ -1849,7 +2047,6 @@ TOOLS = [
     ("list_example_reports", list_example_reports),
     ("get_secret", get_secret),
     ("get_folder", get_folder),
-    ("user_management", user_management),
     ("role_management", role_management),
     ("user_role_management", user_role_management),
     ("group_management", group_management),
@@ -1857,7 +2054,6 @@ TOOLS = [
     ("group_role_management", group_role_management),
     ("folder_management", folder_management),
     ("health_check", health_check),
-    ("search_users", search_users),
     ("search_secrets", search_secrets),
     ("search_folders", search_folders),
     ("get_secret_environment_variable", get_secret_environment_variable),
@@ -1877,6 +2073,9 @@ TOOLS = [
         set_secret_field_environment_variable,
     ),
     ("update_secret_generated_password", update_secret_generated_password),
+    # New in v1.0.0: secret editing flow and bulk user incident response.
+    ("update_secret_fields", update_secret_fields),
+    ("bulk_user_response", bulk_user_response),
 ]
 
 

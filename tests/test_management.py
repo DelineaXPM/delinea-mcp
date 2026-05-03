@@ -33,25 +33,28 @@ def patch_request(monkeypatch, expected_calls, responses=None):
     monkeypatch.setattr(SessionManager, "_session", mock_session)
 
 
-def test_user_management(monkeypatch):
+def test_secretserver_local_user_management(monkeypatch):
+    """The renamed SS-local user_management still exercises /v1/users/*."""
     patch_request(
         monkeypatch,
         [("POST", "/v1/users", {"json": {"n": 1}}), ("GET", "/v1/users/99", {})],
         responses=[{"id": 99}, {"ok": True}],
     )
-    assert server.user_management("create", data={"n": 1}) == {
+    assert server.secretserver_local_user_management("create", data={"n": 1}) == {
         "result": {"id": 99},
         "verification": {"ok": True},
     }
 
     patch_request(monkeypatch, [("GET", "/v1/users/2", {})])
-    assert server.user_management("get", user_id=2) == {"ok": True}
+    assert server.secretserver_local_user_management("get", user_id=2) == {"ok": True}
 
     patch_request(
         monkeypatch,
         [("PUT", "/v1/users/3", {"json": {"a": 1}}), ("GET", "/v1/users/3", {})],
     )
-    assert server.user_management("update", user_id=3, data={"a": 1}) == {
+    assert server.secretserver_local_user_management(
+        "update", user_id=3, data={"a": 1}
+    ) == {
         "result": {"ok": True},
         "verification": {"ok": True},
     }
@@ -60,7 +63,7 @@ def test_user_management(monkeypatch):
         monkeypatch,
         [("DELETE", "/v1/users/4", {}), ("GET", "/v1/users/4", {})],
     )
-    assert server.user_management("delete", user_id=4) == {
+    assert server.secretserver_local_user_management("delete", user_id=4) == {
         "result": {"ok": True},
         "verification": {"ok": True},
     }
@@ -68,20 +71,24 @@ def test_user_management(monkeypatch):
     patch_request(
         monkeypatch, ("GET", "/v1/users/sessions", {"params": {"skip": 0, "take": 20}})
     )
-    assert server.user_management("list_sessions") == {"ok": True}
+    assert server.secretserver_local_user_management("list_sessions") == {"ok": True}
 
     patch_request(monkeypatch, ("POST", "/v1/users/5/reset-two-factor", {"json": {}}))
-    assert server.user_management("reset_2fa", user_id=5) == {"ok": True}
+    assert server.secretserver_local_user_management("reset_2fa", user_id=5) == {
+        "ok": True
+    }
 
     patch_request(
         monkeypatch, ("POST", "/v1/users/6/password-reset", {"json": {"p": 1}})
     )
-    assert server.user_management("reset_password", user_id=6, data={"p": 1}) == {
-        "ok": True
-    }
+    assert server.secretserver_local_user_management(
+        "reset_password", user_id=6, data={"p": 1}
+    ) == {"ok": True}
 
     patch_request(monkeypatch, ("POST", "/v1/users/7/lock-out", {"json": {}}))
-    assert server.user_management("lock_out", user_id=7) == {"ok": True}
+    assert server.secretserver_local_user_management("lock_out", user_id=7) == {
+        "ok": True
+    }
 
 
 def test_role_management(monkeypatch):

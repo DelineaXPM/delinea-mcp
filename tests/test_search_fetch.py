@@ -12,7 +12,8 @@ class DummySession:
         raise AssertionError("network")
 
 
-import delinea_mcp.tools as tools
+import delinea_mcp.secretserver_users as secretserver_users  # noqa: E402
+import delinea_mcp.tools as tools  # noqa: E402
 
 
 def setup_module(module):
@@ -49,7 +50,10 @@ def test_search_user_not_enabled(monkeypatch):
         called.append(q)
         return {}
 
-    monkeypatch.setattr(tools, "search_users", fake_search_users)
+    # User search routes through the SS-local module after the v1.0.0 split.
+    monkeypatch.setattr(
+        secretserver_users, "search_secretserver_local_users", fake_search_users
+    )
     tools.search("u")
     assert not called
 
@@ -58,8 +62,8 @@ def test_search_user_enabled(monkeypatch):
     tools.configure({"search_objects": ["secret", "user"]})
 
     monkeypatch.setattr(
-        tools,
-        "search_users",
+        secretserver_users,
+        "search_secretserver_local_users",
         lambda q: {"records": [{"id": 2, "username": "bob"}]},
     )
     res = tools.search("bob")
@@ -89,8 +93,8 @@ def test_fetch_secret(monkeypatch):
 def test_fetch_user_enabled(monkeypatch):
     tools.configure({"fetch_objects": ["secret", "user"]})
     monkeypatch.setattr(
-        tools,
-        "user_management",
+        secretserver_users,
+        "secretserver_local_user_management",
         lambda action, user_id=None, **_: (
             {"id": user_id, "username": "bob"} if action == "get" else None
         ),

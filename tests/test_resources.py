@@ -62,6 +62,7 @@ def test_get_folder_children(monkeypatch):
 
 
 def test_user_details_and_search(monkeypatch):
+    """The legacy SS-local user tools still hit /v1/users (Platform-free path)."""
     calls = []
 
     def fake_request(self, method, path, **kwargs):
@@ -76,8 +77,8 @@ def test_user_details_and_search(monkeypatch):
 
     mock_session = type("MockSession", (), {"request": fake_request})()
     monkeypatch.setattr(SessionManager, "_session", mock_session)
-    user = server.user_management("get", user_id=2)
-    search = server.search_users("bob")
+    user = server.secretserver_local_user_management("get", user_id=2)
+    search = server.search_secretserver_local_users("bob")
     assert user == {"id": 2, "name": "bob"}
     assert search == {"records": []}
     assert calls[0][0] == "/v1/users/2"
