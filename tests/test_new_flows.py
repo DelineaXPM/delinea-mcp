@@ -27,9 +27,10 @@ from delinea_mcp.session import SessionManager
 
 
 class DummyResponse:
-    def __init__(self, data=None, content=b"x"):
+    def __init__(self, data=None, content=b"x", status_code=200):
         self._data = data if data is not None else {"ok": True}
         self.content = content
+        self.status_code = status_code
 
     def json(self):
         return self._data
@@ -466,21 +467,97 @@ def test_platform_role_management_get_filters_by_name(monkeypatch):
 
 
 @pytest.mark.parametrize("action", ["create", "update", "delete"])
-def test_platform_role_management_write_actions_return_unsupported(monkeypatch, action):
-    """Mutations need a different OAuth scope or admin UI on modern tenants."""
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+def test_platform_role_management_write_falls_back_on_404(monkeypatch, action):
+    """When the legacy SaasManage/Roles endpoint returns 404, the tool
+    returns a structured guidance error.  But the request IS attempted —
+    we don't refuse unconditionally."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
 
-    def fake_post(*a, **kw):
-        raise AssertionError("no API calls expected on unsupported actions")
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(data={}, status_code=404)
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
     res = user_platform_tools.platform_role_management(
         action, role_id="role-1", data={"Name": "x"}
     )
+    assert calls, "tool must attempt the endpoint before falling back"
     assert "error" in res
-    assert "not exposed" in res["error"]
-    assert "role_management" in res["error"]  # points at SS-side fallback
+    assert "404" in res["error"]
+    assert "role_management" in res["error"]
+
+
+def test_platform_role_management_create_success_on_supporting_tenant(monkeypatch):
+    """When SaasManage/StoreRole returns success, the tool returns the result.
+
+    Verifies tenants that DO expose role mutations aren't locked out by
+    the fallback logic.
+    """
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    posts = []
+
+    def fake_post(url, **kwargs):
+        posts.append((url, kwargs.get("json")))
+        if "StoreRole" in url:
+            return DummyResponse({"success": True, "Result": "role-abc"})
+        # Verification 'get' uses Report/RunReport
+        return DummyResponse({"success": True, "Result": {"Results": []}})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_role_management(
+        "create", data={"Name": "Auditors", "Description": "RO"}
+    )
+    assert "result" in res
+    assert res["result"].get("Result") == "role-abc"
+    assert any("/SaasManage/StoreRole" in u for u, _ in posts)
+
+
+def test_platform_role_management_update_success_on_supporting_tenant(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    posts = []
+
+    def fake_post(url, **kwargs):
+        posts.append((url, kwargs.get("json")))
+        return DummyResponse({"success": True, "Result": {"Updated": True}})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_role_management(
+        "update", role_id="role-1", data={"Description": "new desc"}
+    )
+    assert "result" in res
+    update_body = next(b for u, b in posts if "/Roles/UpdateRole" in u)
+    assert update_body == {"Name": "role-1", "Description": "new desc"}
+
+
+def test_platform_role_management_delete_success_on_supporting_tenant(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    posts = []
+
+    def fake_post(url, **kwargs):
+        posts.append((url, kwargs.get("json")))
+        return DummyResponse({"success": True, "Result": {"Deleted": True}})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_role_management("delete", role_id="role-1")
+    assert "result" in res
+    delete_body = next(b for u, b in posts if "/SaasManage/RemoveRole" in u)
+    assert delete_body == {"Name": "role-1"}
+
+
+def test_platform_role_management_create_requires_name(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    res = user_platform_tools.platform_role_management("create", data={})
+    assert "error" in res and "'Name' required" in res["error"]
 
 
 # --------------------------------------------------------------------------- #
@@ -507,26 +584,64 @@ def test_platform_user_role_list_uses_canned_report(monkeypatch):
 
 
 @pytest.mark.parametrize("action", ["add", "remove"])
-def test_platform_user_role_mutations_return_unsupported(monkeypatch, action):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+def test_platform_user_role_mutations_fall_back_on_404(monkeypatch, action):
+    """Add/remove are attempted; on HTTP 404 the tool surfaces guidance."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
 
-    def fake_post(*a, **kw):
-        raise AssertionError("no API calls expected on unsupported mutations")
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(data={}, status_code=404)
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
     res = user_platform_tools.platform_user_role_management(
         action, role_id="role-1", user_principals=["alice@t"]
     )
+    assert calls, "tool must attempt the endpoint before falling back"
     assert "error" in res
-    assert "not exposed" in res["error"]
+    assert "404" in res["error"]
     assert "user_role_management" in res["error"]
+
+
+@pytest.mark.parametrize("action,key", [("add", "Add"), ("remove", "Delete")])
+def test_platform_user_role_mutations_success_on_supporting_tenant(
+    monkeypatch, action, key
+):
+    """On tenants exposing Roles/UpdateRole the tool returns the real result."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    posts = []
+
+    def fake_post(url, **kwargs):
+        posts.append((url, kwargs.get("json")))
+        return DummyResponse({"success": True, "Result": {"Updated": True}})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_user_role_management(
+        action, role_id="role-1", user_principals=["alice@t", "bob@t"]
+    )
+    assert "result" in res
+    update_body = next(b for u, b in posts if "/Roles/UpdateRole" in u)
+    assert update_body == {
+        "Name": "role-1",
+        "Users": {key: ["alice@t", "bob@t"]},
+    }
+
+
+def test_platform_user_role_add_requires_principals(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    res = user_platform_tools.platform_user_role_management("add", role_id="role-1")
+    assert "error" in res and "user_principals required" in res["error"]
 
 
 def test_platform_user_role_principals_accepts_json_string(monkeypatch):
     """The JSON-string parsing branch still runs even though list is the only
     real path now — keep coverage for the input-validation logic."""
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
     # Bad JSON should produce a parsing error before any HTTP call.
 

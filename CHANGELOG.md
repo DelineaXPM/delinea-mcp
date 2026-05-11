@@ -59,12 +59,13 @@ the Platform identity API by default.
   and `GetUser` was replaced by `GetUserAttributes` (POST `{"ID": …}`).
   This release fixes those paths.
 - Role mutation endpoints (`SaasManage/StoreRole`, `Roles/UpdateRole`,
-  etc.) are **not exposed** via the `xpmheadless` OAuth scope on modern
-  Platform tenants. `platform_role_management` and
-  `platform_user_role_management` therefore support read actions
-  (`list`, `get`) but return a structured "not supported on this scope"
-  error for write actions, directing the caller to use the SS-side
-  `role_management` tool or the Platform admin UI.
+  `SaasManage/RemoveRole`) are **discovery-driven**: the tools attempt
+  the documented endpoint and only fall back to a structured guidance
+  error on HTTP 404 (typical on modern Platform tenants using the
+  `xpmheadless` scope, which exposes user CRUD but not role CRUD).
+  Tenants that DO expose those endpoints get the real result. The
+  guidance error directs callers to the SS-side `role_management` /
+  `user_role_management` tools or the Platform admin UI.
 
 The current release introduces a comprehensive tool set for integrating Delinea Secret Server with the Model Context Protocol.
 

@@ -284,14 +284,22 @@ def test_platform_role_management_get_live():
 
 
 @pytest.mark.parametrize("action", ["create", "update", "delete"])
-def test_platform_role_management_mutations_unsupported_live(action):
-    """On this tenant the role-write endpoints aren't exposed via xpmheadless."""
+def test_platform_role_management_mutations_attempt_then_fallback_live(action):
+    """The tool attempts the documented endpoint; this tenant returns 404
+    and the tool surfaces the structured guidance error."""
     _require_platform()
     out = user_platform_tools.platform_role_management(
-        action, role_id="x", data={"Name": "x"}
+        action, role_id="mcp-itest-role-does-not-exist", data={"Name": "x"}
     )
-    assert "error" in out
-    assert "not exposed" in out["error"]
+    # On a 404, the tool returns a guidance error containing "404" and a
+    # pointer at the SS-side fallback.  On a tenant that DOES expose the
+    # endpoint, we'd get {"result": ..., "verification": ...} — the test
+    # tolerates both shapes so it stays useful when run elsewhere.
+    if "error" in out:
+        assert "404" in out["error"]
+        assert "role_management" in out["error"]
+    else:
+        assert "result" in out
 
 
 # --------------------------------------------------------------------------- #
@@ -306,10 +314,18 @@ def test_platform_user_role_management_list_live():
 
 
 @pytest.mark.parametrize("action", ["add", "remove"])
-def test_platform_user_role_management_mutations_unsupported_live(action):
+def test_platform_user_role_management_mutations_attempt_then_fallback_live(action):
+    """Add/remove are attempted; this tenant returns 404 so guidance surfaces."""
     _require_platform()
+    # Use a synthetic non-existent test principal so even if the tenant DID
+    # support the endpoint, nothing real changes.
     out = user_platform_tools.platform_user_role_management(
-        action, role_id="Everybody", user_principals=["test_mcp@dartlabs"]
+        action,
+        role_id="Everybody",
+        user_principals=["mcp-itest-noone@dartlabs.invalid"],
     )
-    assert "error" in out
-    assert "not exposed" in out["error"]
+    if "error" in out:
+        assert "404" in out["error"]
+        assert "user_role_management" in out["error"]
+    else:
+        assert "result" in out

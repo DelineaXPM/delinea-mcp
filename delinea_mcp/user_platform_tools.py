@@ -55,6 +55,18 @@ def _json_or_error(response: requests.Response) -> dict:
         return {"error": response.text}
 
 
+def _endpoint_not_available(response: requests.Response) -> bool:
+    """Return True when *response* looks like 'endpoint not in this scope'.
+
+    On modern Delinea Platform tenants the legacy role-management endpoints
+    return a bare 404 with an empty body.  Older Centrify deployments
+    return a JSON envelope with ``success=False`` and a descriptive
+    message.  We treat any 404 as "not available" — the tools fall back to
+    a structured guidance error in that case.
+    """
+    return response.status_code == 404
+
+
 platform_hostname = os.getenv("PLATFORM_HOSTNAME")
 platform_service_account = os.getenv("PLATFORM_SERVICE_ACCOUNT")
 platform_service_password = os.getenv("PLATFORM_SERVICE_PASSWORD")
@@ -424,43 +436,56 @@ def _run_role_search_report(
 
 
 _ROLE_WRITE_NOT_SUPPORTED = (
-    "Platform role write operations (create/update/delete) are not exposed "
-    "through the xpmheadless OAuth scope on modern Delinea Platform tenants — "
-    "the legacy SaasManage/StoreRole + Roles/UpdateRole endpoints return 404. "
-    "Use the Secret-Server-backed role_management tool to manage roles in "
-    "mixed Platform/SS deployments, or open the tenant's admin UI directly."
+    "Platform role write endpoint returned 404 — this OAuth scope on this "
+    "tenant does not expose role mutations (typical on modern Delinea Platform "
+    "deployments using the xpmheadless scope). Use the Secret-Server-backed "
+    "role_management tool to manage roles in mixed Platform/SS deployments, "
+    "or open the tenant's admin UI directly."
 )
 
 
 def platform_role_management(
     action: str,
     role_id: str | None = None,
-    data: dict | str | None = None,  # noqa: ARG001 — accepted for parity with SS API
+    data: dict | str | None = None,
     *,
     page_size: int = 100,
     query: str = "%",
 ) -> dict:
-    """Read roles on the Delinea Platform identity service.
+    """Manage roles on the Delinea Platform identity service.
 
-    Endpoint coverage on **modern Delinea Platform** tenants:
+    Endpoint coverage:
 
     * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
       ``role_searchbyname`` with a wildcard match.  Returns all visible roles.
-    * ``"get"`` -> same report filtered by exact role name (since the modern
-      Platform doesn't expose a Redrock SQL endpoint to filter by ID).
-    * ``"create"``/``"update"``/``"delete"`` — **not supported** on modern
-      tenants via this scope.  Returns a structured error pointing the caller
-      at :func:`delinea_mcp.tools.role_management` (which manages roles
-      through Secret Server's ``/v1/roles`` API in mixed deployments).
+    * ``"get"`` -> same report filtered by an exact / substring role name.
+    * ``"create"`` -> ``POST /identity/api/SaasManage/StoreRole`` (body
+      ``{"Name": ..., "Description": ...}``).  Returns the role's
+      ``_RowKey`` in ``Result``.
+    * ``"update"`` -> ``POST /identity/api/Roles/UpdateRole`` (body
+      ``{"Name": <role-id>, "Description": ..., "Users": {"Add": [...]}, ...}``).
+    * ``"delete"`` -> ``POST /identity/api/SaasManage/RemoveRole``.
+
+    Mutation behaviour is **discovery-driven**: the tool attempts the
+    documented endpoint, and only falls back to a structured guidance
+    error when the response is HTTP 404 (typical on modern Delinea
+    Platform tenants using the ``xpmheadless`` scope, which exposes
+    user CRUD but not role CRUD).  Tenants that do expose role
+    mutations get the real result.
 
     Parameters
     ----------
     action:
-        ``"list"`` or ``"get"`` (read).  ``"create"``/``"update"``/``"delete"``
-        return an "unsupported" error on modern Platform tenants.
+        ``"list"``, ``"get"``, ``"create"``, ``"update"`` or ``"delete"``.
     role_id:
-        For ``"get"``: the role's Name (modern Platform) or ID (legacy).
-        The canned report matches against ``Name``.
+        Required for ``"get"``, ``"update"`` and ``"delete"``.  For
+        modern Platform this is typically a Name; for legacy Centrify
+        deployments it's the ``_RowKey`` returned by ``StoreRole``.
+    data:
+        For ``"create"``: ``{"Name": ..., "Description": ...}``.
+        For ``"update"``: any subset of
+        ``{"Description", "Name", "Users": {"Add": [...], "Delete": [...]},
+        "Roles": {"Add": [...]}}``.
     page_size:
         Maximum rows for ``"list"``.
     query:
@@ -469,8 +494,9 @@ def platform_role_management(
     Returns
     -------
     dict
-        Raw report payload for ``"list"``/``"get"``; ``{"error": ...}`` for
-        unsupported write actions.
+        Raw API payload for reads, ``{"result": ..., "verification": ...}``
+        for successful writes, or ``{"error": ...}`` when the endpoint is
+        unavailable on this tenant.
     """
 
     logger.debug("platform_role_management(action=%s, role_id=%s)", action, role_id)
@@ -479,6 +505,8 @@ def platform_role_management(
         headers = _build_headers()
     except RuntimeError as exc:
         return {"error": str(exc)}
+
+    payload = _parse_json_data(data)
 
     try:
         if action == "list":
@@ -492,8 +520,54 @@ def platform_role_management(
             # callers can pass the ID and rely on Name = ID for system roles.
             return _run_role_search_report(headers, query=str(role_id), page_size=10)
 
-        if action in ("create", "update", "delete"):
-            return {"error": _ROLE_WRITE_NOT_SUPPORTED}
+        if action == "create":
+            if payload is None or not payload.get("Name"):
+                raise ValueError("data with 'Name' required for create")
+            url = _platform_url("/SaasManage/StoreRole")
+            resp = requests.post(
+                url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
+            )
+            if _endpoint_not_available(resp):
+                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
+            result = _json_or_error(resp)
+            new_id = None
+            if isinstance(result, dict):
+                r = result.get("Result")
+                if isinstance(r, str):
+                    new_id = r
+                elif isinstance(r, dict):
+                    new_id = r.get("_RowKey") or r.get("ID") or r.get("Name")
+            verify: dict[str, Any] = {}
+            if new_id:
+                verify = platform_role_management("get", role_id=new_id)
+            return {"result": result, "verification": verify}
+
+        if action == "update":
+            if not role_id or payload is None:
+                raise ValueError("role_id and data required for update")
+            url = _platform_url("/Roles/UpdateRole")
+            body = {"Name": role_id, **payload}
+            resp = requests.post(
+                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
+            )
+            if _endpoint_not_available(resp):
+                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
+            result = _json_or_error(resp)
+            verify = platform_role_management("get", role_id=role_id)
+            return {"result": result, "verification": verify}
+
+        if action == "delete":
+            if not role_id:
+                raise ValueError("role_id required for delete")
+            url = _platform_url("/SaasManage/RemoveRole")
+            resp = requests.post(
+                url, json={"Name": role_id}, headers=headers, timeout=_DEFAULT_TIMEOUT
+            )
+            if _endpoint_not_available(resp):
+                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
+            result = _json_or_error(resp)
+            verify = platform_role_management("get", role_id=role_id)
+            return {"result": result, "verification": verify}
 
         raise ValueError(f"Unknown action: {action}")
     except Exception as exc:  # pragma: no cover - network failures
@@ -502,9 +576,9 @@ def platform_role_management(
 
 
 _USER_ROLE_WRITE_NOT_SUPPORTED = (
-    "Platform user-role membership mutations (add/remove) are not exposed "
-    "through the xpmheadless OAuth scope on modern Delinea Platform tenants — "
-    "the legacy Roles/UpdateRole endpoint returns 404. Use the "
+    "Platform user-role mutation endpoint returned 404 — this OAuth scope on "
+    "this tenant does not expose role-membership writes (typical on modern "
+    "Delinea Platform deployments using the xpmheadless scope). Use the "
     "Secret-Server-backed user_role_management tool, which manages the "
     "SS-side role wiring that Platform tenants typically mirror, or the "
     "Platform admin UI directly."
@@ -516,17 +590,19 @@ def platform_user_role_management(
     role_id: str,
     user_principals: list[str] | str | None = None,
 ) -> dict:
-    """Read users assigned to a Platform role.
-
-    On **modern Delinea Platform** tenants:
+    """Add, remove, or list users assigned to a Platform role.
 
     * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
-      ``user_searchbyname`` (the canned report doesn't filter by role
-      directly; this returns *all* users — callers should use
-      :func:`search_users` instead and look at the ``Roles`` column there
-      if their tenant exposes it).
-    * ``"add"``/``"remove"`` — **not supported** via the xpmheadless scope.
-      Returns a structured error pointing at SS-side ``user_role_management``.
+      ``role_searchbyname`` (filtered to *role_id*).  Returns the role's
+      row; some tenants include a ``members`` column there.  Callers can
+      cross-reference with :func:`search_users`.
+    * ``"add"``/``"remove"`` -> ``POST /identity/api/Roles/UpdateRole`` with
+      body ``{"Name": <role_id>, "Users": {"Add": [...]}}`` or
+      ``{"Users": {"Delete": [...]}}``.
+
+    Mutation behaviour is **discovery-driven**: the tool attempts the
+    documented endpoint and only falls back to a structured guidance
+    error when the response is HTTP 404.
 
     Parameters
     ----------
@@ -535,14 +611,15 @@ def platform_user_role_management(
     role_id:
         Platform role name/identifier.
     user_principals:
-        Ignored for ``"list"``; required for ``"add"``/``"remove"`` (but
-        those return an unsupported-on-this-tenant error).
+        For ``"add"``/``"remove"``: list of user principal names (e.g.
+        ``"alice@tenant"``) or UUIDs.  Accepts a JSON-encoded string too.
 
     Returns
     -------
     dict
-        For ``"list"``: passthrough of the report payload.
-        For mutations: ``{"error": ...}`` with a clear remediation pointer.
+        Report payload for ``"list"``; ``{"result": ..., "verification": ...}``
+        for successful writes; ``{"error": ...}`` when the endpoint is
+        unavailable on this tenant.
     """
 
     logger.debug(
@@ -568,7 +645,19 @@ def platform_user_role_management(
             return _run_role_search_report(headers, query=str(role_id), page_size=50)
 
         if action in ("add", "remove"):
-            return {"error": _USER_ROLE_WRITE_NOT_SUPPORTED}
+            if not user_principals:
+                raise ValueError(f"user_principals required for {action}")
+            key = "Add" if action == "add" else "Delete"
+            url = _platform_url("/Roles/UpdateRole")
+            body = {"Name": role_id, "Users": {key: list(user_principals)}}
+            resp = requests.post(
+                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
+            )
+            if _endpoint_not_available(resp):
+                return {"error": _USER_ROLE_WRITE_NOT_SUPPORTED}
+            result = _json_or_error(resp)
+            verify = platform_user_role_management("list", role_id=role_id)
+            return {"result": result, "verification": verify}
 
         raise ValueError(f"Unknown action: {action}")
     except Exception as exc:  # pragma: no cover - network failures
