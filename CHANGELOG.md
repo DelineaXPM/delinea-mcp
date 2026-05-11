@@ -46,12 +46,25 @@ the Platform identity API by default.
 
 ### Notes
 
-- Live-verified against a Secret-Server cloud tenant for all SS-side
-  flows. Platform-side tools (`user_management`, `search_users`,
-  `platform_role_management`, `platform_user_role_management`) are
-  unit-tested only — Platform creds were not available during this
-  release; please verify against your tenant before relying on them in
-  production.
+- Live-verified against:
+  - a Secret-Server cloud tenant for all SS-side flows
+    (`update_secret_fields`, `bulk_user_response` preview,
+    `secretserver_local_*`, search/fetch).
+  - a Delinea Platform tenant (`dartlabs.secureplatform.io`) for the
+    Platform-side flows (`user_management` full CRUD lifecycle,
+    `search_users`, `platform_role_management` read, `platform_user_role_management`
+    read). 32 live integration tests pass.
+- Platform endpoint discovery: on modern Delinea Platform tenants the
+  identity-API namespace is `/identity/api/...` (not `/identity/...`),
+  and `GetUser` was replaced by `GetUserAttributes` (POST `{"ID": …}`).
+  This release fixes those paths.
+- Role mutation endpoints (`SaasManage/StoreRole`, `Roles/UpdateRole`,
+  etc.) are **not exposed** via the `xpmheadless` OAuth scope on modern
+  Platform tenants. `platform_role_management` and
+  `platform_user_role_management` therefore support read actions
+  (`list`, `get`) but return a structured "not supported on this scope"
+  error for write actions, directing the caller to use the SS-side
+  `role_management` tool or the Platform admin UI.
 
 The current release introduces a comprehensive tool set for integrating Delinea Secret Server with the Model Context Protocol.
 

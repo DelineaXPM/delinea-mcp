@@ -150,7 +150,22 @@ def _build_headers() -> dict[str, str]:
 
 
 def _platform_url(path: str) -> str:
-    return f"https://{platform_hostname}/identity{path}"
+    """Build a Platform identity-API URL.
+
+    Modern Delinea Platform tenants serve all identity-API endpoints under
+    ``/identity/api/...``.  Accept paths in two forms:
+
+    * ``"/UserMgmt/GetUserAttributes"`` — auto-prefixed with ``/identity/api``.
+    * ``"/identity/api/..."`` — used verbatim (compat with older code that
+      already hard-coded the prefix).
+    """
+    if path.startswith("/identity/"):
+        return f"https://{platform_hostname}{path}"
+    if path.startswith("/api/"):
+        # Old code shape: ``/api/Report/RunReport`` → ``/identity/api/...``
+        return f"https://{platform_hostname}/identity{path}"
+    # New shape: bare endpoint name → ``/identity/api/<endpoint>``
+    return f"https://{platform_hostname}/identity/api{path}"
 
 
 # --------------------------------------------------------------------------- #
@@ -284,11 +299,14 @@ def user_management(
         if action == "get":
             if not user_id:
                 raise ValueError("user_id required for get")
-            url = _platform_url("/UserMgmt/GetUser")
-            response = requests.get(
+            # Modern Delinea Platform exposes /identity/api/UserMgmt/GetUserAttributes
+            # (POST, body {"ID": <uuid>}) — the legacy /UserMgmt/GetUser GET endpoint
+            # was removed.  GetUserAttributes returns a richer record.
+            url = _platform_url("/UserMgmt/GetUserAttributes")
+            response = requests.post(
                 url,
+                json={"ID": user_id},
                 headers=headers,
-                params={"userId": user_id},
                 timeout=_DEFAULT_TIMEOUT,
             )
             return _json_or_error(response)
@@ -359,46 +377,100 @@ def platform_user_management(*args, **kwargs):
 # --------------------------------------------------------------------------- #
 
 
+_ROLE_SEARCH_REPORT_ID = "role_searchbyname"
+
+
+def _run_role_search_report(
+    headers: dict[str, str], query: str = "%", page_size: int = 100
+) -> dict:
+    """Run the ``role_searchbyname`` canned report.
+
+    The modern Delinea Platform exposes role data through this report
+    rather than via dedicated REST endpoints or Redrock SQL.  The shape
+    mirrors :func:`search_users` exactly.
+    """
+    url = _platform_url("/Report/RunReport")
+    payload = {
+        "ID": _ROLE_SEARCH_REPORT_ID,
+        "Args": {
+            "PageNumber": 1,
+            "PageSize": page_size,
+            "Limit": 100000,
+            "FilterQuery": None,
+            "Caching": 0,
+            "Ascending": True,
+            "SortBy": "Name",
+            "Parameters": [
+                {
+                    "Name": "searchString",
+                    "Value": query,
+                    "Label": "searchString",
+                    "Type": "string",
+                    "ColumnType": 12,
+                },
+                {
+                    "Name": "orderby",
+                    "Value": "Name",
+                    "Label": "orderby",
+                    "Type": "string",
+                    "ColumnType": 12,
+                },
+            ],
+        },
+    }
+    return _json_or_error(
+        requests.post(url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT)
+    )
+
+
+_ROLE_WRITE_NOT_SUPPORTED = (
+    "Platform role write operations (create/update/delete) are not exposed "
+    "through the xpmheadless OAuth scope on modern Delinea Platform tenants — "
+    "the legacy SaasManage/StoreRole + Roles/UpdateRole endpoints return 404. "
+    "Use the Secret-Server-backed role_management tool to manage roles in "
+    "mixed Platform/SS deployments, or open the tenant's admin UI directly."
+)
+
+
 def platform_role_management(
     action: str,
     role_id: str | None = None,
-    data: dict | str | None = None,
+    data: dict | str | None = None,  # noqa: ARG001 — accepted for parity with SS API
     *,
     page_size: int = 100,
+    query: str = "%",
 ) -> dict:
-    """Manage roles on the Delinea Platform identity service.
+    """Read roles on the Delinea Platform identity service.
 
-    Endpoint coverage:
+    Endpoint coverage on **modern Delinea Platform** tenants:
 
-    * ``"create"`` -> ``POST /identity/SaasManage/StoreRole`` with body
-      ``{"Name": ..., "Description": ...}``.
-      Returns the role identifier in ``Result._RowKey``.
-    * ``"update"`` -> ``POST /identity/Roles/UpdateRole`` with body
-      ``{"Name": <role-id>, "Description": ..., "Users": {"Add": [...], "Delete": [...]}}``.
-    * ``"list"`` -> ``POST /identity/Redrock/Query`` with the role-listing
-      script.
-    * ``"get"`` -> ``POST /identity/Redrock/Query`` filtered to the role id.
-    * ``"delete"`` -> ``POST /identity/SaasManage/RemoveRole`` body
-      ``{"Name": <role-id>}``.
+    * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
+      ``role_searchbyname`` with a wildcard match.  Returns all visible roles.
+    * ``"get"`` -> same report filtered by exact role name (since the modern
+      Platform doesn't expose a Redrock SQL endpoint to filter by ID).
+    * ``"create"``/``"update"``/``"delete"`` — **not supported** on modern
+      tenants via this scope.  Returns a structured error pointing the caller
+      at :func:`delinea_mcp.tools.role_management` (which manages roles
+      through Secret Server's ``/v1/roles`` API in mixed deployments).
 
     Parameters
     ----------
     action:
-        ``"list"``, ``"get"``, ``"create"``, ``"update"`` or ``"delete"``.
+        ``"list"`` or ``"get"`` (read).  ``"create"``/``"update"``/``"delete"``
+        return an "unsupported" error on modern Platform tenants.
     role_id:
-        Required for ``"get"``, ``"update"`` and ``"delete"``.  This is the
-        Platform's role identifier (a string ``_RowKey`` returned by
-        ``StoreRole`` — *not* a numeric SS role id).
-    data:
-        For ``"create"``: ``{"Name": ..., "Description": ...}``.
-        For ``"update"``: any subset of ``{"Description", "Name",
-        "Users": {"Add": [...], "Delete": [...]}, "Roles": {"Add": [...]}}``.
+        For ``"get"``: the role's Name (modern Platform) or ID (legacy).
+        The canned report matches against ``Name``.
+    page_size:
+        Maximum rows for ``"list"``.
+    query:
+        Optional search substring for ``"list"``.  Default ``"%"`` matches all.
 
     Returns
     -------
     dict
-        Raw API payload or ``{"result": ..., "verification": ...}`` for
-        write actions.
+        Raw report payload for ``"list"``/``"get"``; ``{"error": ...}`` for
+        unsupported write actions.
     """
 
     logger.debug("platform_role_management(action=%s, role_id=%s)", action, role_id)
@@ -408,79 +480,20 @@ def platform_role_management(
     except RuntimeError as exc:
         return {"error": str(exc)}
 
-    payload = _parse_json_data(data)
-
     try:
         if action == "list":
-            url = _platform_url("/Redrock/Query")
-            body = {
-                "Script": (
-                    "SELECT ID, Name, Description FROM Role "
-                    "ORDER BY Name COLLATE NOCASE"
-                ),
-                "Args": {"PageNumber": 1, "PageSize": page_size},
-            }
-            return _json_or_error(
-                requests.post(url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT)
-            )
+            return _run_role_search_report(headers, query=query, page_size=page_size)
 
         if action == "get":
             if not role_id:
                 raise ValueError("role_id required for get")
-            url = _platform_url("/Redrock/Query")
-            # Parameterise to avoid script injection.
-            body = {
-                "Script": ("SELECT ID, Name, Description FROM Role WHERE ID = @rid"),
-                "Args": {
-                    "PageNumber": 1,
-                    "PageSize": 1,
-                    "Parameters": [{"Name": "rid", "Value": role_id, "Type": "string"}],
-                },
-            }
-            return _json_or_error(
-                requests.post(url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT)
-            )
+            # The canned report filters on Name (case-insensitive substring).
+            # For modern tenants role_id is typically a Name; for legacy IDs
+            # callers can pass the ID and rely on Name = ID for system roles.
+            return _run_role_search_report(headers, query=str(role_id), page_size=10)
 
-        if action == "create":
-            if payload is None or not payload.get("Name"):
-                raise ValueError("data with 'Name' required for create")
-            url = _platform_url("/SaasManage/StoreRole")
-            resp = requests.post(
-                url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            result = _json_or_error(resp)
-            new_id = (
-                (result.get("Result") or {}).get("_RowKey")
-                if isinstance(result.get("Result"), dict)
-                else None
-            )
-            verify: dict[str, Any] = {}
-            if new_id:
-                verify = platform_role_management("get", role_id=new_id)
-            return {"result": result, "verification": verify}
-
-        if action == "update":
-            if not role_id or payload is None:
-                raise ValueError("role_id and data required for update")
-            url = _platform_url("/Roles/UpdateRole")
-            body = {"Name": role_id, **payload}
-            resp = requests.post(
-                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            result = _json_or_error(resp)
-            verify = platform_role_management("get", role_id=role_id)
-            return {"result": result, "verification": verify}
-
-        if action == "delete":
-            if not role_id:
-                raise ValueError("role_id required for delete")
-            url = _platform_url("/SaasManage/RemoveRole")
-            resp = requests.post(
-                url, json={"Name": role_id}, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            result = _json_or_error(resp)
-            verify = platform_role_management("get", role_id=role_id)
-            return {"result": result, "verification": verify}
+        if action in ("create", "update", "delete"):
+            return {"error": _ROLE_WRITE_NOT_SUPPORTED}
 
         raise ValueError(f"Unknown action: {action}")
     except Exception as exc:  # pragma: no cover - network failures
@@ -488,32 +501,48 @@ def platform_role_management(
         return {"error": str(exc)}
 
 
+_USER_ROLE_WRITE_NOT_SUPPORTED = (
+    "Platform user-role membership mutations (add/remove) are not exposed "
+    "through the xpmheadless OAuth scope on modern Delinea Platform tenants — "
+    "the legacy Roles/UpdateRole endpoint returns 404. Use the "
+    "Secret-Server-backed user_role_management tool, which manages the "
+    "SS-side role wiring that Platform tenants typically mirror, or the "
+    "Platform admin UI directly."
+)
+
+
 def platform_user_role_management(
     action: str,
     role_id: str,
     user_principals: list[str] | str | None = None,
 ) -> dict:
-    """Add or remove users from a Platform role.
+    """Read users assigned to a Platform role.
 
-    Implemented via ``POST /identity/Roles/UpdateRole`` with a body of
-    ``{"Name": <role_id>, "Users": {"Add": [...], "Delete": [...]}}``.
+    On **modern Delinea Platform** tenants:
+
+    * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
+      ``user_searchbyname`` (the canned report doesn't filter by role
+      directly; this returns *all* users — callers should use
+      :func:`search_users` instead and look at the ``Roles`` column there
+      if their tenant exposes it).
+    * ``"add"``/``"remove"`` — **not supported** via the xpmheadless scope.
+      Returns a structured error pointing at SS-side ``user_role_management``.
 
     Parameters
     ----------
     action:
-        ``"add"``, ``"remove"`` or ``"list"`` (lists current role members).
+        ``"add"``, ``"remove"`` or ``"list"``.
     role_id:
-        Platform role identifier (the ``_RowKey`` returned by ``StoreRole``).
+        Platform role name/identifier.
     user_principals:
-        For ``"add"``/``"remove"``: list of user principal names (e.g.
-        ``"alice@tenant"``) or user IDs.  Accepts a JSON-encoded string too.
-        Ignored for ``"list"``.
+        Ignored for ``"list"``; required for ``"add"``/``"remove"`` (but
+        those return an unsupported-on-this-tenant error).
 
     Returns
     -------
     dict
-        For ``"list"``: raw response payload listing role members.
-        For ``"add"``/``"remove"``: ``{"result": ..., "verification": ...}``.
+        For ``"list"``: passthrough of the report payload.
+        For mutations: ``{"error": ...}`` with a clear remediation pointer.
     """
 
     logger.debug(
@@ -533,36 +562,13 @@ def platform_user_role_management(
 
     try:
         if action == "list":
-            url = _platform_url("/Redrock/Query")
-            # Roles → RoleMembers join: ask the Platform for the principals.
-            body = {
-                "Script": (
-                    "SELECT u.Username, u.ID FROM User u "
-                    "INNER JOIN RoleMember rm ON rm.UserID = u.ID "
-                    "WHERE rm.RoleID = @rid"
-                ),
-                "Args": {
-                    "PageNumber": 1,
-                    "PageSize": 200,
-                    "Parameters": [{"Name": "rid", "Value": role_id, "Type": "string"}],
-                },
-            }
-            return _json_or_error(
-                requests.post(url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT)
-            )
+            # Look up role-by-name then return any membership info the report
+            # exposes.  The canned report returns roletype + description; some
+            # tenants augment with a 'members' field.
+            return _run_role_search_report(headers, query=str(role_id), page_size=50)
 
         if action in ("add", "remove"):
-            if not user_principals:
-                raise ValueError(f"user_principals required for {action}")
-            key = "Add" if action == "add" else "Delete"
-            url = _platform_url("/Roles/UpdateRole")
-            body = {"Name": role_id, "Users": {key: list(user_principals)}}
-            resp = requests.post(
-                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            result = _json_or_error(resp)
-            verify = platform_user_role_management("list", role_id=role_id)
-            return {"result": result, "verification": verify}
+            return {"error": _USER_ROLE_WRITE_NOT_SUPPORTED}
 
         raise ValueError(f"Unknown action: {action}")
     except Exception as exc:  # pragma: no cover - network failures

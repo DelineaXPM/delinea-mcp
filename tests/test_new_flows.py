@@ -14,6 +14,8 @@ import os
 import sys
 from unittest.mock import Mock
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import server
 from delinea_mcp import tools, user_platform_tools
@@ -417,97 +419,78 @@ def test_user_management_returns_helpful_error_when_unconfigured(monkeypatch):
 
 # --------------------------------------------------------------------------- #
 # platform_role_management                                                    #
+#                                                                             #
+# On modern Delinea Platform tenants role write ops aren't exposed via the    #
+# xpmheadless OAuth scope; the tool returns a structured error.  Read ops     #
+# (list, get) use the canned Report/RunReport pattern.                        #
 # --------------------------------------------------------------------------- #
 
 
-def test_platform_role_management_create_uses_storerole(monkeypatch):
+def test_platform_role_management_list_uses_canned_report(monkeypatch):
     monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
 
-    posts = []
+    captured = []
 
     def fake_post(url, **kwargs):
-        posts.append((url, kwargs.get("json")))
-        if "StoreRole" in url:
-            return DummyResponse({"Result": {"_RowKey": "role-abc"}})
-        # Verification 'get' call
-        return DummyResponse({"Result": {"Results": [{"Row": {"ID": "role-abc"}}]}})
+        captured.append((url, kwargs.get("json")))
+        return DummyResponse(
+            {"success": True, "Result": {"Results": [{"Row": {"Name": "Everybody"}}]}}
+        )
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_role_management("list")
+    assert "/api/Report/RunReport" in captured[0][0]
+    assert captured[0][1]["ID"] == "role_searchbyname"
+    # The Args.Parameters should carry the search string (default "%" for list-all)
+    params = captured[0][1]["Args"]["Parameters"]
+    assert any(p["Name"] == "searchString" for p in params)
+    assert res.get("success") is True
+
+
+def test_platform_role_management_get_filters_by_name(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    captured = []
+
+    def fake_post(url, **kwargs):
+        captured.append((url, kwargs.get("json")))
+        return DummyResponse({"success": True, "Result": {"Results": []}})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    user_platform_tools.platform_role_management("get", role_id="Auditors")
+    params = captured[0][1]["Args"]["Parameters"]
+    search_value = next(p["Value"] for p in params if p["Name"] == "searchString")
+    assert search_value == "Auditors"
+
+
+@pytest.mark.parametrize("action", ["create", "update", "delete"])
+def test_platform_role_management_write_actions_return_unsupported(monkeypatch, action):
+    """Mutations need a different OAuth scope or admin UI on modern tenants."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    def fake_post(*a, **kw):
+        raise AssertionError("no API calls expected on unsupported actions")
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
     res = user_platform_tools.platform_role_management(
-        "create", data={"Name": "Auditors", "Description": "RO"}
+        action, role_id="role-1", data={"Name": "x"}
     )
-    assert "result" in res
-    assert "/SaasManage/StoreRole" in posts[0][0]
-    assert posts[0][1] == {"Name": "Auditors", "Description": "RO"}
-
-
-def test_platform_role_management_update_calls_updaterole(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    posts = []
-
-    def fake_post(url, **kwargs):
-        posts.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Success": True}})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    user_platform_tools.platform_role_management(
-        "update", role_id="role-1", data={"Description": "new"}
-    )
-    assert any("Roles/UpdateRole" in u for u, _ in posts)
-    update_body = next(b for u, b in posts if "Roles/UpdateRole" in u)
-    assert update_body == {"Name": "role-1", "Description": "new"}
-
-
-def test_platform_role_management_list_uses_redrock(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    captured = []
-
-    def fake_post(url, **kwargs):
-        captured.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Results": []}})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    user_platform_tools.platform_role_management("list")
-    assert "/Redrock/Query" in captured[0][0]
-    assert "FROM Role" in captured[0][1]["Script"]
-
-
-def test_platform_role_management_delete_uses_removerole(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    captured = []
-
-    def fake_post(url, **kwargs):
-        captured.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Success": True}})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    res = user_platform_tools.platform_role_management("delete", role_id="role-1")
-    assert "result" in res
-    assert any("RemoveRole" in u for u, _ in captured)
-    delete_body = next(b for u, b in captured if "RemoveRole" in u)
-    assert delete_body == {"Name": "role-1"}
-
-
-def test_platform_role_management_create_requires_name(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-    res = user_platform_tools.platform_role_management("create", data={})
-    assert "error" in res and "'Name' required" in res["error"]
+    assert "error" in res
+    assert "not exposed" in res["error"]
+    assert "role_management" in res["error"]  # points at SS-side fallback
 
 
 # --------------------------------------------------------------------------- #
 # platform_user_role_management                                               #
+#                                                                             #
+# Same constraints — reads via canned report; writes unsupported.             #
 # --------------------------------------------------------------------------- #
 
 
-def test_platform_user_role_add_uses_updaterole_users_add(monkeypatch):
+def test_platform_user_role_list_uses_canned_report(monkeypatch):
     monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
 
@@ -515,61 +498,47 @@ def test_platform_user_role_add_uses_updaterole_users_add(monkeypatch):
 
     def fake_post(url, **kwargs):
         captured.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Success": True}})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    res = user_platform_tools.platform_user_role_management(
-        "add", role_id="role-1", user_principals=["alice@t", "bob@t"]
-    )
-    assert "result" in res
-    update_body = next(b for u, b in captured if "Roles/UpdateRole" in u)
-    assert update_body == {
-        "Name": "role-1",
-        "Users": {"Add": ["alice@t", "bob@t"]},
-    }
-
-
-def test_platform_user_role_remove_uses_users_delete(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    captured = []
-
-    def fake_post(url, **kwargs):
-        captured.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Success": True}})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    user_platform_tools.platform_user_role_management(
-        "remove", role_id="role-1", user_principals=["alice@t"]
-    )
-    update_body = next(b for u, b in captured if "Roles/UpdateRole" in u)
-    assert update_body == {
-        "Name": "role-1",
-        "Users": {"Delete": ["alice@t"]},
-    }
-
-
-def test_platform_user_role_add_requires_principals(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-    res = user_platform_tools.platform_user_role_management("add", role_id="role-1")
-    assert "error" in res and "user_principals required" in res["error"]
-
-
-def test_platform_user_role_list_uses_redrock(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    captured = []
-
-    def fake_post(url, **kwargs):
-        captured.append((url, kwargs.get("json")))
-        return DummyResponse({"Result": {"Results": []}})
+        return DummyResponse({"success": True, "Result": {"Results": []}})
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
     user_platform_tools.platform_user_role_management("list", role_id="role-1")
-    assert any("/Redrock/Query" in u for u, _ in captured)
+    assert any("/api/Report/RunReport" in u for u, _ in captured)
+    assert captured[0][1]["ID"] == "role_searchbyname"
+
+
+@pytest.mark.parametrize("action", ["add", "remove"])
+def test_platform_user_role_mutations_return_unsupported(monkeypatch, action):
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+
+    def fake_post(*a, **kw):
+        raise AssertionError("no API calls expected on unsupported mutations")
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_user_role_management(
+        action, role_id="role-1", user_principals=["alice@t"]
+    )
+    assert "error" in res
+    assert "not exposed" in res["error"]
+    assert "user_role_management" in res["error"]
+
+
+def test_platform_user_role_principals_accepts_json_string(monkeypatch):
+    """The JSON-string parsing branch still runs even though list is the only
+    real path now — keep coverage for the input-validation logic."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    # Bad JSON should produce a parsing error before any HTTP call.
+
+    def fake_post(*a, **kw):
+        raise AssertionError("no API call expected on parse error")
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    res = user_platform_tools.platform_user_role_management(
+        "add", role_id="role-1", user_principals="not-json"
+    )
+    assert "error" in res
+    assert "JSON-encoded list" in res["error"]
 
 
 # --------------------------------------------------------------------------- #
