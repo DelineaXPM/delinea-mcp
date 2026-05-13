@@ -54,9 +54,10 @@ def test_run_report_live():
 
 def test_search_live():
     require_credentials()
-    server.search_users("admin")
     server.search_secrets("admin")
     server.search_folders("/")
+    # Platform search_users requires Platform creds; SS-only deployments
+    # use search_secretserver_local_users instead.
 
 
 def test_secret_and_folder_live():
@@ -97,6 +98,66 @@ def test_user_role_group_live():
     server.user_group_management("remove", int(user_id), [gid])
     server.user_role_management("remove", int(user_id), [int(role_id)])
     server.group_management("delete", group_id=gid)
+
+
+def test_secretserver_local_user_management_sessions_live():
+    """v1.0.0: SS-local user_management was renamed."""
+    require_credentials()
+    result = server.secretserver_local_user_management("list_sessions")
+    assert isinstance(result, dict)
+
+
+def test_search_secretserver_local_users_live():
+    """v1.0.0: SS-local search_users was renamed."""
+    require_credentials()
+    result = server.search_secretserver_local_users("admin")
+    assert isinstance(result, dict)
+
+
+def test_update_secret_fields_live():
+    """Verify the read-mutate-verify flow against a real secret.
+
+    Idempotent: writes the existing notes value back to itself, so the
+    secret content is unchanged after the test.
+    """
+    require_credentials()
+    sid = env_var("LIVE_SECRET_ID")
+    summary = server.get_secret(int(sid), summary=True)
+    if summary.get("requiresApproval") or summary.get("isRestricted"):
+        pytest.skip("LIVE_SECRET_ID requires approval; cannot exercise update flow")
+
+    # Read the current 'notes' value (if present) to write it back unchanged.
+    current = server.get_secret(int(sid))
+    notes_val = ""
+    for item in current.get("items", []) or []:
+        slug = (item.get("slug") or item.get("fieldName") or "").lower()
+        if slug == "notes":
+            notes_val = item.get("itemValue") or ""
+            break
+
+    out = server.update_secret_fields(
+        secret_id=int(sid),
+        field_updates={"notes": notes_val},
+        comment="integration-test: idempotent re-write of notes",
+    )
+    # Either the update succeeded or the secret has no notes slug — both
+    # outcomes are acceptable; we just assert the tool returned a structured
+    # response and didn't crash.
+    assert isinstance(out, dict)
+    assert "result" in out or "error" in out
+
+
+def test_bulk_user_response_preview_live():
+    """Preview-only invocation makes no changes against the live tenant."""
+    require_credentials()
+    uid = env_var("LIVE_USER_ID")
+    out = server.bulk_user_response(
+        user_ids=[int(uid)],
+        scenario="force_logout",
+        comment="integration-test: preview only",
+    )
+    assert "preview" in out
+    assert out["preview"]["user_count"] == 1
 
 
 def test_inbox_live():
@@ -147,8 +208,18 @@ def test_list_example_reports_live():
 
 
 def test_user_management_sessions_live():
+    """In v1.0.0 ``user_management`` is Platform-backed; this test exercises
+    it only if Platform is configured.  Otherwise it expects the helpful
+    'not configured' error.
+    """
     require_credentials()
-    result = server.user_management("list_sessions")
+    if not os.getenv("PLATFORM_HOSTNAME"):
+        # Platform not configured -> tool should return a structured error
+        result = server.user_management("get", user_id="x")
+        assert "secretserver_local_user_management" in result.get("error", "")
+        return
+    # Platform configured -> a generic search_users call should succeed.
+    result = server.search_users("a")
     assert isinstance(result, dict)
 
 

@@ -72,18 +72,21 @@ def test_platform_user_functions(monkeypatch):
 
 
 def test_platform_user_get(monkeypatch):
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
+    """v1.0.0+: get uses POST /UserMgmt/GetUserAttributes (modern Platform)."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
     calls = []
 
-    def fake_get(url, **kwargs):
+    def fake_post(url, **kwargs):
         calls.append((url, kwargs))
         return DummyResponse()
 
-    monkeypatch.setattr(user_platform_tools.requests, "get", fake_get)
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
     res = user_platform_tools.platform_user_management("get", user_id="x")
     assert res == {"ok": True}
-    assert "GetUser" in calls[0][0]
+    assert "GetUserAttributes" in calls[0][0]
+    # Body should be {"ID": "x"}
+    assert calls[0][1]["json"] == {"ID": "x"}
 
 
 def test_register(monkeypatch):

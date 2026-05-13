@@ -10,10 +10,15 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from delinea_api import DelineaSession
-from delinea_mcp import tools, user_platform_tools
+from delinea_mcp import secretserver_users, tools, user_platform_tools
 from delinea_mcp.config import load_config
+from delinea_mcp.secretserver_users import (
+    search_secretserver_local_users,
+    secretserver_local_user_management,
+)
 from delinea_mcp.session import SessionManager
 from delinea_mcp.tools import (
+    bulk_user_response,
     check_secret_template,
     check_secret_template_field,
     create_secret_with_generated_password,
@@ -30,12 +35,17 @@ from delinea_mcp.tools import (
     search,
     search_folders,
     search_secrets,
-    search_users,
     set_secret_field_environment_variable,
+    update_secret_fields,
     update_secret_generated_password,
     user_group_management,
-    user_management,
     user_role_management,
+)
+from delinea_mcp.user_platform_tools import (
+    platform_role_management,
+    platform_user_role_management,
+    search_users,
+    user_management,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +83,15 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     enabled = set(cfg.get("enabled_tools", []))
     tools.register(mcp, enabled)
 
+    # Always register the legacy SS-local user tools so SS-only deployments
+    # have a fallback even when Platform is not configured.
+    secretserver_users.register(mcp)
+
+    # Configure Platform tools.  Always register them so the canonical
+    # user_management / search_users tool names are available to the
+    # client.  When Platform is not configured the tools return a clear
+    # error directing the caller to either configure Platform or use
+    # secretserver_local_*.
     if cfg.get("platform_hostname"):
         user_platform_tools.configure(
             hostname=cfg.get("platform_hostname"),
@@ -80,10 +99,13 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             service_password=os.getenv("PLATFORM_SERVICE_PASSWORD"),
             tenant_id=cfg.get("platform_tenant_id"),
         )
-        user_platform_tools.register(mcp)
-        logger.debug("Registered user platform tools from config")
+        logger.debug("Configured user_platform_tools from config")
     else:
-        logger.info("Platform tools disabled; no hostname in config")
+        logger.info(
+            "Platform not configured; user_management/search_users will return "
+            "a helpful error pointing at secretserver_local_* tools."
+        )
+    user_platform_tools.register(mcp)
 
 
 # Load default config on import using the config module's default resolution.
@@ -253,9 +275,17 @@ __all__ = [
     "run_server",
     "tools",
     "user_platform_tools",
+    "secretserver_users",
     "get_secret",
     "get_folder",
+    # Canonical (Platform-backed) user tools — v1.0.0+
     "user_management",
+    "search_users",
+    "platform_role_management",
+    "platform_user_role_management",
+    # Legacy SS-local user tools — for SS-only deployments
+    "secretserver_local_user_management",
+    "search_secretserver_local_users",
     "role_management",
     "user_role_management",
     "group_management",
@@ -265,7 +295,6 @@ __all__ = [
     "health_check",
     "search",
     "fetch",
-    "search_users",
     "search_secrets",
     "search_folders",
     "generate_sql_query",
@@ -279,6 +308,8 @@ __all__ = [
     "create_secret_with_generated_password",
     "set_secret_field_environment_variable",
     "update_secret_generated_password",
+    "update_secret_fields",
+    "bulk_user_response",
 ]
 
 if __name__ == "__main__":

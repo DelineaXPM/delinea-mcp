@@ -1,6 +1,6 @@
 import pytest
 
-from delinea_mcp import tools
+from delinea_mcp import secretserver_users, tools
 from delinea_mcp.session import SessionManager
 
 
@@ -22,16 +22,36 @@ def test_parse_json_data_bad():
 @pytest.mark.parametrize(
     "func,args,msg",
     [
-        (tools.user_management, ("get",), "user_id required for get"),
-        (tools.user_management, ("update",), "user_id and data required for update"),
-        (tools.user_management, ("delete",), "user_id required for delete"),
-        (tools.user_management, ("reset_2fa",), "user_id required for reset_2fa"),
         (
-            tools.user_management,
+            secretserver_users.secretserver_local_user_management,
+            ("get",),
+            "user_id required for get",
+        ),
+        (
+            secretserver_users.secretserver_local_user_management,
+            ("update",),
+            "user_id and data required for update",
+        ),
+        (
+            secretserver_users.secretserver_local_user_management,
+            ("delete",),
+            "user_id required for delete",
+        ),
+        (
+            secretserver_users.secretserver_local_user_management,
+            ("reset_2fa",),
+            "user_id required for reset_2fa",
+        ),
+        (
+            secretserver_users.secretserver_local_user_management,
             ("reset_password",),
             "user_id and data required for reset_password",
         ),
-        (tools.user_management, ("lock_out",), "user_id required for lock_out"),
+        (
+            secretserver_users.secretserver_local_user_management,
+            ("lock_out",),
+            "user_id required for lock_out",
+        ),
     ],
 )
 def test_user_management_missing(monkeypatch, func, args, msg):
