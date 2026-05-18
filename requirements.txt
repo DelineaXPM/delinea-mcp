@@ -15,7 +15,7 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-authlib==1.7.0
+authlib==1.7.1
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
@@ -28,7 +28,7 @@ cffi==2.0.0 ; platform_python_implementation != 'PyPy'
     # via cryptography
 charset-normalizer==3.4.3
     # via requests
-click==8.3.0
+click==8.3.3
     # via uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
@@ -119,7 +119,7 @@ pytest-asyncio==1.3.0
     #   delinea-mcp (pyproject.toml:test)
 python-dotenv==1.2.2
     # via pydantic-settings
-python-multipart==0.0.26
+python-multipart==0.0.27
     # via mcp
 pywin32==311 ; sys_platform == 'win32'
     # via mcp
@@ -161,7 +161,7 @@ typing-inspection==0.4.2
     #   mcp
     #   pydantic
     #   pydantic-settings
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
 uvicorn==0.37.0
     # via
