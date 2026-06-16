@@ -106,7 +106,7 @@ pydantic-settings==2.10.1
     # via mcp
 pygments==2.20.0
     # via pytest
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via mcp
 pytest==9.0.3
     # via
@@ -119,7 +119,7 @@ pytest-asyncio==1.3.0
     #   delinea-mcp (pyproject.toml:test)
 python-dotenv==1.2.2
     # via pydantic-settings
-python-multipart==0.0.26
+python-multipart==0.0.31
     # via mcp
 pywin32==311 ; sys_platform == 'win32'
     # via mcp
@@ -161,7 +161,7 @@ typing-inspection==0.4.2
     #   mcp
     #   pydantic
     #   pydantic-settings
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
 uvicorn==0.37.0
     # via
