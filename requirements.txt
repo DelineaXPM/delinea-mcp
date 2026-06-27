@@ -15,7 +15,7 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-authlib==1.7.0
+authlib==1.7.1
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
@@ -65,7 +65,7 @@ httpx-sse==0.4.1
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
     #   mcp
-idna==3.10
+idna==3.15
     # via
     #   anyio
     #   httpx
@@ -74,7 +74,7 @@ iniconfig==2.1.0
     # via pytest
 jiter==0.11.0
     # via openai
-joserfc==1.6.4
+joserfc==1.6.7
     # via authlib
 jsonschema==4.25.1
     # via mcp
