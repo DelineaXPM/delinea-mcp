@@ -29,10 +29,30 @@ def test_registration_psk():
     r = client.post(
         "/oauth/register",
         json={"client_name": "t", "redirect_uris": ["http://localhost/callback"]},
+        headers={"Authorization": "Bearer sekret"},
     )
     assert r.status_code == 200
     data = r.json()
     assert "client_id" in data and "client_secret" in data
+
+
+def test_registration_requires_psk():
+    as_config.reset_state()
+    app = FastAPI()
+    mount_oauth_routes(app, {"registration_psk": "sekret", "oauth_db_path": ":memory:"})
+    client = TestClient(app)
+    payload = {"client_name": "t", "redirect_uris": ["http://localhost/callback"]}
+    # no secret at all
+    assert client.post("/oauth/register", json=payload).status_code == 401
+    # wrong secret
+    assert (
+        client.post("/oauth/register", json={**payload, "secret": "wrong"}).status_code
+        == 401
+    )
+    # secret in the JSON body also works
+    r = client.post("/oauth/register", json={**payload, "secret": "sekret"})
+    assert r.status_code == 200
+    assert "client_id" in r.json()
 
 
 def test_scope_enforcement(monkeypatch):
