@@ -32,4 +32,9 @@ def mount_sse_routes(
         return
 
     app.add_api_route("/mcp/sse", sse_endpoint, methods=["GET"])
-    app.mount("/messages", transport.handle_post_message)
+    # Register the POST channel through FastAPI instead of app.mount():
+    # Depends() does not apply to mounted ASGI sub-apps, so mounting
+    # transport.handle_post_message directly leaves every tool call
+    # (get_secret, update_secret_fields, ...) without the bearer-token
+    # check. post_message above exists for exactly this route.
+    app.add_api_route("/messages/", post_message, methods=["POST"])
