@@ -31,7 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Iterable
 
 import requests
 
@@ -682,13 +682,20 @@ TOOLS = [
 ]
 
 
-def register(mcp: Any) -> None:
+def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
     """Register Platform tools on a FastMCP server.
 
-    Tools register unconditionally so the LLM always sees the canonical
-    ``user_management`` and ``search_users`` names.  When Platform is not
-    configured, calls return a helpful error directing the caller to
-    either configure Platform or use the legacy SS-local tools.
+    Honours the same ``enabled_tools`` allowlist semantics as
+    :func:`delinea_mcp.tools.register`: an empty/missing set registers
+    every tool in this module (including the canonical
+    ``user_management`` / ``search_users`` names); a non-empty set
+    registers only the named tools. When Platform is not configured,
+    registered tools still return a helpful error directing the caller
+    to configure Platform or use the legacy SS-local tools.
     """
+    enabled_set = set(enabled or [])
+    if not enabled_set:
+        enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
-        mcp.tool()(func)
+        if name in enabled_set:
+            mcp.tool()(func)
