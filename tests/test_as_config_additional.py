@@ -15,6 +15,13 @@ def test_init_keys_invalid_file(tmp_path, monkeypatch):
     assert as_config._PRIVATE_KEY is not None
 
 
+def test_init_keys_writes_private_key_mode_600(tmp_path):
+    target = tmp_path / "jwt.json"
+    as_config.init_keys(target)
+    assert target.exists()
+    assert (target.stat().st_mode & 0o777) == 0o600
+
+
 def test_init_keys_write_error(tmp_path, monkeypatch):
     target = tmp_path / "jwt.json"
 
