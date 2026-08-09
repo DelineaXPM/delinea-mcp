@@ -52,7 +52,11 @@ def test_token_unsupported_grant(monkeypatch):
     # register and create code
     data = client.post(
         "/oauth/register",
-        json={"client_name": "c", "redirect_uris": ["http://localhost/callback"]},
+        json={
+            "client_name": "c",
+            "redirect_uris": ["http://localhost/callback"],
+            "secret": "psk",
+        },
     ).json()
     code = as_config.create_code(data["client_id"], ["mcp.read"])
     r = client.post(

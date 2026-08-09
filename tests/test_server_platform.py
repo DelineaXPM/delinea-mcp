@@ -27,7 +27,7 @@ def test_server_registers_platform_tools(monkeypatch, tmp_path):
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     called = {}
 
-    def fake_register(mcp):
+    def fake_register(mcp, enabled=None):
         called["reg"] = True
 
     def fake_configure(**kw):
