@@ -18,7 +18,7 @@
 - Every tool now publishes **behaviour annotations**
   (read-only/destructive/idempotent hints) via `tools/list`.
 
-### StrongDM (new optional backend)
+### StrongDM (new optional backend, experimental)
 
 - `pip install "delinea-mcp[strongdm]"` adds ten compound SDM admin tools:
   `sdm_search`, `sdm_audit_access`, `sdm_grant_access` (time-boxed JIT or

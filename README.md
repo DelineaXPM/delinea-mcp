@@ -13,9 +13,10 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
-- Optional StrongDM (SDM) tools — access grants, entitlement audits, user/role
-  lifecycle, health and activity reports (see [docs/strongdm.md](docs/strongdm.md);
-  install with `pip install "delinea-mcp[strongdm]"`)
+- Optional **experimental** StrongDM (SDM) tools — access grants, entitlement
+  audits, user/role lifecycle, health and activity reports (see
+  [docs/strongdm.md](docs/strongdm.md); install with
+  `pip install "delinea-mcp[strongdm]"`)
 - Streamable HTTP (`/mcp`), legacy Server-Sent Events (`/mcp/sse`) and STDIO transports
 - OAuth 2.0 with dynamic client registration per the MCP specification
 - TLS support for secure connections
@@ -161,10 +162,12 @@ The server exposes several MCP tools for interacting with Secret Server:
   Provide `role_ids` when adding or removing.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
 
-### StrongDM tools (optional)
+### StrongDM tools (optional, experimental)
 
-Installed via the `strongdm` extra; see [docs/strongdm.md](docs/strongdm.md)
-for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
+**Experimental**: the StrongDM backend has not yet been verified against a
+live SDM organization (unit-tested against the SDK surface only). Expect
+rough edges and report issues. Installed via the `strongdm` extra; see
+[docs/strongdm.md](docs/strongdm.md) for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
 (time-boxed just-in-time or standing grants), `sdm_revoke_access`,
 `sdm_user_management` (onboard/offboard flows), `sdm_role_management`,
 `sdm_resource_health`, `sdm_access_requests`, `sdm_activity_report`,
