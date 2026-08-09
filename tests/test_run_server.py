@@ -8,11 +8,15 @@ import types
 class DummyMCP:
     def __init__(self):
         self.called = None
+        self._lowlevel_server = types.SimpleNamespace(
+            run=lambda *a, **k: None,
+            create_initialization_options=lambda: None,
+        )
 
     def run(self, transport="stdio"):
         self.called = transport
 
-    def tool(self):
+    def tool(self, **kwargs):
         def deco(f):
             return f
 
@@ -98,6 +102,7 @@ def test_port_and_debug(monkeypatch, tmp_path):
     def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
         called["port"] = port
         called["middleware_count"] = len(app.user_middleware)
+        called["paths"] = {r.path for r in app.router.routes}
 
     monkeypatch.setitem(
         sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
@@ -105,6 +110,8 @@ def test_port_and_debug(monkeypatch, tmp_path):
     server.run_server(["--config", "config.json"])
     assert called["port"] == 1234
     assert called["middleware_count"] == 1
+    # Both transports live on the same app: legacy SSE + streamable HTTP.
+    assert {"/mcp", "/mcp/sse", "/messages/"} <= called["paths"]
 
 
 def test_oauth_sse(monkeypatch, tmp_path):

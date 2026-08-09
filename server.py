@@ -213,8 +213,19 @@ def run_server(argv: list[str] | None = None) -> None:
             from fastapi import FastAPI, Request
 
             from delinea_mcp.transports.sse import mount_sse_routes
+            from delinea_mcp.transports.streamable_http import (
+                build_session_manager,
+                make_lifespan,
+                mount_streamable_http_routes,
+            )
 
-            app = FastAPI(title="Delinea MCP")
+            stateless = bool(cfg.get("streamable_http_stateless", True))
+            manager = build_session_manager(
+                mcp,
+                stateless=stateless,
+                json_response=bool(cfg.get("streamable_http_json_response", True)),
+            )
+            app = FastAPI(title="Delinea MCP", lifespan=make_lifespan(manager))
             if _debug:
 
                 @app.middleware("http")
@@ -230,6 +241,7 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_sse_routes(app, mcp)
+            mount_streamable_http_routes(app, manager, stateless=stateless)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("oauth", "sse"):
             import uvicorn
@@ -238,8 +250,21 @@ def run_server(argv: list[str] | None = None) -> None:
             from delinea_mcp.auth.routes import mount_oauth_routes
             from delinea_mcp.auth.validators import require_scopes
             from delinea_mcp.transports.sse import mount_sse_routes
+            from delinea_mcp.transports.streamable_http import (
+                build_session_manager,
+                make_lifespan,
+                mount_streamable_http_routes,
+            )
 
-            app = FastAPI(title="Delinea MCP (OAuth)")
+            stateless = bool(cfg.get("streamable_http_stateless", True))
+            manager = build_session_manager(
+                mcp,
+                stateless=stateless,
+                json_response=bool(cfg.get("streamable_http_json_response", True)),
+            )
+            app = FastAPI(
+                title="Delinea MCP (OAuth)", lifespan=make_lifespan(manager)
+            )
             if _debug:
 
                 @app.middleware("http")
@@ -255,17 +280,13 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_oauth_routes(app, cfg)
-            mount_sse_routes(
-                app,
-                mcp,
-                require_scopes(
-                    ["mcp.read", "mcp.write"],
-                    audience=audience,
-                    chatgpt_no_scope_check=bool(
-                        cfg.get("chatgpt_disable_scope_checks")
-                    ),
-                ),
+            guard = require_scopes(
+                ["mcp.read", "mcp.write"],
+                audience=audience,
+                chatgpt_no_scope_check=bool(cfg.get("chatgpt_disable_scope_checks")),
             )
+            mount_sse_routes(app, mcp, guard)
+            mount_streamable_http_routes(app, manager, guard, stateless=stateless)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("passthrough", _):
             raise NotImplementedError(
