@@ -11,8 +11,20 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from delinea_api import DelineaSession
-from delinea_mcp import secretserver_users, tools, user_platform_tools
+from delinea_mcp import secretserver_users, strongdm_tools, tools, user_platform_tools
 from delinea_mcp.config import load_config
+from delinea_mcp.strongdm_tools import (
+    sdm_access_requests,
+    sdm_activity_report,
+    sdm_audit_access,
+    sdm_grant_access,
+    sdm_network_status,
+    sdm_resource_health,
+    sdm_revoke_access,
+    sdm_role_management,
+    sdm_search,
+    sdm_user_management,
+)
 from delinea_mcp.secretserver_users import (
     search_secretserver_local_users,
     secretserver_local_user_management,
@@ -113,6 +125,19 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             "a helpful error pointing at secretserver_local_* tools."
         )
     user_platform_tools.register(mcp, enabled)
+
+    # Configure StrongDM tools (optional third backend; SDK installed via
+    # the delinea-mcp[strongdm] extra). Tools register under the same
+    # allowlist and return a guidance error when the SDK or credentials
+    # are absent.
+    if cfg.get("strongdm_api_host") or os.getenv("SDM_API_ACCESS_KEY"):
+        strongdm_tools.configure(
+            api_host=cfg.get("strongdm_api_host"),
+            access_key=os.getenv("SDM_API_ACCESS_KEY"),
+            secret_key=os.getenv("SDM_API_SECRET_KEY"),
+        )
+        logger.debug("Configured strongdm_tools from config/env")
+    strongdm_tools.register(mcp, enabled)
 
 
 # Load default config on import using the config module's default resolution.
@@ -304,6 +329,18 @@ __all__ = [
     "tools",
     "user_platform_tools",
     "secretserver_users",
+    "strongdm_tools",
+    # StrongDM tools — optional third backend (delinea-mcp[strongdm])
+    "sdm_search",
+    "sdm_audit_access",
+    "sdm_grant_access",
+    "sdm_revoke_access",
+    "sdm_user_management",
+    "sdm_role_management",
+    "sdm_resource_health",
+    "sdm_access_requests",
+    "sdm_activity_report",
+    "sdm_network_status",
     "get_secret",
     "get_folder",
     # Canonical (Platform-backed) user tools — v1.0.0+

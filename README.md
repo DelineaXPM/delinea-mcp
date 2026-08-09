@@ -13,6 +13,9 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
+- Optional StrongDM (SDM) tools — access grants, entitlement audits, user/role
+  lifecycle, health and activity reports (see [docs/strongdm.md](docs/strongdm.md);
+  install with `pip install "delinea-mcp[strongdm]"`)
 - Streamable HTTP (`/mcp`), legacy Server-Sent Events (`/mcp/sse`) and STDIO transports
 - OAuth 2.0 with dynamic client registration per the MCP specification
 - TLS support for secure connections
@@ -72,6 +75,9 @@ The configuration file supports the following keys:
 - **platform_hostname** - Platform tenant hostname (enables Platform tools).
 - **platform_service_account** - Service account used with the Platform API.
 - **platform_tenant_id** - Tenant ID for Platform API requests.
+- **strongdm_api_host** - StrongDM control plane (default `app.strongdm.com:443`;
+  UK/EU variants available). Credentials come from `SDM_API_ACCESS_KEY` /
+  `SDM_API_SECRET_KEY` env vars; see [docs/strongdm.md](docs/strongdm.md).
 - **azure_openai_endpoint** - Azure OpenAI endpoint. Only if you want the automatic report generation (most agents can generate their own report SQL so don't enable unless you need it).
 - **azure_openai_deployment** - Deployment name for Azure OpenAI.
 - **auth_mode** - Authentication mode (`none` or `oauth`). OAuth obviously doesn't work with stdio transport.
@@ -154,6 +160,16 @@ The server exposes several MCP tools for interacting with Secret Server:
   Use `list`, `add` or `remove` actions.
   Provide `role_ids` when adding or removing.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
+
+### StrongDM tools (optional)
+
+Installed via the `strongdm` extra; see [docs/strongdm.md](docs/strongdm.md)
+for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
+(time-boxed just-in-time or standing grants), `sdm_revoke_access`,
+`sdm_user_management` (onboard/offboard flows), `sdm_role_management`,
+`sdm_resource_health`, `sdm_access_requests`, `sdm_activity_report`,
+`sdm_network_status`. Destructive actions are confirm-gated with audit
+comments; ambiguous name matches return candidates without mutating.
 
 Use the server configuration variables described above to authenticate.
 The AI tool is automatically disabled if the Azure OpenAI variables are missing.

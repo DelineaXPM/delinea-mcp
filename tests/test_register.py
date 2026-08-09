@@ -115,11 +115,12 @@ def test_registered_tools_carry_annotations():
 
 def test_every_registered_tool_has_an_annotation_entry():
     # Completeness guard: a new tool must get an explicit hints entry.
+    from delinea_mcp import strongdm_tools
     from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
     registered = {
         name
-        for mod in (tools, secretserver_users, user_platform_tools)
+        for mod in (tools, secretserver_users, user_platform_tools, strongdm_tools)
         for name, _ in mod.TOOLS
     }
     assert registered <= set(TOOL_ANNOTATIONS)

@@ -4,6 +4,7 @@
   "platform_hostname": "<tenant>.secureplatform.io",
   "platform_service_account": "<service_account>",
   "platform_tenant_id": "<tenant_id>",
+  "strongdm_api_host": "app.strongdm.com:443",
   "azure_openai_endpoint": "https://example.openai.azure.com/",
   "azure_openai_deployment": "<deployment_name>",
   "auth_mode": "none",
