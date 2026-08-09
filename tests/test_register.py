@@ -5,7 +5,7 @@ class DummyMCP:
     def __init__(self):
         self.registered = []
 
-    def tool(self):
+    def tool(self, **kwargs):
         def decorator(func):
             self.registered.append(func.__name__)
             return func
@@ -88,3 +88,38 @@ def test_server_reads_config(tmp_path, monkeypatch):
     monkeypatch.setattr(server.tools, "register", fake_register)
     server.run_server(["--config", "config.json"])
     assert captured["enabled"] == {"get_user"}
+
+
+class KwargRecordingMCP:
+    def __init__(self):
+        self.annotations = {}
+
+    def tool(self, **kwargs):
+        def deco(f):
+            self.annotations[f.__name__] = kwargs.get("annotations")
+            return f
+
+        return deco
+
+
+def test_registered_tools_carry_annotations():
+    dummy = KwargRecordingMCP()
+    tools.register(dummy, set())
+    secretserver_users.register(dummy, set())
+    user_platform_tools.register(dummy, set())
+    assert dummy.annotations["get_secret"].read_only_hint is True
+    assert dummy.annotations["folder_management"].destructive_hint is True
+    assert dummy.annotations["user_management"].destructive_hint is True
+    assert dummy.annotations["search_users"].read_only_hint is True
+
+
+def test_every_registered_tool_has_an_annotation_entry():
+    # Completeness guard: a new tool must get an explicit hints entry.
+    from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
+    registered = {
+        name
+        for mod in (tools, secretserver_users, user_platform_tools)
+        for name, _ in mod.TOOLS
+    }
+    assert registered <= set(TOOL_ANNOTATIONS)

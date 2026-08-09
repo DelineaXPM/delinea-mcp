@@ -12,6 +12,8 @@ from typing import Any, Dict, Iterable, List
 from . import constants
 from .session import SessionManager
 
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
 logger = logging.getLogger(__name__)
 if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
     logging.basicConfig(level=logging.DEBUG)  # pragma: no cover - config
@@ -2113,4 +2115,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set.discard("ai_generate_and_run_report")
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool()(func)
+            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(func)
