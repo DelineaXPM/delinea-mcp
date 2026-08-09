@@ -188,7 +188,7 @@ TOOLS = [
 
 
 def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
-    """Register the legacy SS-local user tools on a FastMCP server.
+    """Register the legacy SS-local user tools on an MCP server.
 
     Honours the same ``enabled_tools`` allowlist semantics as
     :func:`delinea_mcp.tools.register`: an empty/missing set registers

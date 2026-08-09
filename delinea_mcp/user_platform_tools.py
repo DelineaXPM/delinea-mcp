@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from typing import Any, Iterable
 
 import requests
@@ -101,6 +102,9 @@ def configure(
 
 
 _headers: dict[str, str] | None = None
+# Tools run on parallel worker threads; serialise token acquisition so
+# concurrent first calls don't race on the cached headers.
+_headers_lock = threading.Lock()
 
 
 def _platform_configured() -> bool:
@@ -126,6 +130,15 @@ def _build_headers() -> dict[str, str]:
 
     if not _platform_configured():
         raise RuntimeError(_NOT_CONFIGURED_ERROR)
+
+    with _headers_lock:
+        return _fetch_headers()
+
+
+def _fetch_headers() -> dict[str, str]:
+    global _headers
+    if _headers:
+        return _headers
 
     url = f"https://{platform_hostname}/identity/api/oauth2/token/xpmplatform"
     data = {
@@ -683,7 +696,7 @@ TOOLS = [
 
 
 def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
-    """Register Platform tools on a FastMCP server.
+    """Register Platform tools on an MCP server.
 
     Honours the same ``enabled_tools`` allowlist semantics as
     :func:`delinea_mcp.tools.register`: an empty/missing set registers

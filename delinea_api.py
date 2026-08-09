@@ -1,6 +1,7 @@
 import logging
 import os
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 
 import requests
 
@@ -25,6 +26,11 @@ class DelineaSession:
     base_url: str = ""
     username: str = ""
     platform_hostname: str = ""
+    # Tools run on parallel worker threads; serialise re-authentication so
+    # concurrent 401s don't race on token/header state.
+    _auth_lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         self.base_url = self.base_url or os.getenv(
@@ -144,10 +150,11 @@ class DelineaSession:
         response = self.session.request(method, url, timeout=timeout, **kwargs)
         if response.status_code == 401:
             logger.info("Authentication expired, re-authenticating")
-            if self.platform_hostname:
-                self.authenticate_platform()
-            else:
-                self.authenticate()
+            with self._auth_lock:
+                if self.platform_hostname:
+                    self.authenticate_platform()
+                else:
+                    self.authenticate()
             response = self.session.request(method, url, timeout=timeout, **kwargs)
         response.raise_for_status()
         return response

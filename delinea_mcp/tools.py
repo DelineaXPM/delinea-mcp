@@ -2105,7 +2105,7 @@ def load_enabled_tools(path: str | Path) -> set[str]:
 
 
 def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
-    """Register reporting tools on the given FastMCP server."""
+    """Register reporting tools on the given MCP server."""
     enabled_set = set(enabled or [])
     if not enabled_set:
         enabled_set = {name for name, _ in TOOLS}

@@ -2,7 +2,7 @@ from typing import Awaitable, Callable
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import Response
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.sse import SseServerTransport
 
 # Advertised verbatim to SSE clients (plus ?session_id=...) AND used as the
@@ -22,7 +22,7 @@ class _ResponseAlreadySent(Response):
 
 
 def mount_sse_routes(
-    app: FastAPI, mcp: FastMCP, dependency: Callable[..., Awaitable] | None = None
+    app: FastAPI, mcp: MCPServer, dependency: Callable[..., Awaitable] | None = None
 ) -> None:
     transport = SseServerTransport(MESSAGES_PATH)
 
@@ -32,8 +32,10 @@ def mount_sse_routes(
         async with transport.connect_sse(
             request.scope, request.receive, request._send
         ) as streams:
-            await mcp._mcp_server.run(
-                streams[0], streams[1], mcp._mcp_server.create_initialization_options()
+            await mcp._lowlevel_server.run(
+                streams[0],
+                streams[1],
+                mcp._lowlevel_server.create_initialization_options(),
             )
         return _ResponseAlreadySent()
 

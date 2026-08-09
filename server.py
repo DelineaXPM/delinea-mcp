@@ -4,10 +4,11 @@ import argparse
 import logging
 import os
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from delinea_api import DelineaSession
 from delinea_mcp import secretserver_users, tools, user_platform_tools
@@ -51,7 +52,12 @@ from delinea_mcp.user_platform_tools import (
 logger = logging.getLogger(__name__)
 _debug = False
 
-mcp = FastMCP("DelineaMCP")
+try:
+    _VERSION = version("delinea-mcp")
+except PackageNotFoundError:  # running from a source checkout
+    _VERSION = "0.0.0-dev"
+
+mcp = MCPServer("DelineaMCP", version=_VERSION)
 CURRENT_CONFIG: dict[str, Any] = {}
 
 
