@@ -37,3 +37,26 @@ async def test_messages_post_channel_requires_auth():
     ) as client:
         resp = await client.post("/messages/?session_id=abc", content=b"{}")
     assert resp.status_code == 401
+
+
+def test_advertised_endpoint_matches_registered_post_route(monkeypatch):
+    # The transport advertises its endpoint string verbatim to clients via
+    # the SSE "endpoint" event. MCP clients POST there without following
+    # redirects, so the advertised path must exactly match a registered
+    # POST route (e.g. "/messages" vs "/messages/" would 307).
+    import delinea_mcp.transports.sse as sse_mod
+
+    captured = {}
+    real_transport = sse_mod.SseServerTransport
+
+    def capturing(endpoint, *args, **kwargs):
+        captured["endpoint"] = endpoint
+        return real_transport(endpoint, *args, **kwargs)
+
+    monkeypatch.setattr(sse_mod, "SseServerTransport", capturing)
+    app = FastAPI()
+    mount_sse_routes(app, MagicMock())
+    post_paths = {
+        r.path for r in app.router.routes if "POST" in getattr(r, "methods", set())
+    }
+    assert captured["endpoint"] in post_paths
