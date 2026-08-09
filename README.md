@@ -13,7 +13,7 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
-- Supports either Server Sent Events or STDIO transport modes
+- Streamable HTTP (`/mcp`), legacy Server-Sent Events (`/mcp/sse`) and STDIO transports
 - OAuth 2.0 with dynamic client registration per the MCP specification
 - TLS support for secure connections
 - Ready-to-run Docker image and development server entry point
@@ -75,7 +75,15 @@ The configuration file supports the following keys:
 - **azure_openai_endpoint** - Azure OpenAI endpoint. Only if you want the automatic report generation (most agents can generate their own report SQL so don't enable unless you need it).
 - **azure_openai_deployment** - Deployment name for Azure OpenAI.
 - **auth_mode** - Authentication mode (`none` or `oauth`). OAuth obviously doesn't work with stdio transport.
-- **transport_mode** - `stdio` for command line or `sse` for HTTP/SSE.
+- **transport_mode** - `stdio` for command line or `sse` for HTTP. In `sse`
+  mode the server exposes both the streamable HTTP endpoint at `/mcp`
+  (current MCP transport, serves protocol revisions 2024-11-05 through
+  2026-07-28) and the legacy HTTP+SSE endpoints at `/mcp/sse` + `/messages/`.
+- **streamable_http_stateless** - default `true`; run `/mcp` without server-side
+  sessions (recommended for remote connectors). Set `false` to enable
+  session-based operation with the standalone GET stream.
+- **streamable_http_json_response** - default `true`; respond with plain JSON
+  instead of SSE-framed responses on `/mcp`.
 - **chatgpt_disable_scope_checks** - Skip scope validation on ChatGPT requests. Enable only if you encounter problems connecting to ChatGPT.
 - **port** - Port for the HTTP server in `sse` mode.
 - **debug** - Enable verbose logging.
@@ -264,7 +272,9 @@ See [docs/release_notes.md](docs/release_notes.md) for a summary of the latest f
 ## Roadmap
 
 1. Passthrough authentication
-2. Streaming HTTP transport support
+2. OAuth Client ID Metadata Documents (CIMD) client support (Dynamic Client
+   Registration is deprecated as of MCP protocol revision 2026-07-28; the
+   PSK-gated `/oauth/register` flow keeps working for current connectors)
 3. Expand tool coverage on the Delinea Platform and add other Delinea products
 
 ## Contributing
