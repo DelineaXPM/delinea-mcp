@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+# Restrict the default GITHUB_TOKEN: these jobs only read the repo.
+permissions:
+  contents: read
 env:
   UV_CACHE_DIR: /tmp/.uv-cache-delinea
   UV_HTTP_TIMEOUT: 120
