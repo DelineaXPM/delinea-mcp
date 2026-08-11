@@ -60,9 +60,7 @@ async def test_mcp_route_requires_auth():
     async with AsyncClient(
         transport=ASGITransport(app=_make_app(_guard)), base_url="http://t"
     ) as client:
-        resp = await client.post(
-            MCP_PATH, json=INITIALIZE, headers=ACCEPT_HEADERS
-        )
+        resp = await client.post(MCP_PATH, json=INITIALIZE, headers=ACCEPT_HEADERS)
     assert resp.status_code == 401
 
 

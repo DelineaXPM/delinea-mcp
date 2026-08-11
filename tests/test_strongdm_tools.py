@@ -11,7 +11,7 @@ import fnmatch
 import os
 import sys
 import types
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import pytest
 
@@ -227,9 +227,7 @@ def test_grant_access_preview_makes_no_call(client):
 
 
 def test_grant_access_requires_comment(client):
-    out = strongdm_tools.sdm_grant_access(
-        "alice@corp.com", "prod-db", confirm=True
-    )
+    out = strongdm_tools.sdm_grant_access("alice@corp.com", "prod-db", confirm=True)
     assert "comment" in out["error"]
     assert client.account_grants.created == []
 
@@ -324,9 +322,7 @@ def test_role_management_members(client):
     client.account_attachments.items = [
         FakeAttachment(id="at-1", account_id="a-1", role_id="ro-1")
     ]
-    out = strongdm_tools.sdm_role_management(
-        "list_members", role_name="engineering"
-    )
+    out = strongdm_tools.sdm_role_management("list_members", role_name="engineering")
     assert out["members"][0]["email"] == "alice@corp.com"
 
 

@@ -97,12 +97,10 @@ def _get_client() -> Any:
         try:
             import strongdm  # noqa: PLC0415 - optional dependency
         except ImportError:
-            raise RuntimeError(_SDK_NOT_INSTALLED_ERROR)
+            raise RuntimeError(_SDK_NOT_INSTALLED_ERROR) from None
         if not _sdm_configured():
             raise RuntimeError(_NOT_CONFIGURED_ERROR)
-        _client = strongdm.Client(
-            sdm_access_key, sdm_secret_key, host=sdm_api_host
-        )
+        _client = strongdm.Client(sdm_access_key, sdm_secret_key, host=sdm_api_host)
         return _client
 
 
@@ -375,9 +373,7 @@ def sdm_grant_access(
                 account_id=account.id, role_id=role.id
             )
             created = client.account_attachments.create(attachment)
-            verification = client.account_attachments.get(
-                created.account_attachment.id
-            )
+            verification = client.account_attachments.get(created.account_attachment.id)
             return {
                 "result": _to_dict(created.account_attachment),
                 "verification": _to_dict(verification.account_attachment),
@@ -578,9 +574,7 @@ def sdm_user_management(
                     attached.append({"role": role_name, "error": err["error"]})
                     continue
                 att = client.account_attachments.create(
-                    strongdm.AccountAttachment(
-                        account_id=created.id, role_id=role.id
-                    )
+                    strongdm.AccountAttachment(account_id=created.id, role_id=role.id)
                 )
                 attached.append(_to_dict(att.account_attachment))
             verification = client.accounts.get(created.id)
@@ -620,9 +614,7 @@ def sdm_user_management(
                 result["role_attachments"] = [
                     _to_dict(a)
                     for a in _bounded(
-                        client.account_attachments.list(
-                            "account_id:?", account.id
-                        ),
+                        client.account_attachments.list("account_id:?", account.id),
                         _LIST_CAP,
                     )
                 ]
@@ -641,9 +633,7 @@ def sdm_user_management(
             if gate:
                 return gate
             client.accounts.delete(account.id)
-            remaining = _bounded(
-                client.accounts.list("email:?", account.email), 5
-            )
+            remaining = _bounded(client.accounts.list("email:?", account.email), 5)
             return {
                 "result": {"deleted": account.id},
                 "verification": {"still_exists": bool(remaining)},
@@ -709,7 +699,9 @@ def sdm_role_management(
             members = []
             for att in attachments:
                 try:
-                    members.append(_to_dict(client.accounts.get(att.account_id).account))
+                    members.append(
+                        _to_dict(client.accounts.get(att.account_id).account)
+                    )
                 except Exception:
                     members.append({"id": att.account_id})
             return {"role": role.name, "members": members, "count": len(members)}
@@ -745,9 +737,7 @@ def sdm_role_management(
                 return gate
             if action == "add_user":
                 created = client.account_attachments.create(
-                    strongdm.AccountAttachment(
-                        account_id=account.id, role_id=role.id
-                    )
+                    strongdm.AccountAttachment(account_id=account.id, role_id=role.id)
                 )
                 return {
                     "result": _to_dict(created.account_attachment),
@@ -767,9 +757,7 @@ def sdm_role_management(
                 if a.account_id == account.id
             ]
             if not attachments:
-                return {
-                    "error": f"{account.email} is not attached to {role.name}"
-                }
+                return {"error": f"{account.email} is not attached to {role.name}"}
             for att in attachments:
                 client.account_attachments.delete(att.id)
             return {
@@ -779,9 +767,7 @@ def sdm_role_management(
                         [
                             a
                             for a in _bounded(
-                                client.account_attachments.list(
-                                    "role_id:?", role.id
-                                ),
+                                client.account_attachments.list("role_id:?", role.id),
                                 _LIST_CAP,
                             )
                             if a.account_id == account.id
@@ -815,9 +801,7 @@ def sdm_resource_health(resource_name: str, limit: int = 50) -> dict:
         if err:
             return err
         client.resources.healthcheck(resource.id)
-        checks = _bounded(
-            client.health_checks.list("resourceid:?", resource.id), limit
-        )
+        checks = _bounded(client.health_checks.list("resourceid:?", resource.id), limit)
         unhealthy = [c for c in checks if not c.healthy]
         return {
             "resource": {
@@ -917,9 +901,7 @@ def sdm_activity_report(
             cutoff = datetime.datetime.fromisoformat(since)
             if cutoff.tzinfo is None:
                 cutoff = cutoff.replace(tzinfo=datetime.timezone.utc)
-            queries = [
-                q for q in queries if q.timestamp and q.timestamp >= cutoff
-            ]
+            queries = [q for q in queries if q.timestamp and q.timestamp >= cutoff]
         activities = _bounded(client.activities.list(""), limit)
         if cutoff:
             activities = [
@@ -955,9 +937,7 @@ def sdm_network_status(limit: int = 200) -> dict:
             summary.setdefault(kind, {}).setdefault(state, 0)
             summary[kind][state] += 1
         problem_nodes = [
-            _to_dict(n)
-            for n in nodes
-            if getattr(n, "state", "") not in ("started", "")
+            _to_dict(n) for n in nodes if getattr(n, "state", "") not in ("started", "")
         ]
         return {
             "summary": summary,

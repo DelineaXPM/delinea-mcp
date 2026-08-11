@@ -9,10 +9,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
 from . import constants
 from .session import SessionManager
-
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
 if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:

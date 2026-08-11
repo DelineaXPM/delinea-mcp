@@ -62,7 +62,8 @@ def mount_streamable_http_routes(
     """
 
     async def mcp_endpoint(
-        request: Request, auth=Depends(dependency) if dependency else None
+        request: Request,
+        auth=Depends(dependency) if dependency else None,  # noqa: B008 - FastAPI idiom
     ):
         await manager.handle_request(request.scope, request.receive, request._send)
         return _ResponseAlreadySent()

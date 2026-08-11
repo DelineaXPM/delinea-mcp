@@ -13,6 +13,11 @@ from mcp.server.mcpserver import MCPServer
 from delinea_api import DelineaSession
 from delinea_mcp import secretserver_users, strongdm_tools, tools, user_platform_tools
 from delinea_mcp.config import load_config
+from delinea_mcp.secretserver_users import (
+    search_secretserver_local_users,
+    secretserver_local_user_management,
+)
+from delinea_mcp.session import SessionManager
 from delinea_mcp.strongdm_tools import (
     sdm_access_requests,
     sdm_activity_report,
@@ -25,11 +30,6 @@ from delinea_mcp.strongdm_tools import (
     sdm_search,
     sdm_user_management,
 )
-from delinea_mcp.secretserver_users import (
-    search_secretserver_local_users,
-    secretserver_local_user_management,
-)
-from delinea_mcp.session import SessionManager
 from delinea_mcp.tools import (
     bulk_user_response,
     check_secret_template,
@@ -287,9 +287,7 @@ def run_server(argv: list[str] | None = None) -> None:
                 stateless=stateless,
                 json_response=bool(cfg.get("streamable_http_json_response", True)),
             )
-            app = FastAPI(
-                title="Delinea MCP (OAuth)", lifespan=make_lifespan(manager)
-            )
+            app = FastAPI(title="Delinea MCP (OAuth)", lifespan=make_lifespan(manager))
             if _debug:
 
                 @app.middleware("http")

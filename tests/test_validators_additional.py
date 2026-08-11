@@ -10,7 +10,9 @@ def test_require_scopes_missing_header():
     app = FastAPI()
 
     @app.get("/p")
-    async def p(claims=Depends(require_scopes(["mcp.read"], audience="aud"))):
+    async def p(
+        claims=Depends(require_scopes(["mcp.read"], audience="aud")),  # noqa: B008
+    ):
         return {"ok": True}
 
     client = TestClient(app)
@@ -22,7 +24,9 @@ def test_require_scopes_invalid_token():
     app = FastAPI()
 
     @app.get("/p")
-    async def p(claims=Depends(require_scopes(["mcp.read"], audience="aud"))):
+    async def p(
+        claims=Depends(require_scopes(["mcp.read"], audience="aud")),  # noqa: B008
+    ):
         return {"ok": True}
 
     client = TestClient(app)
@@ -34,7 +38,9 @@ def test_401_carries_resource_metadata_header():
     app = FastAPI()
 
     @app.get("/p")
-    async def p(claims=Depends(require_scopes(["mcp.read"], audience="aud"))):
+    async def p(
+        claims=Depends(require_scopes(["mcp.read"], audience="aud")),  # noqa: B008
+    ):
         return {"ok": True}
 
     client = TestClient(app)
@@ -45,7 +51,7 @@ def test_401_carries_resource_metadata_header():
         assert 'error="invalid_token"' in www
         assert (
             'resource_metadata="http://testserver'
-            "/.well-known/oauth-protected-resource\"" in www
+            '/.well-known/oauth-protected-resource"' in www
         )
 
 
@@ -54,7 +60,9 @@ def test_403_insufficient_scope_header():
     app = FastAPI()
 
     @app.get("/p")
-    async def p(claims=Depends(require_scopes(["mcp.read"], audience="aud"))):
+    async def p(
+        claims=Depends(require_scopes(["mcp.read"], audience="aud")),  # noqa: B008
+    ):
         return {"ok": True}
 
     client = TestClient(app)

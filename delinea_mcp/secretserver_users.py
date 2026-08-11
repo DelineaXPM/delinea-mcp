@@ -17,9 +17,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from .session import SessionManager
-
 from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
+from .session import SessionManager
 
 logger = logging.getLogger(__name__)
 

@@ -48,18 +48,18 @@ control planes.
 
 ## Tools
 
-| Tool | What it does |
-| --- | --- |
-| `sdm_search` | Find resources, accounts, or roles (SDM filter syntax or plain text). |
-| `sdm_audit_access` | Entitlement report from a user, resource, or role viewpoint: granted + requestable access, role memberships. |
-| `sdm_grant_access` | Grant a user a resource — time-boxed (just-in-time, auto-expiring) or standing — or attach a role. Confirm-gated with audit comment. |
-| `sdm_revoke_access` | Delete a user's direct grants on a resource; reports role-derived access that survives and how to remove it. |
-| `sdm_user_management` | User lifecycle: create, onboard (create + roles), suspend, reactivate, offboard (suspend + enumerate leftovers), delete. |
-| `sdm_role_management` | Role lifecycle and membership (add/remove/list users). |
-| `sdm_resource_health` | Trigger a healthcheck and summarise per-node results for a resource. |
-| `sdm_access_requests` | List/inspect pending access requests. |
-| `sdm_activity_report` | Query log (SQL bodies, durations, replayable sessions) + admin activity, scoped by user/resource/time. |
-| `sdm_network_status` | Gateway/relay fleet summary by state; surfaces dead or stopped nodes. |
+| Tool                  | What it does                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `sdm_search`          | Find resources, accounts, or roles (SDM filter syntax or plain text).                                                                |
+| `sdm_audit_access`    | Entitlement report from a user, resource, or role viewpoint: granted + requestable access, role memberships.                         |
+| `sdm_grant_access`    | Grant a user a resource — time-boxed (just-in-time, auto-expiring) or standing — or attach a role. Confirm-gated with audit comment. |
+| `sdm_revoke_access`   | Delete a user's direct grants on a resource; reports role-derived access that survives and how to remove it.                         |
+| `sdm_user_management` | User lifecycle: create, onboard (create + roles), suspend, reactivate, offboard (suspend + enumerate leftovers), delete.             |
+| `sdm_role_management` | Role lifecycle and membership (add/remove/list users).                                                                               |
+| `sdm_resource_health` | Trigger a healthcheck and summarise per-node results for a resource.                                                                 |
+| `sdm_access_requests` | List/inspect pending access requests.                                                                                                |
+| `sdm_activity_report` | Query log (SQL bodies, durations, replayable sessions) + admin activity, scoped by user/resource/time.                               |
+| `sdm_network_status`  | Gateway/relay fleet summary by state; surfaces dead or stopped nodes.                                                                |
 
 Safety rails (house contract):
 
