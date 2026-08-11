@@ -1,4 +1,5 @@
 import base64
+import hmac
 import html
 import logging
 from urllib.parse import urlencode
@@ -42,7 +43,17 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
     async def register(request: Request):
         if registration_psk is None:
             raise HTTPException(status_code=400, detail="Registration disabled")
+        # The PSK is "required to register OAuth clients" per the README, but
+        # previously only its presence was tested - any anonymous caller could
+        # mint client_id/client_secret pairs. Require the shared secret, as
+        # the authorize handler already does. Accept it as a Bearer token
+        # (RFC 7591 initial-access-token style) or a JSON "secret" field.
+        bearer = request.headers.get("authorization", "")
+        supplied = bearer[7:] if bearer.lower().startswith("bearer ") else None
         data = await request.json()
+        supplied = supplied or data.get("secret") or ""
+        if not hmac.compare_digest(supplied, registration_psk):
+            raise HTTPException(status_code=401, detail="invalid registration secret")
         logger.debug("register client %s", data.get("client_name"))
 
         client_name = data.get("client_name")
@@ -100,7 +111,10 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
         state: str | None = Form(None),
     ):
         logger.debug("authorize_submit for %s", client_id)
-        if secret != registration_psk:
+        # Constant-time compare, matching the /oauth/register handler.
+        if registration_psk is None or not hmac.compare_digest(
+            secret, registration_psk
+        ):
             return Response(
                 content="Invalid secret", status_code=401, media_type="text/html"
             )

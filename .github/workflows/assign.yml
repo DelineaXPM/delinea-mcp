@@ -7,5 +7,11 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   assign:
+    # Auto-assignment needs to write to PRs/issues; everything else is
+    # restricted rather than inheriting the default broad token.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     uses: delineaxpm/github-workflows/.github/workflows/assign.yml@main
     secrets: inherit

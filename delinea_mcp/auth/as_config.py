@@ -56,6 +56,10 @@ def init_keys(path: str | Path | None) -> None:
     _PUBLIC_KEY = RSAKey.import_key(_PUBLIC_JWK)
     try:
         _KEY_FILE.write_text(json.dumps(_PRIVATE_KEY.as_dict(private=True)))
+        try:
+            os.chmod(_KEY_FILE, 0o600)
+        except Exception:
+            logger.exception("Failed to set permissions on %s", _KEY_FILE)
         logger.debug("Generated new OAuth keys at %s", _KEY_FILE)
     except Exception:
         logger.exception("Failed to write JWT keys to %s", _KEY_FILE)

@@ -1,4 +1,4 @@
-from delinea_mcp import tools
+from delinea_mcp import secretserver_users, tools, user_platform_tools
 
 
 class DummyMCP:
@@ -33,6 +33,31 @@ def test_register_respects_enabled_list(monkeypatch):
     tools.register(dummy, {"get_secret", "run_report"})
     assert set(dummy.registered) == {"get_secret", "run_report"}
     assert "ai_generate_and_run_report" not in dummy.registered
+
+
+def test_secretserver_users_register_respects_enabled_list():
+    dummy = DummyMCP()
+    secretserver_users.register(
+        dummy, {"search", "fetch", "search_secrets", "get_secret"}
+    )
+    assert dummy.registered == []
+
+
+def test_user_platform_tools_register_respects_enabled_list():
+    dummy = DummyMCP()
+    user_platform_tools.register(
+        dummy, {"search", "fetch", "search_secrets", "get_secret"}
+    )
+    assert dummy.registered == []
+
+
+def test_secretserver_and_platform_register_all_when_enabled_empty():
+    ss = DummyMCP()
+    plat = DummyMCP()
+    secretserver_users.register(ss, set())
+    user_platform_tools.register(plat, set())
+    assert "secretserver_local_user_management" in ss.registered
+    assert "user_management" in plat.registered
 
 
 def test_load_enabled_tools(tmp_path):

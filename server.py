@@ -83,15 +83,16 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     enabled = set(cfg.get("enabled_tools", []))
     tools.register(mcp, enabled)
 
-    # Always register the legacy SS-local user tools so SS-only deployments
-    # have a fallback even when Platform is not configured.
-    secretserver_users.register(mcp)
+    # Register the legacy SS-local user tools under the same enabled_tools
+    # allowlist so SS-only deployments keep a fallback without bypassing a
+    # restricted ChatGPT/connector allowlist (empty = all tools).
+    secretserver_users.register(mcp, enabled)
 
-    # Configure Platform tools.  Always register them so the canonical
-    # user_management / search_users tool names are available to the
-    # client.  When Platform is not configured the tools return a clear
-    # error directing the caller to either configure Platform or use
-    # secretserver_local_*.
+    # Configure Platform tools. Register under the same enabled_tools
+    # allowlist so the canonical user_management / search_users names are
+    # available when selected (or when the allowlist is empty). When
+    # Platform is not configured the tools return a clear error directing
+    # the caller to either configure Platform or use secretserver_local_*.
     if cfg.get("platform_hostname"):
         user_platform_tools.configure(
             hostname=cfg.get("platform_hostname"),
@@ -105,7 +106,7 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             "Platform not configured; user_management/search_users will return "
             "a helpful error pointing at secretserver_local_* tools."
         )
-    user_platform_tools.register(mcp)
+    user_platform_tools.register(mcp, enabled)
 
 
 # Load default config on import using the config module's default resolution.

@@ -19,4 +19,7 @@ def test_post_routes_mounted():
     routes = {r.path: r for r in app.router.routes}
     assert type(routes["/mcp/sse"]).__name__ == "APIRoute"
     assert "GET" in getattr(routes["/mcp/sse"], "methods", set())
-    assert type(routes["/messages"]).__name__ == "Mount"
+    # The POST channel must be a real route (not a Mount) so FastAPI
+    # dependencies apply to it.
+    assert type(routes["/messages/"]).__name__ == "APIRoute"
+    assert "POST" in getattr(routes["/messages/"], "methods", set())

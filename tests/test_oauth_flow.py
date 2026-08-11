@@ -48,7 +48,11 @@ async def test_full_oauth_flow(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         r = await client.post(
             "/oauth/register",
-            json={"client_name": "c", "redirect_uris": ["http://testserver/cb"]},
+            json={
+                "client_name": "c",
+                "redirect_uris": ["http://testserver/cb"],
+                "secret": "psk",
+            },
         )
         data = r.json()
         cid = data["client_id"]
@@ -106,7 +110,11 @@ async def test_token_invalid_secret(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         r = await client.post(
             "/oauth/register",
-            json={"client_name": "c", "redirect_uris": ["http://localhost/callback"]},
+            json={
+                "client_name": "c",
+                "redirect_uris": ["http://localhost/callback"],
+                "secret": "psk",
+            },
         )
         data = r.json()
         cid = data["client_id"]

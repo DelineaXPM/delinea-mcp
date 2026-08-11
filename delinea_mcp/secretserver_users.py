@@ -15,7 +15,7 @@ SS-only on-prem deployments and as a fallback during migration.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Iterable
 
 from .session import SessionManager
 
@@ -187,7 +187,16 @@ TOOLS = [
 ]
 
 
-def register(mcp: Any) -> None:
-    """Register the legacy SS-local user tools on a FastMCP server."""
-    for _name, func in TOOLS:
-        mcp.tool()(func)
+def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
+    """Register the legacy SS-local user tools on a FastMCP server.
+
+    Honours the same ``enabled_tools`` allowlist semantics as
+    :func:`delinea_mcp.tools.register`: an empty/missing set registers
+    every tool in this module; a non-empty set registers only named tools.
+    """
+    enabled_set = set(enabled or [])
+    if not enabled_set:
+        enabled_set = {name for name, _ in TOOLS}
+    for name, func in TOOLS:
+        if name in enabled_set:
+            mcp.tool()(func)

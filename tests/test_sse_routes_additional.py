@@ -21,8 +21,8 @@ def test_routes_mounted_and_post_accessible():
     app = FastAPI()
     mount_sse_routes(app, DummyMCP())
     routes = {r.path: getattr(r, "methods", set()) for r in app.router.routes}
-    assert "/messages" in routes
+    assert "POST" in routes.get("/messages/", set())
     assert "GET" in routes.get("/mcp/sse", set())
     client = TestClient(app)
-    r = client.post("/messages")
+    r = client.post("/messages/")
     assert r.status_code == 400
