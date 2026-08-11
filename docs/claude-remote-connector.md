@@ -67,7 +67,9 @@ Allow all tools except `get_secret_environment_variable`.
 
 ## Connecting from Claude
 
-Add a custom connector pointing to the server's `/sse` endpoint and provide the OAuth client credentials.
-Claude will stream tool calls and responses over SSE.
+Add a custom connector pointing to the server's `/mcp` endpoint (streamable
+HTTP, the current MCP transport) and provide the OAuth client credentials.
+Older clients that only speak HTTP+SSE can use the legacy `/mcp/sse`
+endpoint instead.
 
 <!-- TODO: Screenshot of Claude remote connector configuration -->

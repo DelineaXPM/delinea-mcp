@@ -9,7 +9,7 @@ class DummyMCP:
     def __init__(self):
         self.called = False
 
-    def tool(self):
+    def tool(self, **kwargs):
         def deco(f):
             self.called = True
             return f

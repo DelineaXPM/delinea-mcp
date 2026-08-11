@@ -34,6 +34,23 @@ def mount_oauth_routes(app: FastAPI, cfg: dict | None = None) -> None:
             "scopes_supported": ["mcp.read", "mcp.write"],
         }
 
+    @app.get("/.well-known/oauth-protected-resource")
+    @app.get("/.well-known/oauth-protected-resource/mcp")
+    async def protected_resource_metadata(request: Request):
+        # RFC 9728: lets clients discover the authorization server from a
+        # 401's WWW-Authenticate header. The AS is co-hosted, so it is the
+        # same origin. "resource" must equal the JWT audience minted by
+        # as_config.issue_token (the origin, per RFC 8707 resource
+        # indicators). The /mcp-suffixed alias covers clients that derive
+        # the path-inserted well-known URI from the /mcp endpoint.
+        base = str(request.base_url).rstrip("/")
+        return {
+            "resource": base,
+            "authorization_servers": [base],
+            "scopes_supported": ["mcp.read", "mcp.write"],
+            "bearer_methods_supported": ["header"],
+        }
+
     @app.get("/jwks.json")
     async def jwks():
         logger.debug("jwks")

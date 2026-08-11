@@ -1,6 +1,6 @@
 [project]
 name = "delinea-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server for the Delinea Secret Server and Platform APIs"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -9,11 +9,14 @@ dependencies = [
   "fastapi>=0.117.1",
   "httpx>=0.28.1",
   "httpx-sse>=0.4.1",
-  "mcp>=1.10.0",
+  "mcp>=2.0.0,<3",
   "openai>=1.10.0",
   "requests>=2.32.4",
   "uvicorn>=0.35.0",
 ]
+
+[project.optional-dependencies]
+strongdm = ["strongdm>=17.8.0"]
 
 [dependency-groups]
 dev = ["pytest>=8.4.2", "pytest-asyncio>=1.1.0", "coverage>=7.6.9"]
@@ -22,7 +25,7 @@ test = [
   "fastapi>=0.117.1",
   "httpx>=0.28.1",
   "httpx-sse>=0.4.1",
-  "mcp>=1.10.0",
+  "mcp>=2.0.0,<3",
   "openai>=1.10.0",
   "pytest>=8.4.2",
   "pytest-asyncio>=1.1.0",

@@ -7,7 +7,7 @@ from delinea_mcp.transports.sse import mount_sse_routes
 
 class DummyMCP:
     def __init__(self):
-        self._mcp_server = types.SimpleNamespace(
+        self._lowlevel_server = types.SimpleNamespace(
             run=lambda *a, **k: None,
             create_initialization_options=lambda: None,
         )

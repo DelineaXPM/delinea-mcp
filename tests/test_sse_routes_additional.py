@@ -11,7 +11,7 @@ class DummyMCP:
         async def run(*a, **k):
             return None
 
-        self._mcp_server = types.SimpleNamespace(
+        self._lowlevel_server = types.SimpleNamespace(
             run=run,
             create_initialization_options=lambda: None,
         )

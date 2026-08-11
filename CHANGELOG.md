@@ -1,5 +1,62 @@
 # Release Notes
 
+## v1.1.0 — MCP protocol 2026-07-28, StrongDM backend, security batch
+
+### MCP protocol / SDK
+
+- Migrated to the `mcp` 2.0 SDK line (`MCPServer`). The server now speaks
+  **protocol revision 2026-07-28** (stateless requests, `server/discover`)
+  while continuing to serve 2024-11-05…2025-11-25 handshake clients.
+- New **streamable HTTP endpoint at `/mcp`** — the current MCP transport —
+  mounted alongside the legacy `/mcp/sse` + `/messages/` HTTP+SSE endpoints
+  (unchanged) and stdio. New config keys `streamable_http_stateless` /
+  `streamable_http_json_response` (both default `true`).
+- **RFC 9728 protected-resource metadata** at
+  `/.well-known/oauth-protected-resource` (+ `/mcp` alias); 401/403 responses
+  now carry `WWW-Authenticate` headers with `resource_metadata` so clients
+  can discover the authorization server per the current MCP auth spec.
+- Every tool now publishes **behaviour annotations**
+  (read-only/destructive/idempotent hints) via `tools/list`.
+
+### StrongDM (new optional backend, experimental)
+
+- `pip install "delinea-mcp[strongdm]"` adds ten compound SDM admin tools:
+  `sdm_search`, `sdm_audit_access`, `sdm_grant_access` (time-boxed JIT or
+  standing), `sdm_revoke_access`, `sdm_user_management` (onboard/offboard),
+  `sdm_role_management`, `sdm_resource_health`, `sdm_access_requests`,
+  `sdm_activity_report`, `sdm_network_status`. See `docs/strongdm.md`.
+- House safety rails: confirm + audit-comment gating on destructive actions,
+  preview mode, candidate disambiguation before any mutation, bounded lists,
+  verification read-backs.
+
+### Security
+
+- OAuth guard now applies to the SSE message channel (`/messages/` routed
+  through FastAPI instead of a dependency-bypassing mount) — previously
+  every `tools/call` over SSE+OAuth was unauthenticated (#52).
+- `/oauth/register` actually requires the registration PSK
+  (constant-time compare; Bearer or JSON `secret`) (#53).
+- `enabled_tools` allowlist now covers SS-local and Platform registrars (#54).
+- Newly written JWT private keys are chmod 0600 (#55).
+- Dependency patches: cryptography 50.0.0 (GHSA-537c-gmf6-5ccf), joserfc
+  1.7.4, pyjwt 2.13.0, python-multipart 0.0.32, starlette 1.6.0
+  (multiple PYSEC advisories); `pip-audit` reports clean.
+
+### Fixes
+
+- SSE clients are now advertised the exact guarded POST path
+  (`/messages/`); the transport handlers no longer trigger a second ASGI
+  response after streaming ends.
+- Connector guides pointed at a `/sse` endpoint that never existed; they
+  now document `/mcp` (and `/mcp/sse` as legacy).
+
+### Notes
+
+- SDK v2 runs sync tools on worker threads; token acquisition in the SS
+  session and Platform header cache is now lock-protected.
+- Follow-up recorded: CIMD (Client ID Metadata Documents) support — DCR is
+  deprecated as of protocol 2026-07-28 but current connectors still use it.
+
 ## v1.0.0 — Platform-first user management (breaking)
 
 In Delinea cloud and Platform-integrated tenants the authoritative user

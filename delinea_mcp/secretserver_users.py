@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
 from .session import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -188,7 +190,7 @@ TOOLS = [
 
 
 def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
-    """Register the legacy SS-local user tools on a FastMCP server.
+    """Register the legacy SS-local user tools on an MCP server.
 
     Honours the same ``enabled_tools`` allowlist semantics as
     :func:`delinea_mcp.tools.register`: an empty/missing set registers
@@ -199,4 +201,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool()(func)
+            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(func)

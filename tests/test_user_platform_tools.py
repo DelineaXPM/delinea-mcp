@@ -17,7 +17,7 @@ class DummyMCP:
     def __init__(self):
         self.names = []
 
-    def tool(self):
+    def tool(self, **kwargs):
         def deco(func):
             self.names.append(func.__name__)
             return func

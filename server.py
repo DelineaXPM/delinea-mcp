@@ -4,19 +4,32 @@ import argparse
 import logging
 import os
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from delinea_api import DelineaSession
-from delinea_mcp import secretserver_users, tools, user_platform_tools
+from delinea_mcp import secretserver_users, strongdm_tools, tools, user_platform_tools
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
     search_secretserver_local_users,
     secretserver_local_user_management,
 )
 from delinea_mcp.session import SessionManager
+from delinea_mcp.strongdm_tools import (
+    sdm_access_requests,
+    sdm_activity_report,
+    sdm_audit_access,
+    sdm_grant_access,
+    sdm_network_status,
+    sdm_resource_health,
+    sdm_revoke_access,
+    sdm_role_management,
+    sdm_search,
+    sdm_user_management,
+)
 from delinea_mcp.tools import (
     bulk_user_response,
     check_secret_template,
@@ -51,7 +64,12 @@ from delinea_mcp.user_platform_tools import (
 logger = logging.getLogger(__name__)
 _debug = False
 
-mcp = FastMCP("DelineaMCP")
+try:
+    _VERSION = version("delinea-mcp")
+except PackageNotFoundError:  # running from a source checkout
+    _VERSION = "0.0.0-dev"
+
+mcp = MCPServer("DelineaMCP", version=_VERSION)
 CURRENT_CONFIG: dict[str, Any] = {}
 
 
@@ -107,6 +125,19 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             "a helpful error pointing at secretserver_local_* tools."
         )
     user_platform_tools.register(mcp, enabled)
+
+    # Configure StrongDM tools (optional third backend; SDK installed via
+    # the delinea-mcp[strongdm] extra). Tools register under the same
+    # allowlist and return a guidance error when the SDK or credentials
+    # are absent.
+    if cfg.get("strongdm_api_host") or os.getenv("SDM_API_ACCESS_KEY"):
+        strongdm_tools.configure(
+            api_host=cfg.get("strongdm_api_host"),
+            access_key=os.getenv("SDM_API_ACCESS_KEY"),
+            secret_key=os.getenv("SDM_API_SECRET_KEY"),
+        )
+        logger.debug("Configured strongdm_tools from config/env")
+    strongdm_tools.register(mcp, enabled)
 
 
 # Load default config on import using the config module's default resolution.
@@ -207,8 +238,19 @@ def run_server(argv: list[str] | None = None) -> None:
             from fastapi import FastAPI, Request
 
             from delinea_mcp.transports.sse import mount_sse_routes
+            from delinea_mcp.transports.streamable_http import (
+                build_session_manager,
+                make_lifespan,
+                mount_streamable_http_routes,
+            )
 
-            app = FastAPI(title="Delinea MCP")
+            stateless = bool(cfg.get("streamable_http_stateless", True))
+            manager = build_session_manager(
+                mcp,
+                stateless=stateless,
+                json_response=bool(cfg.get("streamable_http_json_response", True)),
+            )
+            app = FastAPI(title="Delinea MCP", lifespan=make_lifespan(manager))
             if _debug:
 
                 @app.middleware("http")
@@ -224,6 +266,7 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_sse_routes(app, mcp)
+            mount_streamable_http_routes(app, manager, stateless=stateless)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("oauth", "sse"):
             import uvicorn
@@ -232,8 +275,19 @@ def run_server(argv: list[str] | None = None) -> None:
             from delinea_mcp.auth.routes import mount_oauth_routes
             from delinea_mcp.auth.validators import require_scopes
             from delinea_mcp.transports.sse import mount_sse_routes
+            from delinea_mcp.transports.streamable_http import (
+                build_session_manager,
+                make_lifespan,
+                mount_streamable_http_routes,
+            )
 
-            app = FastAPI(title="Delinea MCP (OAuth)")
+            stateless = bool(cfg.get("streamable_http_stateless", True))
+            manager = build_session_manager(
+                mcp,
+                stateless=stateless,
+                json_response=bool(cfg.get("streamable_http_json_response", True)),
+            )
+            app = FastAPI(title="Delinea MCP (OAuth)", lifespan=make_lifespan(manager))
             if _debug:
 
                 @app.middleware("http")
@@ -249,17 +303,13 @@ def run_server(argv: list[str] | None = None) -> None:
                     return await call_next(request)
 
             mount_oauth_routes(app, cfg)
-            mount_sse_routes(
-                app,
-                mcp,
-                require_scopes(
-                    ["mcp.read", "mcp.write"],
-                    audience=audience,
-                    chatgpt_no_scope_check=bool(
-                        cfg.get("chatgpt_disable_scope_checks")
-                    ),
-                ),
+            guard = require_scopes(
+                ["mcp.read", "mcp.write"],
+                audience=audience,
+                chatgpt_no_scope_check=bool(cfg.get("chatgpt_disable_scope_checks")),
             )
+            mount_sse_routes(app, mcp, guard)
+            mount_streamable_http_routes(app, manager, guard, stateless=stateless)
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("passthrough", _):
             raise NotImplementedError(
@@ -277,6 +327,18 @@ __all__ = [
     "tools",
     "user_platform_tools",
     "secretserver_users",
+    "strongdm_tools",
+    # StrongDM tools — optional third backend (delinea-mcp[strongdm])
+    "sdm_search",
+    "sdm_audit_access",
+    "sdm_grant_access",
+    "sdm_revoke_access",
+    "sdm_user_management",
+    "sdm_role_management",
+    "sdm_resource_health",
+    "sdm_access_requests",
+    "sdm_activity_report",
+    "sdm_network_status",
     "get_secret",
     "get_folder",
     # Canonical (Platform-backed) user tools — v1.0.0+

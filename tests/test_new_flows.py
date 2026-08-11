@@ -665,7 +665,7 @@ class _DummyMCP:
     def __init__(self):
         self.names: list[str] = []
 
-    def tool(self):
+    def tool(self, **kwargs):
         def deco(f):
             self.names.append(f.__name__)
             return f

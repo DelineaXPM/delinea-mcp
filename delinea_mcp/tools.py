@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
+
 from . import constants
 from .session import SessionManager
 
@@ -2105,7 +2107,7 @@ def load_enabled_tools(path: str | Path) -> set[str]:
 
 
 def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
-    """Register reporting tools on the given FastMCP server."""
+    """Register reporting tools on the given MCP server."""
     enabled_set = set(enabled or [])
     if not enabled_set:
         enabled_set = {name for name, _ in TOOLS}
@@ -2113,4 +2115,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set.discard("ai_generate_and_run_report")
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool()(func)
+            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(func)

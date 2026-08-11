@@ -65,3 +65,20 @@ def test_token_unsupported_grant(monkeypatch):
         headers={"content-type": "application/json"},
     )
     assert r.status_code == 400
+
+
+def test_protected_resource_metadata():
+    client = make_client()
+    for path in (
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/mcp",
+    ):
+        r = client.get(path)
+        assert r.status_code == 200
+        data = r.json()
+        # "resource" must equal the JWT audience (the origin) so RFC 8707
+        # resource-indicator semantics stay coherent.
+        assert data["resource"] == "http://testserver"
+        assert data["authorization_servers"] == ["http://testserver"]
+        assert data["bearer_methods_supported"] == ["header"]
+        assert set(data["scopes_supported"]) == {"mcp.read", "mcp.write"}
