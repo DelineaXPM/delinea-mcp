@@ -37,7 +37,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   tqdm
 coverage==7.10.7
     # via delinea-mcp (pyproject.toml:dev)
-cryptography==48.0.1
+cryptography==50.0.0
     # via
     #   authlib
     #   joserfc
