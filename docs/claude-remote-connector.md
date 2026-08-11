@@ -44,6 +44,7 @@ Allow all tools except `get_secret_environment_variable`.
     "get_secret",
     "get_folder",
     "user_management",
+    "secretserver_local_user_management",
     "role_management",
     "user_role_management",
     "group_management",
@@ -52,6 +53,7 @@ Allow all tools except `get_secret_environment_variable`.
     "folder_management",
     "health_check",
     "search_users",
+    "search_secretserver_local_users",
     "search_secrets",
     "search_folders",
     "check_secret_template",
@@ -64,6 +66,13 @@ Allow all tools except `get_secret_environment_variable`.
   ]
 }
 ```
+
+> [!NOTE]
+> Since v1.0.0 `user_management` and `search_users` target the **Delinea
+> Platform** identity directory and need `platform_hostname` +
+> `PLATFORM_SERVICE_*` credentials configured. For Secret-Server-only
+> deployments, the SS-local equivalents in the list above are
+> `secretserver_local_user_management` / `search_secretserver_local_users`.
 
 ## Connecting from Claude
 

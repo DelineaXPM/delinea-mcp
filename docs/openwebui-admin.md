@@ -20,6 +20,7 @@ Most administration tasks require every tool except `get_secret_environment_vari
     "get_secret",
     "get_folder",
     "user_management",
+    "secretserver_local_user_management",
     "role_management",
     "user_role_management",
     "group_management",
@@ -28,6 +29,7 @@ Most administration tasks require every tool except `get_secret_environment_vari
     "folder_management",
     "health_check",
     "search_users",
+    "search_secretserver_local_users",
     "search_secrets",
     "search_folders",
     "check_secret_template",
@@ -40,6 +42,13 @@ Most administration tasks require every tool except `get_secret_environment_vari
   ]
 }
 ```
+
+> [!NOTE]
+> Since v1.0.0 `user_management` and `search_users` target the **Delinea
+> Platform** identity directory and need `platform_hostname` +
+> `PLATFORM_SERVICE_*` credentials configured. For Secret-Server-only
+> deployments, the SS-local equivalents in the list above are
+> `secretserver_local_user_management` / `search_secretserver_local_users`.
 
 ## Adding to openwebui
 

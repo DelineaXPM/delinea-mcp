@@ -6,8 +6,13 @@
 
 ---
 
-#### 11.Aug.2026: MCP Protocol v2 and Experimental StrongDM API support are here
-#### 11.Aug.2026: We're the original providers of the "no secret visibility to the LLM" vault / use case, beware of copycats ;)
+## News
+
+- **11 Aug 2026** — MCP Protocol v2 (spec revision 2026-07-28, streamable HTTP)
+  and experimental StrongDM API support are here — see the
+  [release notes](CHANGELOG.md).
+- **11 Aug 2026** — We're the original providers of the "no secret visibility
+  to the LLM" vault use case — beware of copycats ;)
 
 ---
 
@@ -124,7 +129,18 @@ This project will be expanded to integrate further with the Secret Server API.
 
 ## MCP Tools
 
-The server exposes several MCP tools for interacting with Secret Server:
+The server exposes MCP tools for Secret Server, the Delinea Platform
+identity directory, and (optionally) StrongDM. Every tool publishes
+behaviour annotations (read-only/destructive hints) via `tools/list`.
+
+### ChatGPT / deep-research compatibility
+
+- `search(query)` - unified search returning `{id, title, url}` results; object
+  types are limited by the `search_objects` config key (default: secrets only).
+- `fetch(id)` - retrieve a single object surfaced by `search`; limited by
+  `fetch_objects`.
+
+### Secret Server
 
 - `run_report(sql_query, report_name=None)` - create and execute a temporary report.
 - `ai_generate_and_run_report(description)` - generate SQL using Azure OpenAI and run it.
@@ -132,7 +148,6 @@ The server exposes several MCP tools for interacting with Secret Server:
 - `list_example_reports()` - list sample queries and table information.
 - `get_secret(id, summary=False)` - retrieve a secret or summary details.
 - `get_folder(id)` - fetch folder metadata and children.
-- `search_users(query)` - search active users.
 - `search_secrets(query, lookup=False)` - search or look up secrets.
 - `search_folders(query, lookup=False)` - search or look up folders.
 - `get_secret_environment_variable(secret_id, environment)` - output a script for fetching secret credentials in the specified shell.
@@ -143,10 +158,21 @@ The server exposes several MCP tools for interacting with Secret Server:
 - `get_pending_access_requests()` - list pending access requests.
 - `get_inbox_messages(read_status_filter=None, take=20, skip=0)` - retrieve inbox messages.
 - `mark_inbox_messages_read(message_ids, read=True)` - mark messages as read or unread.
-- `user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` - unified user operations.
-  `action` accepts `get`, `create`, `update`, `delete`, `list_sessions`, `reset_2fa`, `reset_password` or `lock_out`.
-  Provide `user_id` when required and supply the request body via `data` for create, update and password reset actions.
-  Example: `user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
+- `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=None, comment=None)` -
+  create a secret whose password is generated server-side; only sanitized
+  metadata is returned, the value never reaches the model.
+- `update_secret_generated_password(secret_id, field_slug, password_field_id, comment=None)` -
+  rotate a secret's password server-side without surfacing the value.
+- `update_secret_fields(secret_id, field_updates, comment=None, allow_password_fields=False)` -
+  read-template → mutate non-password fields → verify flow; refuses
+  password-marked fields unless explicitly allowed.
+- `set_secret_field_environment_variable(secret_id, field_slug, environment, source="stdin", comment=None)` -
+  emit a shell script (bash/powershell/cmd) that reads a value locally and
+  pushes it into the secret field, so the value bypasses the model entirely.
+- `bulk_user_response(user_ids, scenario, comment, confirm=False)` - opinionated
+  incident combinator over the bulk-user operations API. Scenarios:
+  `compromise`, `offboard`, `unlock`, `reenable`, `force_logout`; requires
+  `confirm=True` plus a non-empty audit comment, and previews when unconfirmed.
 - `role_management(action, role_id=None, data=None, params=None)` - manage roles.
   `action` may be `list`, `get`, `create` or `update`.
   Pass optional query parameters with `params` when listing roles.
@@ -166,6 +192,33 @@ The server exposes several MCP tools for interacting with Secret Server:
   Use `list`, `add` or `remove` actions.
   Provide `role_ids` when adding or removing.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
+
+### Delinea Platform users and roles
+
+Since v1.0.0 the canonical user tools target the Delinea Platform identity
+directory (requires `platform_hostname` + `PLATFORM_SERVICE_*` credentials;
+without them the tools return guidance instead of failing):
+
+- `user_management(action, user_id=None, data=None, username=None)` - Platform
+  user CRUD. `action` accepts `get`, `create`, `update`, `delete` or `search`.
+- `search_users(query)` - search the Platform user directory.
+- `platform_role_management(action, role_id=None, data=None, page_size=100, query="%")` -
+  Platform role CRUD (`list`, `get`, `create`, `update`, `delete`); role
+  mutations are discovery-driven and return guidance on tenants whose API
+  scope doesn't expose them.
+- `platform_user_role_management(action, role_id, user_principals=None)` -
+  `list`, `add` or `remove` users on a Platform role.
+- `platform_user_management(...)` - deprecated alias of `user_management`.
+
+### Secret Server local users (legacy)
+
+For SS-only deployments without Platform configured:
+
+- `secretserver_local_user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` -
+  the pre-v1.0.0 Secret Server user operations: `get`, `create`, `update`,
+  `delete`, `list_sessions`, `reset_2fa`, `reset_password`, `lock_out`.
+  Example: `secretserver_local_user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
+- `search_secretserver_local_users(query)` - search Secret Server's local user store.
 
 ### StrongDM tools (optional, experimental)
 
@@ -241,7 +294,7 @@ Optionally set `DELINEA_BASE_URL` to override the default `https://localhost/Sec
 
 ## Running Tests
 
-Run the unit tests with coverage to ensure 100% code coverage:
+Run the unit tests with coverage (CI enforces a minimum of 70%):
 
 ```bash
 pip install -r requirements.txt
@@ -272,26 +325,44 @@ Optional features rely on additional variables:
 
 - `PLATFORM_SERVICE_PASSWORD` along with `PLATFORM_HOSTNAME`, `PLATFORM_SERVICE_ACCOUNT`, and `PLATFORM_TENANT_ID` enables the user management tools.
 - `AZURE_OPENAI_KEY` together with `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` enables the AI report generation helper.
+- `SDM_API_ACCESS_KEY` and `SDM_API_SECRET_KEY` enable the experimental StrongDM tools (requires the `strongdm` extra; see [docs/strongdm.md](docs/strongdm.md)).
 
 When running with OAuth or SSE transport you may need to provide `registration_psk` and configure an `external_hostname` or HTTPS certificate files.
 
 ## Repository Layout
 
-- `delinea_mcp/` - package containing MCP tools.
+- `delinea_mcp/` - package containing the MCP tools: `tools.py` (Secret
+  Server), `user_platform_tools.py` (Delinea Platform),
+  `secretserver_users.py` (SS-local users), `strongdm_tools.py` (StrongDM,
+  optional), plus `transports/` (SSE + streamable HTTP) and `auth/` (the
+  embedded OAuth authorization server).
 - `server.py` - thin entry point that registers everything with the MCP server.
 - `docs/` - project documentation and the generated `delinea-secret-server-openapi-spec.json`.
 - `scripts/` - helper examples including `manual_secret_request.py`.
 
 ## Security Considerations
 
-The included OAuth endpoints are intended for development and testing.
-The `/oauth/authorize` route accepts any `redirect_uri` and will redirect the user without validation.
-Deployments **must** restrict this value to approved callback URLs; otherwise attackers could supply a malicious URL and capture authorization codes.
-See [Open Redirection](docs/mcp-standard-info.md#34-open-redirection) for background.
+The embedded OAuth authorization server is a convenience for development,
+testing and small deployments; larger deployments should front the server
+with their organisation's identity provider. Current safeguards:
+
+- Client registration (`/oauth/register`) and the authorization form both
+  require the `registration_psk` shared secret (constant-time compared).
+- `redirect_uri` values are validated against the URIs registered for the
+  client on both the authorize form and the code redirect.
+- Access tokens are audience-bound RS256 JWTs; resource discovery follows
+  RFC 9728 (`/.well-known/oauth-protected-resource` plus `WWW-Authenticate`
+  headers on 401/403 responses).
+- Always deploy with TLS (`ssl_keyfile`/`ssl_certfile` or a terminating
+  proxy) — bearer tokens and secrets transit every request.
+- Scope tool exposure per use case with `enabled_tools`; secret _values_
+  are kept out of model context by design (server-side password
+  generation, env-var script indirection, password-field guards).
 
 ## Release Notes
 
-See [docs/release_notes.md](docs/release_notes.md) for a summary of the latest features and roadmap items.
+See [CHANGELOG.md](CHANGELOG.md) for a summary of the latest features and
+roadmap items.
 
 ## Roadmap
 
