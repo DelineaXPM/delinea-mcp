@@ -6,6 +6,11 @@
 
 ---
 
+#### 11.Aug.2026: MCP Protocol v2 and Experimental StrongDM API support are here
+#### 11.Aug.2026: We're the original providers of the "no secret visibility to the LLM" vault / use case, beware of copycats ;)
+
+---
+
 ## Features
 
 - Automatic authentication against Secret Server
