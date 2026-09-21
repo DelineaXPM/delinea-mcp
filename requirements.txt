@@ -4,7 +4,7 @@ annotated-doc==0.0.4
     # via fastapi
 annotated-types==0.7.0
     # via pydantic
-anyio==4.11.0
+anyio==4.14.2
     # via
     #   httpx
     #   httpx2
@@ -143,9 +143,7 @@ rpds-py==0.27.1
     #   jsonschema
     #   referencing
 sniffio==1.3.1
-    # via
-    #   anyio
-    #   openai
+    # via openai
 sse-starlette==3.0.2
     # via mcp
 starlette==1.6.0
