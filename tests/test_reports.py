@@ -50,26 +50,15 @@ def test_run_report(monkeypatch):
     mock_session = type("MockSession", (), {"request": fake_request})()
     monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = server.run_report("SELECT 1", report_name="t")
-    assert result == {"columns": ["c"], "rows": [[1]]}
+    assert result == {
+        "columns": ["c"],
+        "rows": [[1]],
+        "total_rows": 1,
+        "truncated": False,
+    }
     assert calls[0][1] == "/v1/reports"
     assert calls[1][1] == "/v1/reports/execute"
     assert calls[2][1] == "/v1/reports/42"
-
-
-def test_ai_generate_and_run_report(monkeypatch):
-    def fake_generate(desc):
-        assert desc == "foo"
-        return "SELECT 2"
-
-    def fake_run(sql, report_name=None):
-        assert sql == "SELECT 2"
-        return {"columns": ["c"], "rows": [[2]]}
-
-    monkeypatch.setattr(server, "generate_sql_query", fake_generate)
-    monkeypatch.setattr(server, "run_report", fake_run)
-    result = server.ai_generate_and_run_report("foo")
-    assert result["generated_sql"] == "SELECT 2"
-    assert result["rows"] == [[2]]
 
 
 def test_run_report_error(monkeypatch):
@@ -83,26 +72,7 @@ def test_run_report_error(monkeypatch):
 
     monkeypatch.setattr(tools, "create_report", fail_create)
     result = tools.run_report("SELECT 1")
-    assert result["error"].startswith("Failed to run report")
-
-
-def test_ai_generate_and_run_report_error(monkeypatch):
-    from delinea_mcp import tools
-
-    monkeypatch.setattr(tools, "generate_sql_query", lambda d: "Error: bad")
-    result = tools.ai_generate_and_run_report("x")
-    assert result == {"error": "Error: bad"}
-
-
-def test_ai_generate_and_run_report_run_error(monkeypatch):
-    from delinea_mcp import tools
-
-    monkeypatch.setattr(tools, "generate_sql_query", lambda d: "SQL")
-    monkeypatch.setattr(
-        tools, "run_report", lambda sql, report_name=None: {"error": "fail"}
-    )
-    result = tools.ai_generate_and_run_report("x")
-    assert result == {"error": "fail"}
+    assert result["error"] == "Report 'MCP Generated Report' failed: boom"
 
 
 def test_list_example_reports():

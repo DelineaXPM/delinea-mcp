@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
+import shutil
+import tempfile
+import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Annotated, Any, Dict, Iterable, List
 
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
+import anyio.to_thread
+from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
+from mcp.server.mcpserver import Context, Elicit, Resolve
+from mcp.types import ClientCapabilities, ElicitationCapability
+from pydantic import BaseModel, Field
+
+from delinea_mcp.annotations import tool_metadata
 
 from . import constants
 from .session import SessionManager
@@ -76,18 +86,30 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
     return data
 
 
-def _error_detail(exc: Exception) -> str:
-    """Return ``str(exc)`` plus the HTTP response body when there is one.
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 500
+DEFAULT_REPORT_ROWS = 200
+MAX_REPORT_ROWS = 5000
 
-    ``requests.HTTPError`` alone only says ``400 Client Error``; the reason
-    Secret Server rejected the request (for example custom report SQL that
-    failed validation) is in the response body, so surface it to the caller.
+
+def _clamp(value: int | None, default: int, maximum: int) -> int:
+    try:
+        value = int(value) if value is not None else default
+    except (TypeError, ValueError):
+        value = default
+    return max(1, min(value, maximum))
+
+
+def _paged(params: dict | None, take: int | None = None, skip: int = 0) -> dict:
+    """Return list-endpoint query params with a bounded page size.
+
+    Explicit ``take``/``skip`` keys already in *params* win, but ``take`` is
+    still capped so one call cannot return an unbounded result set.
     """
-    detail = str(exc)
-    body = getattr(getattr(exc, "response", None), "text", None)
-    if body:
-        detail = f"{detail}: {str(body).strip()[:500]}"
-    return detail
+    merged = dict(params or {})
+    merged["take"] = _clamp(merged.get("take", take), DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
+    merged.setdefault("skip", max(0, int(skip or 0)))
+    return merged
 
 
 def create_report(report_name: str, sql_query: str) -> int:
@@ -119,11 +141,9 @@ def create_report(report_name: str, sql_query: str) -> int:
             },
         )
         return response.json()["id"]
-    except Exception as exc:
+    except Exception:  # pragma: no cover - network failures
         logger.exception("Failed to create report '%s'", report_name)
-        raise RuntimeError(
-            f"Failed to create report '{report_name}': {_error_detail(exc)}"
-        )
+        raise
 
 
 def execute_report(report_id: int) -> dict:
@@ -148,15 +168,25 @@ def execute_report(report_id: int) -> dict:
             json={"id": report_id, "useDefaultParameters": True},
         )
         return response.json()
-    except Exception as exc:
+    except Exception:  # pragma: no cover - network failures
         logger.exception("Failed to execute report %s", report_id)
-        raise RuntimeError(
-            f"Failed to execute report {report_id}: {_error_detail(exc)}"
-        )
+        raise
 
 
-def run_report(sql_query: str, report_name: str | None = None) -> dict:
-    """Create and execute a temporary report and return its result rows.
+def run_report(
+    sql_query: str, report_name: str | None = None, max_rows: int = DEFAULT_REPORT_ROWS
+) -> dict:
+    """Run a read-only SQL report on Secret Server and return its rows.
+
+    Call ``list_example_reports`` first: it is the reference for this tool
+    and lists the Secret Server database tables, columns, special fields and
+    tested example queries to build *sql_query* from. The query runs through
+    the Secret Server REST API reports endpoints (``POST /api/v1/reports``,
+    ``POST /api/v1/reports/execute``, then ``DELETE /api/v1/reports/{id}``;
+    see https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/index.htm),
+    as a temporary report that is deleted after it runs. Secret Server only
+    executes ``SELECT`` statements and applies the configured account's
+    report permissions.
 
     Parameters
     ----------
@@ -167,89 +197,40 @@ def run_report(sql_query: str, report_name: str | None = None) -> dict:
         ``list_example_reports`` for the rules, table list and sample queries.
     report_name:
         Optional name for the temporary report.
+    max_rows:
+        Maximum rows to return (default 200, capped at 5000). Add
+        aggregation or a ``WHERE`` clause rather than raising this.
 
     Returns
     -------
     dict
-        Dictionary containing ``columns`` and ``rows`` from the executed report
-        or an ``error`` key on failure.
+        ``columns``, ``rows``, ``total_rows`` and ``truncated``, or an
+        ``error`` key on failure.
     """
     logger.debug("run_report(%s)", sql_query)
     session = SessionManager.get()
     name = report_name or "MCP Generated Report"
+    limit = _clamp(max_rows, DEFAULT_REPORT_ROWS, MAX_REPORT_ROWS)
     try:
         report_id = create_report(name, sql_query)
         result = execute_report(report_id)
     except Exception as exc:
         logger.exception("Failed to run report '%s'", name)
-        return {"error": f"Failed to run report '{name}': {exc}"}
+        return {"error": f"Report '{name}' failed: {exc}"}
 
     try:
         session.request("DELETE", f"/v1/reports/{report_id}")
     except Exception:
         logger.exception("Failed to delete report %s", report_id)
 
-    return {"columns": result.get("columns", []), "rows": result.get("rows", [])}
-
-
-def generate_sql_query(user_query: str) -> str:
-    """Generate a SQL query from natural language using Azure OpenAI.
-
-    Parameters
-    ----------
-    user_query:
-        Free form description of the desired data.
-
-    Returns
-    -------
-    str
-        SQL statement or an error message if generation fails.
-    """
-    logger.debug("generate_sql_query(%s)", user_query)
-    # Import OpenAI lazily so tests don't require the package unless this
-    # function is invoked.
-    import openai
-
-    azure_endpoint = _cfg_or_env("AZURE_OPENAI_ENDPOINT")
-    azure_key = os.getenv("AZURE_OPENAI_KEY")
-    deployment_name = _cfg_or_env("AZURE_OPENAI_DEPLOYMENT")
-
-    if not azure_endpoint or not azure_key or not deployment_name:
-        return "Error: Azure OpenAI environment variables are not set"
-
-    openai.api_type = "azure"
-    openai.api_base = azure_endpoint
-    openai.api_key = azure_key
-    openai.api_version = "2023-05-15"
-
-    system_message = (
-        "You are a SQL query generator for Delinea Secret Server. "
-        "Use the following information about tables, example queries and special "
-        "fields to generate the SQL.\n\n"
-        f"Tables and Columns:\n{constants.TABLES_AND_COLUMNS}\n\n"
-        f"Example Queries:\n{constants.EXAMPLE_QUERIES_TEXT}\n\n"
-        f"Special Fields:\n{constants.SPECIAL_FIELDS}\n"
-        f"Rules:\n{constants.REPORT_SQL_RULES}"
-        "\nGenerate only the SQL without markdown formatting."
-    )
-
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": f"Generate a SQL query for: {user_query}"},
-    ]
-
-    try:
-        response = openai.ChatCompletion.create(
-            model=deployment_name,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=500,
-            n=1,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("Failed to generate SQL")
-        return f"Error generating SQL: {exc}"
+    rows = result.get("rows", []) or []
+    out = {
+        "columns": result.get("columns", []),
+        "rows": rows[:limit],
+        "total_rows": len(rows),
+        "truncated": len(rows) > limit,
+    }
+    return out
 
 
 def check_secret_template(template_id: int) -> dict:  # pragma: no cover
@@ -296,10 +277,115 @@ def _check_secret_approval(
     return None
 
 
+# --------------------------------------------------------------------------- #
+# Script handoff                                                              #
+# --------------------------------------------------------------------------- #
+#
+# The environment-variable tools emit shell scripts that call the Secret
+# Server API with the server's current access token, so the secret *value*
+# never passes through the model. That token is short-lived (it follows the
+# Secret Server token-expiration setting), but it carries the configured
+# account's permissions while valid. When the server runs on the user's own
+# machine (stdio transport) the script is therefore written to a private
+# file and only its path is returned; the token never enters the transcript.
+
+_SCRIPT_TTL_SECONDS = 15 * 60
+_SCRIPT_DIR: Path | None = None
+_SCRIPT_EXT = {"bash": ".sh", "powershell": ".ps1", "cmd": ".cmd"}
+
+
+def _script_delivery() -> str:
+    """Return ``"file"`` or ``"inline"`` for generated scripts."""
+    mode = str(_CFG.get("script_delivery", "auto")).lower()
+    if mode in {"file", "inline"}:
+        return mode
+    transport = str(_CFG.get("transport_mode", "stdio")).lower()
+    return "file" if transport == "stdio" else "inline"
+
+
+def _script_dir() -> Path:
+    """Private (0700) per-process directory for generated scripts."""
+    global _SCRIPT_DIR
+    if _SCRIPT_DIR is None or not _SCRIPT_DIR.is_dir():
+        _SCRIPT_DIR = Path(tempfile.mkdtemp(prefix="delinea-mcp-"))
+        atexit.register(shutil.rmtree, _SCRIPT_DIR, True)
+    return _SCRIPT_DIR
+
+
+def _sweep_expired_scripts(directory: Path) -> None:
+    cutoff = time.time() - _SCRIPT_TTL_SECONDS
+    for old in directory.iterdir():
+        try:
+            if old.stat().st_mtime < cutoff:
+                old.unlink()
+        except OSError:  # pragma: no cover - raced with self-delete
+            pass
+
+
+def _self_deleting(body: str, environment: str, path: Path) -> str:
+    """Wrap *body* so the script removes itself when it runs."""
+    if environment == "bash":
+        # Sourced scripts stay readable after unlink (open file descriptor).
+        return f"rm -f '{path}'\n{body}\n"
+    if environment == "powershell":
+        return f"Remove-Item -LiteralPath '{path}' -Force\n{body}\n"
+    # cmd reads batch files incrementally: delete as the very last action.
+    return f'{body}\n(goto) 2>nul & del "%~f0"\n'
+
+
+def _run_hint(environment: str, path: Path) -> str:
+    if environment == "bash":
+        return f"source '{path}' && <command that uses the variables>"
+    if environment == "powershell":
+        return f". '{path}'; <command that uses the variables>"
+    return f'call "{path}" && <command that uses the variables>'
+
+
+def _deliver_script(body: str, environment: str, purpose: str) -> str | dict:
+    """Return the script inline, or write it to a private file (see above)."""
+    if _script_delivery() == "inline":
+        # Batch-file loop variables are doubled (%%p); an interactive prompt
+        # expects them single.
+        return body.replace("%%", "%") if environment == "cmd" else body
+    directory = _script_dir()
+    _sweep_expired_scripts(directory)
+    fd, name = tempfile.mkstemp(
+        dir=directory, prefix="script-", suffix=_SCRIPT_EXT[environment]
+    )
+    path = Path(name)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(_self_deleting(body, environment, path))
+    os.chmod(path, 0o600)
+    expiry = threading.Timer(
+        _SCRIPT_TTL_SECONDS, path.unlink, kwargs={"missing_ok": True}
+    )
+    expiry.daemon = True
+    expiry.start()
+    return {
+        "script_path": str(path),
+        "shell": environment,
+        "run": _run_hint(environment, path),
+        "purpose": purpose,
+        "note": (
+            "The script holds a short-lived Secret Server access token and "
+            "deletes itself when run (or after 15 minutes). Run it in the same "
+            "shell invocation as the command that needs it. Do not print, cat "
+            "or copy its contents."
+        ),
+    }
+
+
 def get_secret_environment_variable(
     secret_id: int, environment: str, comment: str | None = None
-) -> str | dict:  # pragma: no cover
-    """Return shell code to fetch a secret and store it in environment variables.
+) -> str | dict:
+    """Prepare a script that loads a secret's username/password into env vars.
+
+    This is the preferred way to *use* a credential: the script calls the
+    Secret Server REST API itself, so the password never appears in the
+    conversation. The script authenticates with the MCP server's current
+    short-lived access token. When the server runs locally (stdio), the
+    script is written to a private, self-deleting file and only its path is
+    returned; over HTTP transports the script text is returned instead.
 
     Before retrieving a secret, check whether it requires approval:
 
@@ -329,13 +415,21 @@ def get_secret_environment_variable(
 
     Returns
     -------
+    dict
+        ``script_path`` plus a ``run`` hint (local mode). The script exports
+        ``SECRET_USERNAME_<id>`` and ``SECRET_PASSWORD_<id>``.
     str
-        Script snippet that reads the secret via ``curl`` and exports it as
-        ``SECRET_PASSWORD_<id>`` and ``SECRET_USERNAME_<id>``.
+        The script text (HTTP transports).
     dict
         Error information if the secret requires approval or a comment
         that was not provided.
     """
+    env = environment.lower()
+    if env not in _SCRIPT_EXT:
+        raise ValueError(
+            f"Unsupported environment {environment!r}; use 'bash', "
+            "'powershell' or 'cmd'"
+        )
 
     session = SessionManager.get()
 
@@ -350,27 +444,38 @@ def get_secret_environment_variable(
 
         url += f"?autoCheckout=true&autoCheckIn=true&autoComment={quote(comment)}"
     access_token = session.token
-    if environment.lower() == "bash":
-        return (
-            f'export SECRET_PASSWORD_{secret_id}="$(curl -H "Authorization: Bearer {access_token}" {url} | jq -r ".items[] | select(.fieldName == "Password") | .itemValue")"'
-            f'export SECRET_USERNAME_{secret_id}="$(curl -H "Authorization: Bearer {access_token}" {url} | jq -r ".items[] | select(.fieldName == "Username") | .itemValue")"'
+    if env == "bash":
+        pick = "'.items[] | select(.slug == \"%s\") | .itemValue'"
+        body = (
+            f'_dmcp_resp="$(curl -fsS -H "Authorization: Bearer {access_token}" '
+            f"'{url}')\" || {{ echo 'Failed to read secret {secret_id}' >&2; "
+            "return 1 2>/dev/null || exit 1; }\n"
+            f'export SECRET_USERNAME_{secret_id}="$(printf \'%s\' "$_dmcp_resp" '
+            f"| jq -r {pick % 'username'})\"\n"
+            f'export SECRET_PASSWORD_{secret_id}="$(printf \'%s\' "$_dmcp_resp" '
+            f"| jq -r {pick % 'password'})\"\n"
+            "unset _dmcp_resp"
         )
-    elif environment.lower() == "powershell":
-        return (
+    elif env == "powershell":
+        body = (
             f'$headers = @{{"Authorization" = "Bearer {access_token}"}}\n'
             f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
-            f'$passwordItem = $response.items | Where-Object {{ $_.fieldName -eq "Password" }}\n'
-            f'$usernameItem = $response.items | Where-Object {{ $_.fieldName -eq "Username" }}\n'
+            '$passwordItem = $response.items | Where-Object { $_.slug -eq "password" }\n'
+            '$usernameItem = $response.items | Where-Object { $_.slug -eq "username" }\n'
             f"$env:SECRET_PASSWORD_{secret_id} = $passwordItem.itemValue\n"
-            f"$env:SECRET_USERNAME_{secret_id} = $usernameItem.itemValue"
-        )
-    elif environment.lower() == "cmd":
-        return (
-            f'for /f "delims=" %p in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Password;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/") do set SECRET_PASSWORD_{secret_id}=%p\n'
-            f'for /f "delims=" %u in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Username;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/") do set SECRET_USERNAME_{secret_id}=%u'
+            f"$env:SECRET_USERNAME_{secret_id} = $usernameItem.itemValue\n"
+            "Remove-Variable headers, response, passwordItem, usernameItem"
         )
     else:
-        raise ValueError(f"Unsupported environment: {environment}")
+        body = (
+            f'for /f "delims=" %%p in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Password;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/"\') do set SECRET_PASSWORD_{secret_id}=%%p\n'
+            f'for /f "delims=" %%u in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Username;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/"\') do set SECRET_USERNAME_{secret_id}=%%u'
+        )
+    return _deliver_script(
+        body,
+        env,
+        f"Exports SECRET_USERNAME_{secret_id} and SECRET_PASSWORD_{secret_id}",
+    )
 
 
 def create_secret_with_generated_password(
@@ -515,11 +620,14 @@ def set_secret_field_environment_variable(
     source: str = "stdin",
     comment: str | None = None,
 ) -> str | dict:  # pragma: no cover
-    """Return a shell script that reads a value locally and pushes it to the vault.
+    """Prepare a script that reads a value locally and pushes it to the vault.
 
     Use this for values that **cannot** be generated by Delinea (e.g. AWS API
-    keys, external tokens).  The model **never** sees the actual secret value —
-    it only receives the script text.
+    keys, external tokens).  The model **never** sees the actual secret value.
+    The script authenticates with the MCP server's current short-lived access
+    token; when the server runs locally (stdio) it is written to a private,
+    self-deleting file and only the path is returned, otherwise the script
+    text is returned.
 
     The script reads from the specified *source* and calls
     ``PUT /v1/secrets/{id}/fields/{slug}`` to update the field.
@@ -564,10 +672,11 @@ def set_secret_field_environment_variable(
 
     Returns
     -------
+    dict
+        ``script_path`` plus a ``run`` hint (local mode).
     str
-        Shell script snippet.  When executed by the agent's runtime the value
-        is read from *source* and PUT to the vault.  The model sees only the
-        script template, never the value.
+        The script text (HTTP transports).  Either way the value is read
+        from *source* at run time and PUT to the vault.
     dict
         Error information if the secret requires approval or a comment
         that was not provided.
@@ -604,14 +713,15 @@ def set_secret_field_environment_variable(
         else:  # stdin
             read_cmd = 'echo "Enter secret value:"; read -rs VALUE'
 
-        return (
+        body = (
             f"{read_cmd}\n"
-            f"curl -s -X PUT \\\n"
+            "jq -n --arg v \"$VALUE\" '{value: $v}' | curl -fsS -X PUT \\\n"
             f'  -H "Authorization: Bearer {access_token}" \\\n'
             f'  -H "Content-Type: application/json" \\\n'
-            f'  -d "{{\\"value\\": \\"$VALUE\\"}}" \\\n'
-            f'  "{url}"\n'
-            f'echo "Field {field_slug} updated on secret {secret_id}"'
+            "  --data-binary @- \\\n"
+            f"  '{url}' >/dev/null && \\\n"
+            f'echo "Field {field_slug} updated on secret {secret_id}"\n'
+            "unset VALUE"
         )
     elif env == "powershell":
         if source.startswith("env:"):
@@ -623,7 +733,7 @@ def set_secret_field_environment_variable(
         else:
             read_cmd = '$Value = Read-Host -Prompt "Enter secret value" -AsSecureString | ConvertFrom-SecureString -AsPlainText'
 
-        return (
+        body = (
             f"{read_cmd}\n"
             f'$headers = @{{"Authorization" = "Bearer {access_token}"; "Content-Type" = "application/json"}}\n'
             f'$body = @{{"value" = $Value}} | ConvertTo-Json\n'
@@ -640,7 +750,7 @@ def set_secret_field_environment_variable(
         else:
             read_cmd = "set /p VALUE=Enter secret value: "
 
-        return (
+        body = (
             f"{read_cmd}\n"
             f'curl -s -X PUT -H "Authorization: Bearer {access_token}" '
             f'-H "Content-Type: application/json" '
@@ -649,7 +759,16 @@ def set_secret_field_environment_variable(
             f"echo Field {field_slug} updated on secret {secret_id}"
         )
     else:
-        raise ValueError(f"Unsupported environment: {environment}")
+        raise ValueError(
+            f"Unsupported environment {environment!r}; use 'bash', "
+            "'powershell' or 'cmd'"
+        )
+    purpose = f"Writes field {field_slug!r} on secret {secret_id}"
+    if not source.startswith(("env:", "file:")):
+        purpose += (
+            "; prompts for the value, so the user must run it in their own terminal"
+        )
+    return _deliver_script(body, env, purpose)
 
 
 def update_secret_generated_password(
@@ -763,29 +882,14 @@ def update_secret_generated_password(
         return {"error": f"Failed to update secret password: {exc}"}
 
 
-def ai_generate_and_run_report(description: str) -> dict:
-    """Generate SQL from a description, run it, and return the results.
-
-    The generated SQL must satisfy the Secret Server custom-report rules
-    (a single read-only SELECT; see ``list_example_reports``). If Secret
-    Server rejects it, the result carries its message in ``error``.
-    """
-    logger.debug("ai_generate_and_run_report(%s)", description)
-    sql = generate_sql_query(description)
-    if sql.startswith("Error"):
-        return {"error": sql}
-
-    result = run_report(sql, report_name=f"AI Generated: {int(time.time())}")
-    if "error" in result:
-        return result
-
-    result["generated_sql"] = sql
-    return result
-
-
 def list_example_reports() -> str | dict:
-    """Return sample queries, table information, special fields and the
-    rules Secret Server enforces on custom report SQL."""
+    """Return the reference for writing ``run_report`` SQL.
+
+    Includes tested example queries, the Secret Server database tables and
+    columns they use, special fields, and the rules Secret Server enforces on
+    custom report SQL (a single read-only SELECT). Read this before composing
+    a ``run_report`` query.
+    """
     logger.debug("list_example_reports")
     return (
         constants.EXAMPLE_QUERIES_TEXT
@@ -798,11 +902,42 @@ def list_example_reports() -> str | dict:
     )
 
 
+MASK = "********"
+
+
+def _mask_secret(data: Any) -> Any:
+    """Replace password-type field values in a ``/v2/secrets`` payload.
+
+    Masking happens server-side so the plaintext never reaches the model
+    unless the human approves it through :func:`reveal_secret_field`.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        return data
+    masked: list[str] = []
+    for item in data["items"]:
+        if isinstance(item, dict) and item.get("isPassword") and item.get("itemValue"):
+            item["itemValue"] = MASK
+            masked.append(item.get("slug") or item.get("fieldName") or "?")
+    if masked:
+        data["maskedFields"] = masked
+        data["maskedNote"] = (
+            "Password fields are masked. To use a credential without exposing "
+            "it, prefer get_secret_environment_variable. Only if the user "
+            "explicitly needs to see the plaintext, call reveal_secret_field; "
+            "the user must approve that in their client."
+        )
+    return data
+
+
 def get_secret(id: int, summary: bool = False) -> dict:
-    """Retrieve a secret or its summary. Due to Secret safety concerns
-    before retrieval the user must explicitly confirm they want the full
-    secret and be warned it'll exist in the session logs. otherwise only
-    use ``summary=True``, which is safe.
+    """Retrieve a secret's fields, with password-type values masked.
+
+    Values of fields that the secret template marks as passwords are
+    replaced with ``********`` and listed under ``maskedFields``. Use
+    ``summary=True`` for metadata only (name, folder, template, approval
+    and checkout requirements). To put a credential to work without
+    exposing it, use ``get_secret_environment_variable``; to show a
+    masked value to the user, use ``reveal_secret_field``.
 
     Parameters
     ----------
@@ -820,28 +955,180 @@ def get_secret(id: int, summary: bool = False) -> dict:
     session = SessionManager.get()
     path = f"/v1/secrets/{id}/summary" if summary else f"/v2/secrets/{id}"
     try:
-        return session.request("GET", path).json()
+        data = session.request("GET", path).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to retrieve secret %s", id)
         return {"error": f"Failed to retrieve secret {id}: {exc}"}
+    return data if summary else _mask_secret(data)
 
 
-def get_folder(id: int) -> dict:
-    """Return folder metadata and children for the given folder ID.
+class RevealConfirmation(BaseModel):
+    """Form shown to the human before a plaintext value is released."""
+
+    confirm: bool = Field(
+        description="Show this value in plaintext to the AI assistant?"
+    )
+
+
+class _RevealGate(BaseModel):
+    """Resolver outcome that settles a reveal without asking the human."""
+
+    error: str | None = None  # refuse with this message; None = proceed
+
+    def __init__(self, error: str | None = None) -> None:
+        super().__init__(error=error)
+
+
+def _reveal_mode() -> str:
+    """Return how plaintext reveals are authorised (see README)."""
+    mode = str(_CFG.get("secret_reveal_mode", "elicit")).lower()
+    return mode if mode in {"elicit", "client_approval", "disabled"} else "elicit"
+
+
+def _client_supports_elicitation(ctx: Context) -> bool:
+    try:
+        return ctx.session.check_client_capability(
+            ClientCapabilities(elicitation=ElicitationCapability())
+        )
+    except Exception:  # pragma: no cover - no active request
+        return False
+
+
+def _confirm_reveal(
+    secret_id: int, field_slug: str, ctx: Context, comment: str | None = None
+) -> Elicit[RevealConfirmation] | _RevealGate:
+    """Decide whether to ask the human, refuse, or proceed.
+
+    Runs before the tool body. Returning ``Elicit`` makes the MCP framework
+    ask the user through their client, using whichever mechanism the
+    negotiated protocol supports; the model cannot answer that prompt.
+    """
+    mode = _reveal_mode()
+    if mode == "disabled":
+        return _RevealGate(
+            "Plaintext reveal is disabled on this server "
+            "(secret_reveal_mode=disabled). Use get_secret_environment_variable "
+            "to use the credential without displaying it."
+        )
+    check = _check_secret_approval(SessionManager.get(), secret_id, comment)
+    if check is not None:
+        return _RevealGate(check["error"])
+    if mode == "client_approval":
+        return _RevealGate()
+    if not _client_supports_elicitation(ctx):
+        return _RevealGate(
+            "This MCP client cannot show a confirmation prompt (elicitation), "
+            "so the value was not revealed. Use get_secret_environment_variable "
+            "instead, or ask the server administrator to set "
+            "secret_reveal_mode=client_approval."
+        )
+    return Elicit(
+        message=(
+            f"The AI assistant wants to see the plaintext value of field "
+            f"'{field_slug}' on secret {secret_id}. If you approve, the value is "
+            "shown to the assistant and saved in this conversation's transcript."
+        ),
+        schema=RevealConfirmation,
+    )
+
+
+async def reveal_secret_field(
+    secret_id: int,
+    field_slug: str,
+    approval: Annotated[
+        ElicitationResult[RevealConfirmation], Resolve(_confirm_reveal)
+    ],
+    comment: str | None = None,
+) -> dict:
+    """Return one secret field's plaintext value after the human approves.
+
+    Call this only when the user has explicitly asked to *see* a value that
+    ``get_secret`` masked. If the user only needs the credential to run a
+    command, use ``get_secret_environment_variable`` instead, which keeps the
+    value out of the conversation.
+
+    Before releasing anything, the server asks the user directly for
+    confirmation in their MCP client (elicitation); a model cannot answer
+    that prompt. If the user declines, or the client cannot show the prompt,
+    nothing is revealed. The revealed value becomes part of the conversation
+    transcript.
+
+    Parameters
+    ----------
+    secret_id:
+        ID of the secret.
+    field_slug:
+        Field slug from ``maskedFields`` in the ``get_secret`` result, for
+        example ``"password"``.
+    comment:
+        Required when the secret has ``requiresComment`` or
+        ``requiresApproval``; explain why the value is needed and reference
+        any ticket or change request.
+
+    Returns
+    -------
+    dict
+        ``{"secret_id", "field", "value"}`` on success, or an ``error`` key.
+    """
+    logger.debug("reveal_secret_field(%s, %s)", secret_id, field_slug)
+    if not isinstance(approval, AcceptedElicitation):
+        return {
+            "error": (
+                "The user declined to reveal the value. Do not retry unless "
+                "the user asks again."
+            )
+        }
+    decision = approval.data
+    if isinstance(decision, _RevealGate):
+        if decision.error:
+            return {"error": decision.error}
+    elif not decision.confirm:
+        return {
+            "error": (
+                "The user declined to reveal the value. Do not retry unless "
+                "the user asks again."
+            )
+        }
+
+    session = SessionManager.get()
+    path = f"/v1/secrets/{secret_id}/fields/{field_slug}"
+    params = None
+    if comment:
+        params = {"autoCheckout": "true", "autoCheckIn": "true", "autoComment": comment}
+    try:
+        response = await anyio.to_thread.run_sync(
+            lambda: session.request("GET", path, params=params)
+        )
+    except Exception as exc:  # pragma: no cover - network failures
+        logger.exception("Failed to reveal field %s on %s", field_slug, secret_id)
+        return {"error": f"Failed to read field '{field_slug}': {exc}"}
+    try:
+        value = response.json()
+    except ValueError:
+        value = response.text
+    return {"secret_id": secret_id, "field": field_slug, "value": value}
+
+
+def get_folder(id: int, all_children: bool = False) -> dict:
+    """Return folder metadata for the given folder ID.
 
     Parameters
     ----------
     id:
         Identifier of the folder to fetch.
+    all_children:
+        When ``True`` include ``childFolders`` with the full descendant
+        tree, which can be large. To page through direct children only, use
+        ``folder_management("list", params={"filter.parentFolderId": id})``.
 
     Returns
     -------
     dict
         Folder metadata including children or an ``error`` message.
     """
-    logger.debug("get_folder(%s)", id)
+    logger.debug("get_folder(%s, all_children=%s)", id, all_children)
     session = SessionManager.get()
-    params = {"getAllChildren": "true"}
+    params = {"getAllChildren": "true" if all_children else "false"}
     try:
         return session.request("GET", f"/v1/folders/{id}", params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
@@ -849,7 +1136,9 @@ def get_folder(id: int) -> dict:
         return {"error": f"Failed to retrieve folder {id}: {exc}"}
 
 
-def search_secrets(query: str, lookup: bool = False) -> dict:
+def search_secrets(
+    query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:
     """Search or look up secrets.
 
     Parameters
@@ -858,6 +1147,10 @@ def search_secrets(query: str, lookup: bool = False) -> dict:
         Search text.
     lookup:
         If ``True``, perform a metadata lookup instead of a full search.
+    take:
+        Page size (default 50, capped at 500).
+    skip:
+        Number of records to skip, for paging with ``take``.
 
     Returns
     -------
@@ -868,13 +1161,16 @@ def search_secrets(query: str, lookup: bool = False) -> dict:
     session = SessionManager.get()
     path = "/v1/secrets/lookup" if lookup else "/v2/secrets"
     try:
-        return session.request("GET", path, params={"filter.searchText": query}).json()
+        params = _paged({"filter.searchText": query}, take, skip)
+        return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search secrets %s", query)
         return {"error": f"Failed to search secrets '{query}': {exc}"}
 
 
-def search_folders(query: str, lookup: bool = False) -> dict:
+def search_folders(
+    query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:
     """Search or look up folders.
 
     Parameters
@@ -883,6 +1179,10 @@ def search_folders(query: str, lookup: bool = False) -> dict:
         Text to search for in folder names.
     lookup:
         If ``True``, query the ``/lookup`` endpoint for metadata only.
+    take:
+        Page size (default 50, capped at 500).
+    skip:
+        Number of records to skip, for paging with ``take``.
 
     Returns
     -------
@@ -893,7 +1193,8 @@ def search_folders(query: str, lookup: bool = False) -> dict:
     session = SessionManager.get()
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
-        return session.request("GET", path, params={"filter.searchText": query}).json()
+        params = _paged({"filter.searchText": query}, take, skip)
+        return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search folders %s", query)
         return {"error": f"Failed to search folders '{query}': {exc}"}
@@ -1212,7 +1513,7 @@ def role_management(
 
     try:
         if action == "list":
-            return session.request("GET", "/v1/roles", params=params or {}).json()
+            return session.request("GET", "/v1/roles", params=_paged(params)).json()
         if action == "get":
             if role_id is None:
                 raise ValueError("role_id required for get")
@@ -1346,7 +1647,7 @@ def group_management(
                 raise ValueError("group_id required for get")
             return session.request("GET", f"/v1/groups/{group_id}").json()
         if action == "list":
-            return session.request("GET", "/v1/groups", params=params or {}).json()
+            return session.request("GET", "/v1/groups", params=_paged(params)).json()
         if action == "create":
             result = session.request("POST", "/v1/groups", json=data or {}).json()
             group_id = result.get("id") or result.get("groupId")
@@ -1522,10 +1823,10 @@ def folder_management(
             if folder_id is None:
                 raise ValueError("folder_id required for get")
             return session.request(
-                "GET", f"/v1/folders/{folder_id}", params={"getAllChildren": "true"}
+                "GET", f"/v1/folders/{folder_id}", params={"getAllChildren": "false"}
             ).json()
         if action == "list":
-            return session.request("GET", "/v1/folders", params=params or {}).json()
+            return session.request("GET", "/v1/folders", params=_paged(params)).json()
         if action == "create":
             result = session.request("POST", "/v1/folders", json=data or {}).json()
             folder_id = result.get("id") or result.get("folderId")
@@ -1679,11 +1980,17 @@ def fetch(id: str) -> dict:
     """
     identifier = id
     if "/" not in identifier:
-        raise ValueError("identifier must be in '<type>/<id>' format")
+        raise ValueError(
+            f"identifier {identifier!r} must be in '<type>/<id>' format, "
+            "e.g. 'secret/42', as returned in search results"
+        )
     kind, obj_id = identifier.split("/", 1)
     kind = kind.lower().rstrip("s")
     if kind not in _FETCH_ALLOWED:
-        raise ValueError(f"fetch for {kind} not enabled")
+        raise ValueError(
+            f"fetch for {kind!r} is not enabled on this server; enabled types: "
+            f"{', '.join(sorted(_FETCH_ALLOWED))}"
+        )
 
     from . import secretserver_users
 
@@ -2076,9 +2383,9 @@ TOOLS = [
     ("search", search),
     ("fetch", fetch),
     ("run_report", run_report),
-    ("ai_generate_and_run_report", ai_generate_and_run_report),
     ("list_example_reports", list_example_reports),
     ("get_secret", get_secret),
+    ("reveal_secret_field", reveal_secret_field),
     ("get_folder", get_folder),
     ("role_management", role_management),
     ("user_role_management", user_role_management),
@@ -2112,15 +2419,6 @@ TOOLS = [
 ]
 
 
-def _ai_env_configured() -> bool:
-    """Return True if Azure OpenAI configuration is available."""
-    return bool(
-        _cfg_or_env("AZURE_OPENAI_ENDPOINT")
-        and os.getenv("AZURE_OPENAI_KEY")
-        and _cfg_or_env("AZURE_OPENAI_DEPLOYMENT")
-    )
-
-
 def load_enabled_tools(path: str | Path) -> set[str]:
     """Load enabled tool names from a JSON config file."""
     file = Path(path)
@@ -2142,8 +2440,6 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
     enabled_set = set(enabled or [])
     if not enabled_set:
         enabled_set = {name for name, _ in TOOLS}
-    if not _ai_env_configured():
-        enabled_set.discard("ai_generate_and_run_report")
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))
+            mcp.tool(**tool_metadata(name))(guard_tool(func))

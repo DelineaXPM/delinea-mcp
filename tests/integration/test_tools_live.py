@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -190,15 +191,16 @@ def test_get_secret_env_var_live():
     require_credentials()
     sid = env_var("LIVE_SECRET_ID")
     out = server.get_secret_environment_variable(int(sid), "bash")
-    assert str(sid) in out
-
-
-def test_ai_report_live():
-    if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-        pytest.skip("AI env not set")
-    require_credentials()
-    result = server.ai_generate_and_run_report("select one user")
-    assert "error" not in result
+    # stdio (the default) hands the script over as a private file so the
+    # access token never reaches the model.
+    assert isinstance(out, dict), out
+    assert "Bearer" not in str(out)
+    script = Path(out["script_path"])
+    try:
+        assert oct(script.stat().st_mode & 0o777) == "0o600"
+        assert f"SECRET_PASSWORD_{sid}" in script.read_text()
+    finally:
+        script.unlink(missing_ok=True)
 
 
 def test_list_example_reports_live():

@@ -92,7 +92,9 @@ def test_secretserver_local_user_management(monkeypatch):
 
 
 def test_role_management(monkeypatch):
-    patch_request(monkeypatch, [("GET", "/v1/roles", {"params": {}})])
+    patch_request(
+        monkeypatch, [("GET", "/v1/roles", {"params": {"take": 50, "skip": 0}})]
+    )
     assert server.role_management("list") == {"ok": True}
 
     patch_request(monkeypatch, [("GET", "/v1/roles/1", {})])
@@ -137,7 +139,9 @@ def test_group_management(monkeypatch):
     patch_request(monkeypatch, ("GET", "/v1/groups/9", {}))
     assert server.group_management("get", group_id=9) == {"ok": True}
 
-    patch_request(monkeypatch, ("GET", "/v1/groups", {"params": {}}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/groups", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.group_management("list") == {"ok": True}
 
     patch_request(
@@ -219,11 +223,13 @@ def test_folder_management(monkeypatch):
     }
 
     patch_request(
-        monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "true"}})]
+        monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "false"}})]
     )
     assert server.folder_management("get", folder_id=9) == {"ok": True}
 
-    patch_request(monkeypatch, [("GET", "/v1/folders", {"params": {}})])
+    patch_request(
+        monkeypatch, [("GET", "/v1/folders", {"params": {"take": 50, "skip": 0}})]
+    )
     assert server.folder_management("list") == {"ok": True}
 
 
@@ -415,9 +421,14 @@ def test_create_secret_no_items_leak(monkeypatch):
 
 
 def _patch_session_attrs(monkeypatch, token="tok", base_url="https://ss.example.com"):
-    """Replace SessionManager session with a stub that has token and base_url."""
+    """Replace SessionManager session with a stub that has token and base_url.
+
+    These tests assert on script text, so pin inline delivery; file delivery
+    is covered in tests/test_script_handoff.py.
+    """
     stub = SimpleNamespace(token=token, base_url=base_url)
     monkeypatch.setattr(SessionManager, "_session", stub)
+    monkeypatch.setitem(server.tools._CFG, "script_delivery", "inline")
 
 
 def test_set_secret_field_env_bash_stdin(monkeypatch):

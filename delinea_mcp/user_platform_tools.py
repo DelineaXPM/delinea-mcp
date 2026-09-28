@@ -39,7 +39,8 @@ from urllib.parse import quote
 
 import requests
 
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.annotations import tool_metadata
+from delinea_mcp.api import DelineaAPIError, raise_for_status
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,13 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
 
 
 def _json_or_error(response: requests.Response) -> dict:
+    """Decode a Platform response, turning HTTP failures into actionable errors."""
+    status = getattr(response, "status_code", 200)
+    if isinstance(status, int) and status >= 400:
+        try:
+            raise_for_status(response, "Delinea Platform request")
+        except DelineaAPIError as exc:
+            return {"error": str(exc)}
     try:
         return response.json()
     except Exception:
@@ -1048,4 +1056,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))
+            mcp.tool(**tool_metadata(name))(guard_tool(func))

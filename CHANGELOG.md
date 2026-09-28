@@ -1,5 +1,74 @@
 # Release Notes
 
+## v2.0.0 — Claude Code plugin, PyPI package, secret-visibility hardening
+
+### Distribution
+
+- Published on PyPI as `delinea-mcp`, with a `delinea-mcp` console script
+  (`uvx delinea-mcp`). The implementation moved into the package
+  (`delinea_mcp/server.py`, `delinea_mcp/api.py`); the root `server.py` and
+  `delinea_api.py` stay as aliases, so `uv run server.py` still works.
+- New Claude Code plugin in `plugins/delinea`, with the
+  **no-secret-visibility** and **building-reports** skills. The skills also
+  work on their own with any Delinea MCP connection.
+- Runs without a config file: connection settings fall back to
+  `DELINEA_USERNAME`, `DELINEA_BASE_URL`, `PLATFORM_HOSTNAME`,
+  `PLATFORM_SERVICE_ACCOUNT` and `PLATFORM_TENANT_ID`, and
+  `DELINEA_MCP_CONFIG` can point at a config file. Fixes a bug where no
+  tools were registered when `config.json` wasn't in the working directory.
+
+### Secret visibility
+
+- `get_secret` and `fetch` mask password-type fields (`********`) and list
+  them under `maskedFields`.
+- New `reveal_secret_field` tool returns one plaintext value only after the
+  user approves an MCP elicitation prompt sent by the server, on both the
+  2026-07-28 input-required flow and older protocol versions. New
+  `secret_reveal_mode` config key (`elicit`, `client_approval`, `disabled`).
+- Over stdio, `get_secret_environment_variable` and
+  `set_secret_field_environment_variable` write their script to a private
+  (`0600`), self-deleting file that expires after 15 minutes, and return
+  only its path, so the short-lived access token never reaches the model.
+  New `script_delivery` config key (`auto`, `file`, `inline`).
+- Fixed the bash script from `get_secret_environment_variable`, which ran
+  both `export` lines together, mis-quoted its `jq` filter, and called the
+  API (and checked the secret out) twice. The bash script from
+  `set_secret_field_environment_variable` now JSON-encodes the value.
+
+### Tool quality
+
+- Every tool has a `title` (also set in its annotations).
+- API failures return the Secret Server or Platform error message, its
+  `errorCode`, and a hint on what to do, instead of a bare HTTP status.
+- `run_report` links the Secret Server REST API docs, points at
+  `list_example_reports` as its schema reference, and caps rows with
+  `max_rows` (default 200), reporting `total_rows` and `truncated`.
+- `search_secrets`, `search_folders` and every `list` action page with
+  `take` (default 50, max 500) and `skip`. `get_folder` returns the
+  descendant tree only with `all_children=True`.
+
+### Breaking changes
+
+- Removed `ai_generate_and_run_report`, the Azure OpenAI dependency and the
+  `azure_openai_*` config keys. Build SQL from `list_example_reports` and
+  run it with `run_report`.
+- `get_secret` and `fetch` no longer return plaintext passwords; use
+  `reveal_secret_field` or `get_secret_environment_variable`.
+- The environment-variable tools return `{"script_path", "run", ...}`
+  instead of script text when running over stdio.
+- `get_folder` and `folder_management("get")` no longer include all
+  children by default.
+- `run_report` errors start with `Report '<name>' failed:`.
+- StrongDM tools register only with `strongdm_enabled: true`. StrongDM, a
+  Delinea company, will be fully supported in a future release.
+
+### Other
+
+- License copyright: Delinea, 2026 (originally written by Gal Diskin, 2025).
+- New `SECURITY.md` with private vulnerability reporting.
+- Includes the anyio 4.14.2 security bump and the tool error guard for MCP
+  SDK 2.1+.
+
 ## v1.1.0 — MCP protocol 2026-07-28, StrongDM backend, security batch
 
 ### MCP protocol / SDK

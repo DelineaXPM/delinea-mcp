@@ -28,6 +28,7 @@ error payload and the model would again see only ``Error executing tool``.
 from __future__ import annotations
 
 import functools
+import inspect
 import json
 import logging
 import math
@@ -184,6 +185,18 @@ def guard_tool(func: Callable[..., Any]) -> Callable[..., Any]:
     payloads are held to ``max_result_bytes`` when it is set.
     """
     metadata = _tool_metadata(func)
+
+    if inspect.iscoroutinefunction(func):
+
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return await func(*args, **kwargs)
+            except Exception as exc:
+                logger.exception("Tool %s failed", func.__name__)
+                return {"error": str(exc)}
+
+        return async_wrapper
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:

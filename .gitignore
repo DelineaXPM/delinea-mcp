@@ -238,3 +238,6 @@ pyrightconfig.json
 
 config.json
 !.vscode/mcp.json
+
+# Private Claude directory submission materials (never commit)
+.submission/

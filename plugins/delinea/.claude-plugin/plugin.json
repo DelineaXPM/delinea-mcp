@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "delinea",
+  "displayName": "Delinea Secret Server",
+  "version": "2.0.0",
+  "description": "Work with Delinea Secret Server and the Delinea Platform from Claude: find and use secrets without exposing passwords, run SQL reports, and manage folders, users, groups, roles and access requests.",
+  "author": {
+    "name": "Delinea",
+    "url": "https://delinea.com"
+  },
+  "homepage": "https://github.com/DelineaXPM/delinea-mcp/tree/main/plugins/delinea#readme",
+  "repository": "https://github.com/DelineaXPM/delinea-mcp",
+  "license": "MIT",
+  "keywords": [
+    "delinea",
+    "secret-server",
+    "pam",
+    "privileged-access",
+    "secrets",
+    "vault"
+  ],
+  "userConfig": {
+    "delinea_base_url": {
+      "type": "string",
+      "title": "Secret Server URL",
+      "description": "Base URL of your Secret Server, e.g. https://example.secretservercloud.com (Secret Server Cloud) or https://ss.example.com/SecretServer (on-premises).",
+      "required": true
+    },
+    "delinea_username": {
+      "type": "string",
+      "title": "Username",
+      "description": "Secret Server account the plugin signs in as. When a Platform hostname is set, this is the Platform service account (client ID) used to reach Secret Server.",
+      "required": true
+    },
+    "delinea_password": {
+      "type": "string",
+      "title": "Password",
+      "description": "Password (or Platform client secret) for the account above. Stored in your operating system's secure credential store.",
+      "sensitive": true,
+      "required": true
+    },
+    "platform_hostname": {
+      "type": "string",
+      "title": "Delinea Platform hostname (optional)",
+      "description": "Your Delinea Platform tenant, e.g. example.delinea.app. Leave empty for a standalone Secret Server.",
+      "default": ""
+    },
+    "platform_service_account": {
+      "type": "string",
+      "title": "Platform service account (optional)",
+      "description": "Platform service account used by the Platform user and role tools. Leave empty if you don't use them.",
+      "default": ""
+    },
+    "platform_service_password": {
+      "type": "string",
+      "title": "Platform service account password (optional)",
+      "description": "Password for the Platform service account. Stored in your operating system's secure credential store.",
+      "sensitive": true,
+      "default": ""
+    },
+    "platform_tenant_id": {
+      "type": "string",
+      "title": "Platform tenant ID (optional)",
+      "description": "Only needed when your Platform administrator gave you a secondary tenant ID.",
+      "default": ""
+    }
+  },
+  "mcpServers": {
+    "delinea": {
+      "command": "uvx",
+      "args": ["delinea-mcp==2.0.0"],
+      "env": {
+        "DELINEA_BASE_URL": "${user_config.delinea_base_url}",
+        "DELINEA_USERNAME": "${user_config.delinea_username}",
+        "DELINEA_PASSWORD": "${user_config.delinea_password}",
+        "PLATFORM_HOSTNAME": "${user_config.platform_hostname}",
+        "PLATFORM_SERVICE_ACCOUNT": "${user_config.platform_service_account}",
+        "PLATFORM_SERVICE_PASSWORD": "${user_config.platform_service_password}",
+        "PLATFORM_TENANT_ID": "${user_config.platform_tenant_id}"
+      }
+    }
+  }
+}

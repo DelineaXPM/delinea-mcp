@@ -119,148 +119,10 @@ def test_session_no_token(monkeypatch):
         delinea_api.DelineaSession(base_url="http://x")
 
 
-class RejectingResponse(DummyResponse):
-    """Mimic ``requests`` on a 4xx/5xx: ``raise_for_status`` raises HTTPError."""
-
-    def __init__(self, data=None, status_code=400, text=""):
-        super().__init__(data, status_code)
-        self.text = text
-        self._has_json = data is not None
-
-    def json(self):
-        if not self._has_json:
-            raise ValueError("no JSON body")
-        return self._data
-
-    def raise_for_status(self):
-        import requests
-
-        raise requests.HTTPError(f"{self.status_code} Client Error", response=self)
-
-
-def _reload_with_auth_response(monkeypatch, resp):
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    monkeypatch.setattr(delinea_api, "requests", DummyRequests(post_resp=resp))
-    monkeypatch.setenv("DELINEA_USERNAME", "u")
-    monkeypatch.setenv("DELINEA_PASSWORD", "very-secret-pw")
-    return delinea_api
-
-
-def test_session_auth_rejected_explains_direct_api_setting(monkeypatch):
-    import requests
-
-    delinea_api = _reload_with_auth_response(
-        monkeypatch, RejectingResponse({"error": "Login failed."}, status_code=400)
-    )
-    with pytest.raises(requests.HTTPError) as excinfo:
-        delinea_api.DelineaSession(base_url="http://x")
-    msg = str(excinfo.value)
-    assert msg.startswith("Secret Server authentication failed (400): Login failed.")
-    assert "Application Account" in msg
-    assert "Prevent direct API authentication" in msg
-    assert "very-secret-pw" not in msg
-    assert excinfo.value.response.status_code == 400
-    assert isinstance(excinfo.value.__cause__, requests.HTTPError)
-
-
-def test_session_auth_rejected_prefers_error_description(monkeypatch):
-    import requests
-
-    delinea_api = _reload_with_auth_response(
-        monkeypatch,
-        RejectingResponse(
-            {"error": "invalid_grant", "error_description": "Account is locked"},
-            status_code=401,
-        ),
-    )
-    with pytest.raises(requests.HTTPError, match=r"\(401\): Account is locked\."):
-        delinea_api.DelineaSession(base_url="http://x")
-
-
-def test_session_auth_server_error_falls_back_to_text(monkeypatch):
-    import requests
-
-    delinea_api = _reload_with_auth_response(
-        monkeypatch,
-        RejectingResponse(
-            None, status_code=503, text="<html>Service Unavailable</html>"
-        ),
-    )
-    with pytest.raises(requests.HTTPError) as excinfo:
-        delinea_api.DelineaSession(base_url="http://x")
-    msg = str(excinfo.value)
-    assert msg == (
-        "Secret Server authentication failed (503): <html>Service Unavailable</html>"
-    )
-    assert "Application Account" not in msg
-
-
-def test_auth_failure_message_without_detail():
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    # DummyResponse has no ``text`` attribute and an empty JSON body.
-    msg = delinea_api._auth_failure_message(DummyResponse({}, status_code=403))
-    expected = "Secret Server authentication failed (403). "
-    assert msg == expected + delinea_api._DIRECT_API_AUTH_HINT
-
-
-def test_generate_sql_query(monkeypatch):
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    captured = {}
-
-    class DummyChat:
-        @staticmethod
-        def create(model, messages, temperature, max_tokens, n):
-            captured["model"] = model
-            captured["messages"] = messages
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content="SELECT 1"))]
-            )
-
-    sys.modules["openai"] = SimpleNamespace(ChatCompletion=DummyChat)
-    # Clear the config to ensure we only use environment variables in test
-    tools._CFG.clear()
-    monkeypatch.setitem(os.environ, "AZURE_OPENAI_ENDPOINT", "e")
-    monkeypatch.setitem(os.environ, "AZURE_OPENAI_KEY", "k")
-    monkeypatch.setitem(os.environ, "AZURE_OPENAI_DEPLOYMENT", "dep")
-    sql = tools.generate_sql_query("desc")
-    assert captured["model"] == "dep"  # Uses environment variable, not config
-    assert "desc" in captured["messages"][1]["content"]
-    assert sql == "SELECT 1"
-
-
-def test_generate_sql_query_missing_env(monkeypatch):
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    sys.modules["openai"] = SimpleNamespace()
-    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
-    monkeypatch.delenv("AZURE_OPENAI_KEY", raising=False)
-    monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT", raising=False)
-    result = tools.generate_sql_query("desc")
-    assert result.startswith("Error")
-
-
-def test_server_helpers(monkeypatch):
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    import server
-
-    monkeypatch.setattr(server.tools, "generate_sql_query", lambda x: "SQL")
-    assert server.generate_sql_query("foo") == "SQL"
-
-
 def test_run_report_delete_failure(monkeypatch):
     import delinea_api
 
     importlib.reload(delinea_api)
-    from delinea_mcp import tools
 
     calls = []
 
@@ -278,23 +140,6 @@ def test_run_report_delete_failure(monkeypatch):
     result = tools.run_report("SELECT 1", report_name="t")
     assert result["rows"] == [[1]]
     assert calls[-1] == "/v1/reports/1"
-
-
-def test_tools_ai_generate_and_run_report(monkeypatch):
-    import delinea_api
-
-    importlib.reload(delinea_api)
-    from delinea_mcp import tools
-
-    monkeypatch.setattr(tools, "generate_sql_query", lambda d: "SQLX")
-    monkeypatch.setattr(
-        tools,
-        "run_report",
-        lambda sql, report_name=None: {"rows": [[2]], "columns": ["c"]},
-    )
-    result = tools.ai_generate_and_run_report("desc")
-    assert result["generated_sql"] == "SQLX"
-    assert result["rows"] == [[2]]
 
 
 def test_request_auto_reauth(monkeypatch):

@@ -101,7 +101,17 @@ DelineaMCP is an MCP server built on FastMCP that provides AI assistants with se
 
 ### Core Components
 
-**Entry Point**: `server.py` - Thin wrapper that initializes the FastMCP server and registers all tools based on configuration
+**Entry Point**: `delinea_mcp/server.py` (`delinea-mcp` console script) -
+initializes the MCP server and registers all tools based on configuration. The
+root `server.py` and `delinea_api.py` are aliases that register the package
+modules under their old names in `sys.modules`, so `import server` and
+`monkeypatch.setattr(server, ...)` address the real modules.
+
+**Claude Code plugin**: `plugins/delinea/` - `.claude-plugin/plugin.json`
+launches `uvx delinea-mcp==<version>` and maps `userConfig` values to env vars;
+`skills/` holds the no-secret-visibility and building-reports skills. Bump the
+plugin `version` and the pinned `uvx` version together with `pyproject.toml` on
+every release, and run `claude plugin validate ./plugins/delinea`.
 
 **Main Package**: `delinea_mcp/` contains:
 
@@ -127,7 +137,7 @@ Configuration is loaded from `config.json` in project root. The `config.py` modu
 Key configuration patterns:
 
 - Non-secret values in `config.json` (usernames, URLs, feature flags)
-- Sensitive data via environment variables (`DELINEA_PASSWORD`, `AZURE_OPENAI_KEY`)
+- Sensitive data via environment variables (`DELINEA_PASSWORD`, `PLATFORM_SERVICE_PASSWORD`); connection settings fall back to env vars when missing from `config.json` (`_ENV_FALLBACKS` in `delinea_mcp/server.py`)
 - Transport mode selection (`stdio` vs `sse`)
 - Authentication mode (`none` vs `oauth`)
 
@@ -143,7 +153,7 @@ The server auto-detects transport mode from configuration and initializes the ap
 
 Tools are dynamically registered based on:
 
-1. Available configuration (Azure OpenAI tools only register if API keys present)
+1. Available configuration (StrongDM tools only register with `strongdm_enabled: true`)
 2. `enabled_tools` configuration (empty list = all tools enabled)
 3. Platform tools require platform-specific configuration
 
@@ -151,7 +161,10 @@ Tools are dynamically registered based on:
 
 ### Secret Server API
 
-Uses the `delinea_api.DelineaSession` class for authenticated API requests. The session handles bearer token management and automatic re-authentication.
+Uses the `delinea_mcp.api.DelineaSession` class for authenticated API requests.
+The session handles bearer token management and automatic re-authentication, and
+raises `DelineaAPIError` (a `requests.HTTPError`) whose message carries the
+API's error text, `errorCode` and a next-step hint.
 
 ### MCP Protocol
 
@@ -224,16 +237,22 @@ cfg.write_text(json.dumps({"auth_mode": "none"}))
 def _cfg_or_env(key: str) -> str | None:
     return _CFG.get(key) or os.getenv(key)
 
-# Check environment variables for optional features
-def _ai_env_configured() -> bool:
-    return bool(_cfg_or_env("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_KEY"))
 ```
+
+**Directory-readiness rules** (Claude connector/plugin directory review):
+
+- Every tool needs an entry in both `TOOL_ANNOTATIONS` and `TOOL_TITLES`
+  (`delinea_mcp/annotations.py`); register tools with
+  `mcp.tool(**tool_metadata(name))(guard_tool(func))`.
+- Never return plaintext secret values: mask via `_mask_secret`, reveal only
+  through `reveal_secret_field` (elicitation-gated via `Resolve`/`Elicit`).
+- List/search tools must page (`_paged`) and bound output.
 
 ## Dependencies
 
 - `mcp` - Model Context Protocol implementation
 - `fastapi` - HTTP server for SSE transport
-- `delinea_api` - Secret Server API client (external dependency)
+- `requests` - Secret Server / Platform HTTP client (`delinea_mcp/api.py`)
 - `joserfc` - JWT signing and verification (JOSE)
 - `httpx` - HTTP client for API requests
 - `uvicorn` - ASGI server for production deployment

@@ -1,22 +1,66 @@
 [project]
 name = "delinea-mcp"
-version = "1.1.0"
+version = "2.0.0"
 description = "MCP server for the Delinea Secret Server and Platform APIs"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Delinea" }]
+maintainers = [{ name = "Gal Diskin" }]
+keywords = [
+  "mcp",
+  "delinea",
+  "secret-server",
+  "pam",
+  "claude",
+  "model-context-protocol",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: System Administrators",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+]
 dependencies = [
   "fastapi>=0.117.1",
   "httpx>=0.28.1",
   "httpx-sse>=0.4.1",
   "joserfc>=1.7.6",
   "mcp>=2.2.0,<3",
-  "openai>=1.10.0",
   "requests>=2.32.4",
   "uvicorn>=0.35.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/DelineaXPM/delinea-mcp"
+Documentation = "https://github.com/DelineaXPM/delinea-mcp#readme"
+Issues = "https://github.com/DelineaXPM/delinea-mcp/issues"
+Changelog = "https://github.com/DelineaXPM/delinea-mcp/blob/main/CHANGELOG.md"
+
+[project.scripts]
+delinea-mcp = "delinea_mcp.server:main"
+
 [project.optional-dependencies]
 strongdm = ["strongdm>=17.8.0"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["delinea_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/delinea_mcp",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
+  "/SECURITY.md",
+]
 
 [dependency-groups]
 dev = ["pytest>=8.4.2", "pytest-asyncio>=1.1.0", "coverage>=7.6.9"]
@@ -26,7 +70,6 @@ test = [
   "httpx-sse>=0.4.1",
   "joserfc>=1.7.6",
   "mcp>=2.2.0,<3",
-  "openai>=1.10.0",
   "pytest>=8.4.2",
   "pytest-asyncio>=1.1.0",
   "requests>=2.32.4",
