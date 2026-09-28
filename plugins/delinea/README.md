@@ -14,17 +14,30 @@ manage folders, users, groups, roles and access requests.
   approve it in your client.
 - **building-reports skill**: teaches Claude to build Secret Server SQL
   reports from the tested examples and schema the server provides.
+- **setup skill** (`/delinea:setup`): checks for uv and, only with your
+  approval of each command, installs it and prepares the server.
+- **A startup check**: when a Claude Code session starts, a small script
+  (`hooks/check-deps.sh`) looks for `uvx`. It installs nothing and prints
+  nothing when `uvx` is found; otherwise it asks Claude to offer
+  `/delinea:setup`.
 
 ## Requirements
 
-- Claude Code. The MCP server runs locally, so it isn't loaded in Claude chat
-  on the web or mobile; the skills load everywhere.
-- [uv](https://docs.astral.sh/uv/getting-started/installation/), which
-  provides `uvx`.
-- A Delinea Secret Server (Cloud or on-premises) account. We recommend a
-  dedicated account with only the permissions you want Claude to have.
-- Optional: a Delinea Platform tenant (`<tenant>.delinea.app`) and service
-  account for the Platform user and role tools.
+<!-- markdownlint-disable MD013 -->
+
+| Requirement                                                   | Why                                                                                                                           | How you get it                                                                                                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code                                                   | The MCP server runs on your machine. Claude chat on the web and mobile doesn't load local servers; the skills load everywhere | [Install Claude Code](https://code.claude.com/docs/en/setup)                                                                                          |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Provides `uvx`, which starts the server                                                                                       | Run `/delinea:setup`, or install it yourself: `brew install uv`, `winget install --id=astral-sh.uv -e`, `pipx install uv`, or uv's official installer |
+| Python 3.13                                                   | The server's runtime                                                                                                          | uv downloads it automatically. Where downloads are blocked, install Python 3.13 yourself and uv uses it                                               |
+| Network access to PyPI                                        | First start of each version downloads `delinea-mcp`                                                                           | Allow `pypi.org` and `files.pythonhosted.org`. Behind a TLS-inspecting proxy, set `UV_NATIVE_TLS=1`                                                   |
+| A Delinea Secret Server account                               | Signing in (Cloud or on-premises)                                                                                             | We recommend a dedicated account with only the permissions you want Claude to have                                                                    |
+| Optional: Delinea Platform tenant                             | Platform user and role tools                                                                                                  | A `<tenant>.delinea.app` tenant and service account                                                                                                   |
+
+<!-- markdownlint-enable MD013 -->
+
+Nothing else is needed. The credential tools use the server's own Python,
+not curl, jq or other command-line tools.
 
 ## Configuration
 
@@ -40,9 +53,12 @@ When you enable the plugin, Claude Code asks for:
 ## How your secrets stay private
 
 - `get_secret` masks password fields as `********`.
-- `get_secret_environment_variable` writes a self-deleting script, readable
+- `get_secret_environment_variable` writes a self-deleting file, readable
   only by you, that loads a credential into environment variables. Claude
-  receives the file path, not the value or the access token inside it.
+  receives the file path, never the value.
+- `set_secret_field_environment_variable` stores a value from a file,
+  environment variable or hidden prompt on your machine, without Claude
+  seeing it.
 - `reveal_secret_field` shows a plaintext value only after you approve a
   confirmation prompt that the server sends to your client. Claude can't
   answer that prompt for you.
@@ -53,9 +69,11 @@ The MCP server runs on your machine and connects only to the Secret Server
 and Delinea Platform URLs you configure, using the credentials you provide.
 It sends no data to Delinea or any other third party, and it collects no
 telemetry. Tool results that you or Claude request are shown to Claude and
-become part of your conversation. Generated credential scripts are written
-to a private temporary folder and are deleted when they run, after 15
-minutes, or when the server shuts down.
+become part of your conversation. Credential handoff files are written
+to a private temporary folder and are deleted when they're used, after 15
+minutes, or when the server shuts down. The startup check only looks for
+`uvx` on your machine; `/delinea:setup` runs install commands only after
+you approve each one.
 
 Privacy policy: <https://delinea.com/privacy-policy>
 

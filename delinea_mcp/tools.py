@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import threading
 import time
@@ -278,20 +279,29 @@ def _check_secret_approval(
 
 
 # --------------------------------------------------------------------------- #
-# Script handoff                                                              #
+# Credential handoff                                                          #
 # --------------------------------------------------------------------------- #
 #
-# The environment-variable tools emit shell scripts that call the Secret
-# Server API with the server's current access token, so the secret *value*
-# never passes through the model. That token is short-lived (it follows the
-# Secret Server token-expiration setting), but it carries the configured
-# account's permissions while valid. When the server runs on the user's own
-# machine (stdio transport) the script is therefore written to a private
-# file and only its path is returned; the token never enters the transcript.
+# The environment-variable tools get a credential into (or out of) the
+# user's shell without the value passing through the model.
+#
+# * Local server (stdio, the default): the server runs on the user's
+#   machine, so it does the API work itself. ``get_secret_environment_variable``
+#   fetches the secret and writes a tiny env file of plain shell assignments;
+#   ``set_secret_field_environment_variable`` reads a ``file:`` source
+#   directly, or hands over a one-line command that runs this package's own
+#   Python (``delinea_mcp.field_push``) to read the value and upload it. No
+#   curl, jq or other tools are needed on the machine. Files are 0600 in a
+#   0700 directory, delete themselves when used, and expire after 15 minutes;
+#   only their paths are returned.
+# * Remote server (HTTP transports): the server can't write to the user's
+#   machine, so it returns a script that calls the API with its current
+#   short-lived access token. Those scripts state the tools they require.
 
 _SCRIPT_TTL_SECONDS = 15 * 60
 _SCRIPT_DIR: Path | None = None
 _SCRIPT_EXT = {"bash": ".sh", "powershell": ".ps1", "cmd": ".cmd"}
+_SHELLS = tuple(_SCRIPT_EXT)
 
 
 def _script_delivery() -> str:
@@ -303,8 +313,18 @@ def _script_delivery() -> str:
     return "file" if transport == "stdio" else "inline"
 
 
+def _shell(environment: str) -> str:
+    env = environment.lower()
+    if env not in _SCRIPT_EXT:
+        raise ValueError(
+            f"Unsupported environment {environment!r}; use 'bash', "
+            "'powershell' or 'cmd'"
+        )
+    return env
+
+
 def _script_dir() -> Path:
-    """Private (0700) per-process directory for generated scripts."""
+    """Private (0700) per-process directory for handoff files."""
     global _SCRIPT_DIR
     if _SCRIPT_DIR is None or not _SCRIPT_DIR.is_dir():
         _SCRIPT_DIR = Path(tempfile.mkdtemp(prefix="delinea-mcp-"))
@@ -322,6 +342,23 @@ def _sweep_expired_scripts(directory: Path) -> None:
             pass
 
 
+def _write_private(content: str, suffix: str) -> Path:
+    """Write a 0600 handoff file that expires after the TTL."""
+    directory = _script_dir()
+    _sweep_expired_scripts(directory)
+    fd, name = tempfile.mkstemp(dir=directory, prefix="handoff-", suffix=suffix)
+    path = Path(name)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(content)
+    os.chmod(path, 0o600)
+    expiry = threading.Timer(
+        _SCRIPT_TTL_SECONDS, path.unlink, kwargs={"missing_ok": True}
+    )
+    expiry.daemon = True
+    expiry.start()
+    return path
+
+
 def _self_deleting(body: str, environment: str, path: Path) -> str:
     """Wrap *body* so the script removes itself when it runs."""
     if environment == "bash":
@@ -330,7 +367,35 @@ def _self_deleting(body: str, environment: str, path: Path) -> str:
     if environment == "powershell":
         return f"Remove-Item -LiteralPath '{path}' -Force\n{body}\n"
     # cmd reads batch files incrementally: delete as the very last action.
-    return f'{body}\n(goto) 2>nul & del "%~f0"\n'
+    return f'@echo off\n{body}\n(goto) 2>nul & del "%~f0"\n'
+
+
+def _quote(value: str, environment: str) -> str:
+    """Quote *value* as a literal for *environment* (bash/powershell)."""
+    if environment == "bash":
+        return "'" + value.replace("'", "'\\''") + "'"
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _assignments(values: dict[str, str], environment: str) -> str:
+    """Shell statements exporting *values* verbatim."""
+    if environment == "bash":
+        return "\n".join(f"export {k}={_quote(v, 'bash')}" for k, v in values.items())
+    if environment == "powershell":
+        return "\n".join(
+            f"$env:{k} = {_quote(v, 'powershell')}" for k, v in values.items()
+        )
+    lines = []
+    for key, value in values.items():
+        # Inside `set "K=V"` only quotes, line breaks and % need care; a
+        # quote would end the protected region, so refuse rather than guess.
+        if any(ch in value for ch in '"\r\n'):
+            raise ValueError(
+                f"The value for {key} contains a quote or line break, which "
+                "cmd can't hold safely; use environment='powershell' instead"
+            )
+        lines.append(f'set "{key}={value.replace("%", "%%")}"')
+    return "\n".join(lines)
 
 
 def _run_hint(environment: str, path: Path) -> str:
@@ -341,51 +406,72 @@ def _run_hint(environment: str, path: Path) -> str:
     return f'call "{path}" && <command that uses the variables>'
 
 
-def _deliver_script(body: str, environment: str, purpose: str) -> str | dict:
-    """Return the script inline, or write it to a private file (see above)."""
-    if _script_delivery() == "inline":
-        # Batch-file loop variables are doubled (%%p); an interactive prompt
-        # expects them single.
-        return body.replace("%%", "%") if environment == "cmd" else body
-    directory = _script_dir()
-    _sweep_expired_scripts(directory)
-    fd, name = tempfile.mkstemp(
-        dir=directory, prefix="script-", suffix=_SCRIPT_EXT[environment]
+def _deliver_env_file(values: dict[str, str], environment: str, purpose: str) -> dict:
+    """Write *values* as a self-deleting env file; return its path only."""
+    fd_path = _write_private("", _SCRIPT_EXT[environment])
+    fd_path.write_text(
+        _self_deleting(_assignments(values, environment), environment, fd_path),
+        encoding="utf-8",
     )
-    path = Path(name)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(_self_deleting(body, environment, path))
-    os.chmod(path, 0o600)
-    expiry = threading.Timer(
-        _SCRIPT_TTL_SECONDS, path.unlink, kwargs={"missing_ok": True}
-    )
-    expiry.daemon = True
-    expiry.start()
     return {
-        "script_path": str(path),
+        "script_path": str(fd_path),
         "shell": environment,
-        "run": _run_hint(environment, path),
+        "run": _run_hint(environment, fd_path),
         "purpose": purpose,
         "note": (
-            "The script holds a short-lived Secret Server access token and "
-            "deletes itself when run (or after 15 minutes). Run it in the same "
-            "shell invocation as the command that needs it. Do not print, cat "
-            "or copy its contents."
+            "The file sets the variables and deletes itself when run (or "
+            "after 15 minutes). Run it in the same shell invocation as the "
+            "command that needs it. Do not print, cat or copy its contents, "
+            "or echo the variables."
         ),
     }
+
+
+def _python_command(environment: str, job_path: Path) -> str:
+    """Command line that runs ``delinea_mcp.field_push`` with this Python."""
+    exe = sys.executable
+    if environment == "bash":
+        return f"{_quote(exe, 'bash')} -m delinea_mcp.field_push {_quote(str(job_path), 'bash')}"
+    if environment == "powershell":
+        return (
+            f"& {_quote(exe, 'powershell')} -m delinea_mcp.field_push "
+            f"{_quote(str(job_path), 'powershell')}"
+        )
+    return f'"{exe}" -m delinea_mcp.field_push "{job_path}"'
+
+
+def _item_value(secret: dict, slug: str) -> str | None:
+    for item in secret.get("items", []) or []:
+        if not isinstance(item, dict):
+            continue
+        names = {
+            str(item.get("slug", "")).lower(),
+            str(item.get("fieldName", "")).lower(),
+        }
+        if slug in names:
+            value = item.get("itemValue")
+            return "" if value is None else str(value)
+    return None
+
+
+def _checkout_params(comment: str | None) -> dict | None:
+    if not comment:
+        return None
+    return {"autoCheckout": "true", "autoCheckIn": "true", "autoComment": comment}
 
 
 def get_secret_environment_variable(
     secret_id: int, environment: str, comment: str | None = None
 ) -> str | dict:
-    """Prepare a script that loads a secret's username/password into env vars.
+    """Load a secret's username and password into shell environment variables.
 
-    This is the preferred way to *use* a credential: the script calls the
-    Secret Server REST API itself, so the password never appears in the
-    conversation. The script authenticates with the MCP server's current
-    short-lived access token. When the server runs locally (stdio), the
-    script is written to a private, self-deleting file and only its path is
-    returned; over HTTP transports the script text is returned instead.
+    This is the preferred way to *use* a credential: the value never appears
+    in the conversation. When the server runs locally (stdio), it reads the
+    secret itself and writes a private, self-deleting file of shell
+    assignments, returning only the file's path; nothing else needs to be
+    installed. Over HTTP transports it returns a script instead, which calls
+    the Secret Server REST API with the server's short-lived access token
+    (bash needs curl and jq; powershell needs nothing extra).
 
     Before retrieving a secret, check whether it requires approval:
 
@@ -416,7 +502,7 @@ def get_secret_environment_variable(
     Returns
     -------
     dict
-        ``script_path`` plus a ``run`` hint (local mode). The script exports
+        ``script_path`` plus a ``run`` hint (local mode). Running it exports
         ``SECRET_USERNAME_<id>`` and ``SECRET_PASSWORD_<id>``.
     str
         The script text (HTTP transports).
@@ -424,13 +510,7 @@ def get_secret_environment_variable(
         Error information if the secret requires approval or a comment
         that was not provided.
     """
-    env = environment.lower()
-    if env not in _SCRIPT_EXT:
-        raise ValueError(
-            f"Unsupported environment {environment!r}; use 'bash', "
-            "'powershell' or 'cmd'"
-        )
-
+    env = _shell(environment)
     session = SessionManager.get()
 
     # Pre-check approval requirements
@@ -438,6 +518,45 @@ def get_secret_environment_variable(
     if check is not None:
         return check
 
+    names = {
+        "username": f"SECRET_USERNAME_{secret_id}",
+        "password": f"SECRET_PASSWORD_{secret_id}",
+    }
+    purpose = f"Exports {names['username']} and {names['password']}"
+
+    if _script_delivery() == "file":
+        try:
+            secret = session.request(
+                "GET", f"/v2/secrets/{secret_id}", params=_checkout_params(comment)
+            ).json()
+        except Exception as exc:  # pragma: no cover - network failures
+            logger.exception("Failed to read secret %s", secret_id)
+            return {"error": f"Failed to read secret {secret_id}: {exc}"}
+        values = {
+            var: value
+            for slug, var in names.items()
+            if (value := _item_value(secret, slug)) is not None
+        }
+        if not values:
+            slugs = [
+                i.get("slug") for i in secret.get("items", []) if isinstance(i, dict)
+            ]
+            return {
+                "error": (
+                    f"Secret {secret_id} has no username or password field; its "
+                    f"fields are {slugs}. Use set_secret_field_environment_variable "
+                    "or get_secret to work with other fields."
+                )
+            }
+        return _deliver_env_file(values, env, purpose)
+
+    if env == "cmd":
+        return {
+            "error": (
+                "cmd scripts aren't available when the server runs remotely; "
+                "use environment='powershell' or 'bash'."
+            )
+        }
     url = f"{session.base_url}/api/v2/secrets/{secret_id}"
     if comment:
         from urllib.parse import quote
@@ -446,35 +565,25 @@ def get_secret_environment_variable(
     access_token = session.token
     if env == "bash":
         pick = "'.items[] | select(.slug == \"%s\") | .itemValue'"
-        body = (
+        return (
+            "# Requires: curl, jq\n"
             f'_dmcp_resp="$(curl -fsS -H "Authorization: Bearer {access_token}" '
             f"'{url}')\" || {{ echo 'Failed to read secret {secret_id}' >&2; "
             "return 1 2>/dev/null || exit 1; }\n"
-            f'export SECRET_USERNAME_{secret_id}="$(printf \'%s\' "$_dmcp_resp" '
+            f'export {names["username"]}="$(printf \'%s\' "$_dmcp_resp" '
             f"| jq -r {pick % 'username'})\"\n"
-            f'export SECRET_PASSWORD_{secret_id}="$(printf \'%s\' "$_dmcp_resp" '
+            f'export {names["password"]}="$(printf \'%s\' "$_dmcp_resp" '
             f"| jq -r {pick % 'password'})\"\n"
             "unset _dmcp_resp"
         )
-    elif env == "powershell":
-        body = (
-            f'$headers = @{{"Authorization" = "Bearer {access_token}"}}\n'
-            f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
-            '$passwordItem = $response.items | Where-Object { $_.slug -eq "password" }\n'
-            '$usernameItem = $response.items | Where-Object { $_.slug -eq "username" }\n'
-            f"$env:SECRET_PASSWORD_{secret_id} = $passwordItem.itemValue\n"
-            f"$env:SECRET_USERNAME_{secret_id} = $usernameItem.itemValue\n"
-            "Remove-Variable headers, response, passwordItem, usernameItem"
-        )
-    else:
-        body = (
-            f'for /f "delims=" %%p in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Password;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/"\') do set SECRET_PASSWORD_{secret_id}=%%p\n'
-            f'for /f "delims=" %%u in (\'curl -H "Authorization: Bearer {access_token}" {url} ^| findstr /C:"fieldName=Username;" ^| findstr /C:"itemValue=" ^| head -n 1 ^| sed -E "s/.*itemValue=([^;]*);.*/\\1/"\') do set SECRET_USERNAME_{secret_id}=%%u'
-        )
-    return _deliver_script(
-        body,
-        env,
-        f"Exports SECRET_USERNAME_{secret_id} and SECRET_PASSWORD_{secret_id}",
+    return (
+        f'$headers = @{{"Authorization" = "Bearer {access_token}"}}\n'
+        f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
+        '$passwordItem = $response.items | Where-Object { $_.slug -eq "password" }\n'
+        '$usernameItem = $response.items | Where-Object { $_.slug -eq "username" }\n'
+        f"$env:{names['password']} = $passwordItem.itemValue\n"
+        f"$env:{names['username']} = $usernameItem.itemValue\n"
+        "Remove-Variable headers, response, passwordItem, usernameItem"
     )
 
 
@@ -619,18 +728,26 @@ def set_secret_field_environment_variable(
     environment: str,
     source: str = "stdin",
     comment: str | None = None,
-) -> str | dict:  # pragma: no cover
-    """Prepare a script that reads a value locally and pushes it to the vault.
+) -> str | dict:
+    """Store a value from the user's machine in a secret field, unseen by the model.
 
     Use this for values that **cannot** be generated by Delinea (e.g. AWS API
-    keys, external tokens).  The model **never** sees the actual secret value.
-    The script authenticates with the MCP server's current short-lived access
-    token; when the server runs locally (stdio) it is written to a private,
-    self-deleting file and only the path is returned, otherwise the script
-    text is returned.
+    keys, external tokens). The value is written with
+    ``PUT /v1/secrets/{id}/fields/{slug}`` and never enters the conversation.
 
-    The script reads from the specified *source* and calls
-    ``PUT /v1/secrets/{id}/fields/{slug}`` to update the field.
+    When the server runs locally (stdio):
+
+    * ``file:`` sources are read and uploaded by the server directly; the
+      file's contents are stored as-is (a trailing newline is dropped).
+    * ``env:`` and ``stdin`` sources return a one-line ``command`` that runs
+      this package's own Python to read the value (hidden prompt for
+      ``stdin``) and upload it. Nothing else needs to be installed. The
+      command's job file holds a short-lived access token, is private, and
+      deletes itself when used or after 15 minutes. With ``stdin`` the user
+      must run the command in their own terminal.
+
+    Over HTTP transports a script is returned instead (bash needs curl and
+    jq, cmd needs curl).
 
     For new secrets, first create the secret (with a placeholder or via
     ``create_secret_with_generated_password``), then use this tool to populate
@@ -673,10 +790,10 @@ def set_secret_field_environment_variable(
     Returns
     -------
     dict
-        ``script_path`` plus a ``run`` hint (local mode).
+        ``result`` (``file:`` source) or ``command`` (``env:``/``stdin``) in
+        local mode.
     str
-        The script text (HTTP transports).  Either way the value is read
-        from *source* at run time and PUT to the vault.
+        The script text (HTTP transports).
     dict
         Error information if the secret requires approval or a comment
         that was not provided.
@@ -695,6 +812,63 @@ def set_secret_field_environment_variable(
     if check is not None:
         return check
 
+    env = _shell(environment)
+    field_path = f"/v1/secrets/{secret_id}/fields/{field_slug}"
+    if _script_delivery() == "file":
+        params = _checkout_params(comment)
+        if source.startswith("file:"):
+            file_path = Path(source[5:]).expanduser()
+            try:
+                value = file_path.read_text(encoding="utf-8").rstrip("\r\n")
+            except (OSError, UnicodeDecodeError) as exc:
+                return {"error": f"Can't read {file_path}: {exc}"}
+            kwargs: dict[str, Any] = {"json": {"value": value}}
+            if params:
+                kwargs["params"] = params
+            try:
+                session.request("PUT", field_path, **kwargs)
+            except Exception as exc:  # pragma: no cover - network failures
+                logger.exception("Failed to update field %s", field_slug)
+                return {"error": f"Failed to update field {field_slug!r}: {exc}"}
+            return {
+                "result": {
+                    "secret_id": secret_id,
+                    "field": field_slug,
+                    "updated": True,
+                    "source": str(file_path),
+                }
+            }
+        if not (source == "stdin" or source.startswith("env:")):
+            raise ValueError(
+                f"Unsupported source {source!r}; use 'stdin', 'env:VAR' or 'file:/path'"
+            )
+        job = {
+            "url": session.base_url.rstrip("/") + "/api" + field_path,
+            "token": session.token,
+            "params": params,
+            "source": source,
+            "secret_id": secret_id,
+            "field": field_slug,
+            "expires": time.time() + _SCRIPT_TTL_SECONDS,
+        }
+        job_path = _write_private(json.dumps(job), ".json")
+        purpose = f"Writes field {field_slug!r} on secret {secret_id}"
+        if source == "stdin":
+            purpose += (
+                "; prompts for the value, so the user must run it in their own terminal"
+            )
+        return {
+            "command": _python_command(env, job_path),
+            "shell": env,
+            "purpose": purpose,
+            "note": (
+                "Runs this server's own Python, so nothing else needs to be "
+                "installed. The job file holds a short-lived access token and "
+                "deletes itself when used (or after 15 minutes). Do not print "
+                "or copy it."
+            ),
+        }
+
     url = f"{session.base_url}/api/v1/secrets/{secret_id}/fields/{field_slug}"
     if comment:
         from urllib.parse import quote
@@ -702,7 +876,6 @@ def set_secret_field_environment_variable(
         url += f"?autoCheckout=true&autoCheckIn=true&autoComment={quote(comment)}"
     access_token = session.token
 
-    env = environment.lower()
     if env == "bash":
         if source.startswith("env:"):
             var_name = source[4:]
@@ -714,6 +887,7 @@ def set_secret_field_environment_variable(
             read_cmd = 'echo "Enter secret value:"; read -rs VALUE'
 
         body = (
+            "# Requires: curl, jq\n"
             f"{read_cmd}\n"
             "jq -n --arg v \"$VALUE\" '{value: $v}' | curl -fsS -X PUT \\\n"
             f'  -H "Authorization: Bearer {access_token}" \\\n'
@@ -751,6 +925,7 @@ def set_secret_field_environment_variable(
             read_cmd = "set /p VALUE=Enter secret value: "
 
         body = (
+            "REM Requires: curl\n"
             f"{read_cmd}\n"
             f'curl -s -X PUT -H "Authorization: Bearer {access_token}" '
             f'-H "Content-Type: application/json" '
@@ -758,17 +933,7 @@ def set_secret_field_environment_variable(
             f'"{url}"\n'
             f"echo Field {field_slug} updated on secret {secret_id}"
         )
-    else:
-        raise ValueError(
-            f"Unsupported environment {environment!r}; use 'bash', "
-            "'powershell' or 'cmd'"
-        )
-    purpose = f"Writes field {field_slug!r} on secret {secret_id}"
-    if not source.startswith(("env:", "file:")):
-        purpose += (
-            "; prompts for the value, so the user must run it in their own terminal"
-        )
-    return _deliver_script(body, env, purpose)
+    return body
 
 
 def update_secret_generated_password(

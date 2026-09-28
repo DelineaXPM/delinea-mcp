@@ -25,15 +25,28 @@
   user approves an MCP elicitation prompt sent by the server, on both the
   2026-07-28 input-required flow and older protocol versions. New
   `secret_reveal_mode` config key (`elicit`, `client_approval`, `disabled`).
-- Over stdio, `get_secret_environment_variable` and
-  `set_secret_field_environment_variable` write their script to a private
-  (`0600`), self-deleting file that expires after 15 minutes, and return
-  only its path, so the short-lived access token never reaches the model.
-  New `script_delivery` config key (`auto`, `file`, `inline`).
-- Fixed the bash script from `get_secret_environment_variable`, which ran
-  both `export` lines together, mis-quoted its `jq` filter, and called the
-  API (and checked the secret out) twice. The bash script from
-  `set_secret_field_environment_variable` now JSON-encodes the value.
+- Over stdio, `get_secret_environment_variable` fetches the secret itself
+  and writes a private (`0600`), self-deleting env file that expires after
+  15 minutes, returning only its path. It no longer needs curl or jq, and
+  works the same in bash, PowerShell and cmd (the old cmd script needed
+  `head` and `sed`, which Windows doesn't have).
+- Over stdio, `set_secret_field_environment_variable` uploads `file:`
+  sources directly, and for `env:`/`stdin` returns a one-line command that
+  runs the server's own Python (`delinea_mcp.field_push`, hidden prompt for
+  `stdin`). No curl, jq or PowerShell 7 needed.
+- New `script_delivery` config key (`auto`, `file`, `inline`). Scripts
+  returned over HTTP transports state their requirements; the broken bash
+  script (both `export` lines on one line, mis-quoted `jq`, two API calls)
+  is fixed, and cmd is refused there in favor of PowerShell.
+
+### Plugin setup
+
+- A `SessionStart` hook checks for `uvx` and, only when it's missing or off
+  PATH, asks Claude to offer `/delinea:setup`. It never installs anything.
+- The `/delinea:setup` skill installs uv with the user's choice of package
+  manager, Python package (`pipx`/`pip`), or uv's official installer, each
+  command approved by the user; pre-downloads the server; and covers
+  proxies, blocked Python downloads, and a no-uv fallback.
 
 ### Tool quality
 
@@ -54,8 +67,11 @@
   run it with `run_report`.
 - `get_secret` and `fetch` no longer return plaintext passwords; use
   `reveal_secret_field` or `get_secret_environment_variable`.
-- The environment-variable tools return `{"script_path", "run", ...}`
-  instead of script text when running over stdio.
+- Over stdio, `get_secret_environment_variable` returns
+  `{"script_path", "run", ...}` and `set_secret_field_environment_variable`
+  returns `{"result": ...}` or `{"command": ...}` instead of script text.
+  Over HTTP transports, `get_secret_environment_variable` no longer
+  supports `cmd`.
 - `get_folder` and `folder_management("get")` no longer include all
   children by default.
 - `run_report` errors start with `Report '<name>' failed:`.

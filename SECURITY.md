@@ -18,11 +18,18 @@ Security fixes land on the latest release line (currently 2.x).
   is released only through `reveal_secret_field`, after the user approves an
   MCP elicitation prompt sent by the server (configurable with
   `secret_reveal_mode`).
-- Credential scripts from `get_secret_environment_variable` and
-  `set_secret_field_environment_variable` contain a short-lived Secret Server
-  access token. With the local stdio transport they're written to a `0600`
-  file in a `0700` directory, delete themselves when run, and expire after
-  15 minutes; only the path is returned to the model.
+- With the local stdio transport, `get_secret_environment_variable` fetches
+  the secret server-side and writes the username/password as shell
+  assignments to a `0600` file in a `0700` directory; the file deletes itself
+  when run and expires after 15 minutes, and only its path is returned to the
+  model. `set_secret_field_environment_variable` uploads `file:` sources
+  directly, or returns a command whose `0600` job file (holding a
+  short-lived access token) is deleted as soon as it's read. Over HTTP
+  transports both tools return scripts that call the API with a short-lived
+  token.
+- The plugin's `SessionStart` hook only checks whether `uvx` is on PATH.
+  The `/delinea:setup` skill installs uv only after the user approves each
+  command.
 - The server connects only to the Secret Server, Delinea Platform (and,
   when explicitly enabled, StrongDM) endpoints you configure. It sends no
   telemetry.

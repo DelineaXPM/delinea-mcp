@@ -130,9 +130,9 @@ The configuration file supports the following keys:
   `elicit` (default) asks the user through an MCP elicitation prompt and
   refuses when the client can't show one; `client_approval` relies on the
   client's own tool-approval prompt; `disabled` never reveals plaintext.
-- **script_delivery** - How the environment-variable tools hand over their
-  scripts: `auto` (default) writes a private, self-deleting file for `stdio`
-  and returns the script text for `sse`; `file` or `inline` force one mode.
+- **script_delivery** - How the environment-variable tools hand over
+  credentials: `auto` (default) uses local handoff files for `stdio` and
+  returns scripts for `sse`; `file` or `inline` force one mode.
 - **strongdm_enabled** - default `false`. Registers the experimental
   StrongDM preview tools. StrongDM, a Delinea company, will be fully
   supported in a future release.
@@ -247,10 +247,11 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.
 - `search_folders(query, lookup=False, take=50, skip=0)` - search or look up folders.
 - `get_secret_environment_variable(secret_id, environment, comment=None)` -
-  prepare a script that loads a secret's username and password into
-  environment variables. Over `stdio` the script is written to a private,
-  self-deleting file and only its path is returned, so the short-lived
-  access token inside it never reaches the model.
+  load a secret's username and password into environment variables. Over
+  `stdio` the server reads the secret and writes a private, self-deleting
+  file of shell assignments, returning only its path; nothing else needs to
+  be installed. Over HTTP transports it returns a script that calls the API
+  (bash needs curl and jq).
 - `check_secret_template(template_id)` - fetch secret template details.
 - `check_secret_template_field(template_id, field_id)` - check if a template contains a field.
 - `get_secret_template_field(field_id)` - retrieve details about a specific secret template field by ID.
@@ -267,9 +268,11 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   read-template → mutate non-password fields → verify flow; refuses
   password-marked fields unless explicitly allowed.
 - `set_secret_field_environment_variable(secret_id, field_slug, environment, source="stdin", comment=None)` -
-  prepare a shell script (bash/powershell/cmd) that reads a value locally and
-  pushes it into the secret field, so the value bypasses the model entirely.
-  Delivered the same way as `get_secret_environment_variable`.
+  store a value from the user's machine in a secret field, bypassing the
+  model. Over `stdio`, `file:` sources are uploaded by the server directly
+  and `env:`/`stdin` sources return a one-line command that runs the
+  server's own Python (`delinea_mcp.field_push`); over HTTP transports a
+  script is returned.
 - `bulk_user_response(user_ids, scenario, comment, confirm=False)` - opinionated
   incident combinator over the bulk-user operations API. Scenarios:
   `compromise`, `offboard`, `unlock`, `reenable`, `force_logout`; requires

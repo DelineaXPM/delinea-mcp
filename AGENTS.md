@@ -112,6 +112,11 @@ launches `uvx delinea-mcp==<version>` and maps `userConfig` values to env vars;
 `skills/` holds the no-secret-visibility and building-reports skills. Bump the
 plugin `version` and the pinned `uvx` version together with `pyproject.toml` on
 every release, and run `claude plugin validate ./plugins/delinea`.
+`hooks/check-deps.sh` is a check-only `SessionStart` hook (keep it free of
+shell variables and installs so the directory validator doesn't hold it);
+`skills/setup/` installs uv only with per-command user approval. Credential
+handoff over stdio needs no external tools: `delinea_mcp/field_push.py` runs
+under the server's own `sys.executable`.
 
 **Main Package**: `delinea_mcp/` contains:
 

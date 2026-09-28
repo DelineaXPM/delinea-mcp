@@ -261,8 +261,10 @@ def test_reveal_end_to_end_over_mcp(fake_session, mode):
 
 
 # --------------------------------------------------------------------------- #
-# Script handoff                                                              #
+# Credential handoff                                                          #
 # --------------------------------------------------------------------------- #
+
+TRICKY = 'it\'s $HOME "q" `x` 100%'
 
 
 @pytest.fixture
@@ -274,15 +276,15 @@ def file_mode(monkeypatch, fake_session, tmp_path):
 
 
 @pytest.mark.parametrize("shell", ["bash", "powershell", "cmd"])
-def test_env_script_written_privately_and_token_not_returned(file_mode, shell):
+def test_env_file_is_private_and_holds_no_token(file_mode, shell):
     result = tools.get_secret_environment_variable(7, shell)
-    assert isinstance(result, dict)
-    assert FakeSession.token not in json.dumps(result)
+    assert "hunter2" not in json.dumps(result)
     path = Path(result["script_path"])
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
     body = path.read_text()
-    assert FakeSession.token in body
+    assert "hunter2" in body and FakeSession.token not in body
+    assert "curl" not in body and "jq" not in body
     if shell == "bash":
         assert body.startswith(f"rm -f '{path}'")
     elif shell == "powershell":
@@ -291,45 +293,180 @@ def test_env_script_written_privately_and_token_not_returned(file_mode, shell):
         assert body.rstrip().endswith('del "%~f0"')
 
 
-def test_bash_env_script_runs(file_mode, tmp_path):
-    """The generated bash script is valid and exports both variables."""
+def test_env_file_passes_audit_comment(file_mode):
+    tools.get_secret_environment_variable(7, "bash", comment="CHG-9")
+    method, path, kwargs = file_mode.calls[-1]
+    assert (method, path) == ("GET", "/v2/secrets/7")
+    assert kwargs["params"]["autoComment"] == "CHG-9"
+
+
+def test_bash_env_file_exports_exact_values(file_mode, monkeypatch):
+    """Sourcing the file needs only bash, and survives shell metacharacters."""
     import shutil
     import subprocess
 
-    if not (shutil.which("bash") and shutil.which("jq")):
-        pytest.skip("bash and jq required")
+    if not shutil.which("bash"):
+        pytest.skip("bash required")
+    secret = json.loads(json.dumps(SECRET))
+    secret["items"][1]["itemValue"] = TRICKY
+    monkeypatch.setattr(
+        FakeSession,
+        "request",
+        lambda self, m, p, **kw: self.calls.append((m, p, kw)) or Resp(secret),
+    )
     result = tools.get_secret_environment_variable(7, "bash")
-    fake_curl = tmp_path / "bin" / "curl"
-    fake_curl.parent.mkdir()
-    fake_curl.write_text(f"#!/bin/sh\necho '{json.dumps(SECRET)}'\n")
-    fake_curl.chmod(0o755)
     out = subprocess.run(
         [
             "bash",
             "-c",
             f"source '{result['script_path']}' && "
-            'echo "$SECRET_USERNAME_7:$SECRET_PASSWORD_7"',
+            'printf "%s|%s" "$SECRET_USERNAME_7" "$SECRET_PASSWORD_7"',
         ],
         capture_output=True,
         text=True,
-        env={**os.environ, "PATH": f"{fake_curl.parent}:{os.environ['PATH']}"},
+        env={"PATH": "/usr/bin:/bin"},
         check=True,
     )
-    assert out.stdout.strip() == "sa:hunter2"
+    assert out.stdout == f"sa|{TRICKY}"
     assert not Path(result["script_path"]).exists()  # self-deleted
 
 
-def test_set_field_script_uses_file_mode(file_mode):
-    result = tools.set_secret_field_environment_variable(7, "api-key", "bash")
-    assert "user must run it" in result["purpose"]
-    assert "jq -n --arg v" in Path(result["script_path"]).read_text()
+def test_assignment_quoting():
+    assert tools._assignments({"A": "it's"}, "powershell") == "$env:A = 'it''s'"
+    assert tools._assignments({"A": "50%"}, "cmd") == 'set "A=50%%"'
+    with pytest.raises(ValueError, match="powershell"):
+        tools._assignments({"A": 'say "hi"'}, "cmd")
 
 
-def test_expired_scripts_are_swept(file_mode):
+def test_env_file_reports_missing_fields(file_mode, monkeypatch):
+    monkeypatch.setattr(
+        FakeSession,
+        "request",
+        lambda self, m, p, **kw: Resp(
+            {"items": [{"slug": "api-key", "itemValue": "x"}]}
+        ),
+    )
+    assert "api-key" in tools.get_secret_environment_variable(7, "bash")["error"]
+
+
+def test_expired_handoffs_are_swept(file_mode):
     first = Path(tools.get_secret_environment_variable(7, "bash")["script_path"])
     os.utime(first, (0, 0))
     tools.get_secret_environment_variable(7, "bash")
     assert not first.exists()
+
+
+def test_handoff_expires_without_further_calls(file_mode, monkeypatch):
+    import time
+
+    monkeypatch.setattr(tools, "_SCRIPT_TTL_SECONDS", 0.05)
+    path = Path(tools.get_secret_environment_variable(7, "bash")["script_path"])
+    assert path.exists()
+    time.sleep(0.3)
+    assert not path.exists()
+
+
+def test_set_field_from_file_uploads_directly(file_mode, tmp_path):
+    src = tmp_path / "key.txt"
+    src.write_text("AKIA-SECRET\n")
+    put = []
+    file_mode.request = lambda m, p, **kw: put.append((m, p, kw)) or Resp({})
+    result = tools.set_secret_field_environment_variable(
+        7, "api-key", "bash", source=f"file:{src}", comment="CHG-9"
+    )
+    assert result["result"]["updated"] and "AKIA" not in json.dumps(result)
+    method, path, kwargs = put[-1]
+    assert (method, path) == ("PUT", "/v1/secrets/7/fields/api-key")
+    assert kwargs["json"] == {"value": "AKIA-SECRET"}
+    assert kwargs["params"]["autoComment"] == "CHG-9"
+
+
+def test_set_field_from_missing_file(file_mode, tmp_path):
+    result = tools.set_secret_field_environment_variable(
+        7, "api-key", "bash", source=f"file:{tmp_path}/nope"
+    )
+    assert "Can't read" in result["error"]
+
+
+@pytest.mark.parametrize("source", ["stdin", "env:MY_KEY"])
+def test_set_field_env_or_stdin_returns_python_command(file_mode, source):
+    import sys
+
+    result = tools.set_secret_field_environment_variable(
+        7, "api-key", "bash", source=source
+    )
+    assert FakeSession.token not in json.dumps(result)
+    assert sys.executable in result["command"]
+    assert "delinea_mcp.field_push" in result["command"]
+    assert ("user must run it" in result["purpose"]) == (source == "stdin")
+
+
+def test_field_push_command_uploads_value(file_mode):
+    """Run the returned command for real against a local stub server."""
+    import http.server
+    import subprocess
+    import threading
+
+    received = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_PUT(self):
+            received["path"] = self.path
+            received["auth"] = self.headers["Authorization"]
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received["body"] = json.loads(body)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    file_mode.base_url = f"http://127.0.0.1:{httpd.server_address[1]}/SecretServer"
+    try:
+        result = tools.set_secret_field_environment_variable(
+            7, "api-key", "bash", source="env:MY_KEY", comment="CHG 9"
+        )
+        out = subprocess.run(
+            ["bash", "-c", result["command"]],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "MY_KEY": TRICKY},
+        )
+        assert out.returncode == 0, out.stderr
+        assert "updated" in out.stdout
+        assert received["body"] == {"value": TRICKY}
+        assert received["auth"] == f"Bearer {FakeSession.token}"
+        assert received["path"].startswith(
+            "/SecretServer/api/v1/secrets/7/fields/api-key?"
+        )
+        assert "autoComment=CHG+9" in received["path"]
+        again = subprocess.run(
+            ["bash", "-c", result["command"]], capture_output=True, text=True
+        )
+        assert again.returncode != 0 and "already used" in again.stderr
+    finally:
+        httpd.shutdown()
+
+
+def test_field_push_rejects_expired_and_unset(tmp_path, monkeypatch):
+    from delinea_mcp import field_push
+
+    job = tmp_path / "job.json"
+    job.write_text(
+        json.dumps({"expires": 0, "source": "env:X", "field": "f", "secret_id": 1})
+    )
+    assert field_push.main([str(job)]) == 1 and not job.exists()
+    job.write_text(
+        json.dumps(
+            {"expires": 9e12, "source": "env:NOT_SET_X", "field": "f", "secret_id": 1}
+        )
+    )
+    monkeypatch.delenv("NOT_SET_X", raising=False)
+    assert field_push.main([str(job)]) == 1
 
 
 def test_delivery_defaults_follow_transport(monkeypatch):
@@ -340,10 +477,15 @@ def test_delivery_defaults_follow_transport(monkeypatch):
     assert tools._script_delivery() == "inline"
 
 
-def test_inline_cmd_uses_single_percent(monkeypatch, fake_session):
+def test_inline_scripts_state_requirements(monkeypatch, fake_session):
     monkeypatch.setitem(tools._CFG, "script_delivery", "inline")
-    script = tools.get_secret_environment_variable(7, "cmd")
-    assert "%%" not in script and "%p" in script
+    assert tools.get_secret_environment_variable(7, "bash").startswith(
+        "# Requires: curl, jq"
+    )
+    assert "powershell" in tools.get_secret_environment_variable(7, "cmd")["error"]
+    assert tools.set_secret_field_environment_variable(7, "k", "cmd").startswith(
+        "REM Requires: curl"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -470,13 +612,3 @@ def test_reveal_over_mcp_without_prompt_support(fake_session, monkeypatch, mode)
     assert "cannot show a confirmation prompt" in text and "hunter2" not in text
     monkeypatch.setitem(tools._CFG, "secret_reveal_mode", "client_approval")
     assert "hunter2" in asyncio.run(call()).content[0].text
-
-
-def test_script_expires_without_further_calls(file_mode, monkeypatch):
-    monkeypatch.setattr(tools, "_SCRIPT_TTL_SECONDS", 0.05)
-    path = Path(tools.get_secret_environment_variable(7, "bash")["script_path"])
-    assert path.exists()
-    import time
-
-    time.sleep(0.3)
-    assert not path.exists()

@@ -42,6 +42,11 @@ jobs:
           echo "pyproject=$pkg plugin=$plugin pinned=$pinned"
           test "$pkg" = "$plugin"
           test "$pinned" = "delinea-mcp==$pkg"
+          # Skills and docs quote the pinned version too.
+          if grep -rhoE 'delinea-mcp==[0-9][^ `"]*' plugins/delinea docs \
+            | grep -v "delinea-mcp==$pkg\$"; then
+            echo "Stale delinea-mcp version pins above"; exit 1
+          fi
           if [ "$EVENT_NAME" = "release" ]; then
             test "$RELEASE_TAG" = "v$pkg"
           fi

@@ -18,8 +18,8 @@ is installed, they may appear with a prefix such as `mcp__delinea__`.
 
 | The user wants to…                                              | Use                                                | The model sees                       |
 | --------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------ |
-| Run a command, script or connection that needs a credential     | `get_secret_environment_variable`                  | A script path, never the value       |
-| Store a value that exists outside the vault (API key, token)    | `set_secret_field_environment_variable`            | A script path, never the value       |
+| Run a command, script or connection that needs a credential     | `get_secret_environment_variable`                  | A file path, never the value         |
+| Store a value that exists outside the vault (API key, token)    | `set_secret_field_environment_variable`            | A command or status, never the value |
 | Create a new account credential                                 | `create_secret_with_generated_password`            | The new secret's ID                  |
 | Rotate a password                                               | `update_secret_generated_password`                 | Success or failure                   |
 | Find a secret, or check its template, folder and approval rules | `search_secrets`, `get_secret` with `summary=True` | Metadata only                        |
@@ -37,23 +37,24 @@ is installed, they may appear with a prefix such as `mcp__delinea__`.
    shell (`bash`, `powershell` or `cmd`) and the comment. It exports
    `SECRET_USERNAME_<id>` and `SECRET_PASSWORD_<id>`.
 4. When the server runs on the user's machine, the tool returns a
-   `script_path` and a `run` hint. The script holds a short-lived access
-   token and deletes itself when it runs. Run it **in the same shell command**
-   as the program that needs the credential, because shells started for
-   separate commands don't share variables:
+   `script_path` and a `run` hint. The file sets the variables and deletes
+   itself when it runs. Run it **in the same shell command** as the program
+   that needs the credential, because shells started for separate commands
+   don't share variables:
 
    ```bash
-   source '/path/from/script_path' && psql "host=db user=$SECRET_USERNAME_42 password=$SECRET_PASSWORD_42"
+   source '/path/from/script_path' && PGPASSWORD="$SECRET_PASSWORD_42" psql -h db -U "$SECRET_USERNAME_42"
    ```
 
-5. When the server runs remotely, the tool returns the script text instead.
-   Write it to a file with owner-only permissions (`chmod 600`), run it the
-   same way, then delete it.
+5. When the server runs remotely, the tool returns a script instead, which
+   calls the Secret Server API itself (its first line lists what it needs,
+   such as curl and jq). Write it to a file with owner-only permissions
+   (`chmod 600`), run it the same way, then delete it.
 
 Rules while doing this:
 
-- Never `cat`, `echo`, print, log or copy the script, the token, or the
-  exported variables.
+- Never `cat`, `echo`, print, log or copy the handoff file, a script, an
+  access token, or the exported variables.
 - Pass credentials to programs through environment variables or stdin. Don't
   put them in command-line arguments where other processes can read them,
   and don't write them into files that get committed or shared.
@@ -69,10 +70,14 @@ For a value that Secret Server can't generate, such as a cloud API key:
    then populate the external field.
 2. Call `set_secret_field_environment_variable` with the field slug (use
    `check_secret_template` to find slugs) and a `source`:
-   - `env:VAR_NAME` when the value is already in an environment variable
-   - `file:/path` when it's in a file
-   - `stdin` (the default) when the user will type it. **The user must run
-     this script in their own terminal**, because it prompts for input.
+   - `file:/path` when it's in a file. The server uploads the file's
+     contents directly and returns only a status. Confirm the path with the
+     user first, since the whole file is stored.
+   - `env:VAR_NAME` when it's in an environment variable. The tool returns a
+     one-line `command`; run it in the shell where the variable is set.
+   - `stdin` (the default) when the user will type it. The tool returns a
+     `command` that prompts with hidden input. **The user must run it in
+     their own terminal.**
 3. Never ask the user to paste the value into the chat.
 
 ## When the user asks to see a password
