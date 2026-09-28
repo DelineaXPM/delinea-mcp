@@ -19,8 +19,9 @@ manage folders, users, groups, roles and access requests.
   downloads the server. The work is done by `scripts/setup-uv.sh`, a
   readable script that never uses `sudo`.
 - **A startup check**: when a Claude Code session starts, a small script
-  (`hooks/check-deps.sh`) looks for `uvx`. It installs nothing and prints
-  nothing when `uvx` is found; otherwise it asks Claude to offer
+  (`hooks/check-deps.sh`) checks that the plugin's settings were entered
+  and that `uvx` can be found. It installs nothing and prints nothing when
+  all is well; otherwise it tells Claude how to fix it, such as offering
   `/delinea:setup`.
 
 ## Requirements
@@ -40,6 +41,13 @@ manage folders, users, groups, roles and access requests.
 
 Nothing else is needed. The credential tools use the server's own Python,
 not curl, jq or other command-line tools.
+
+## Platform support
+
+macOS and Linux are supported. **Windows support is experimental**: the
+server and skills are platform-neutral, but the startup check and the
+`/delinea:setup` helper are shell scripts that run under Git Bash and
+haven't been verified on Windows yet.
 
 ## Configuration
 

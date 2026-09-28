@@ -27,7 +27,12 @@ Security fixes land on the latest release line (currently 2.x).
   short-lived access token) is deleted as soon as it's read. Over HTTP
   transports both tools return scripts that call the API with a short-lived
   token.
-- The plugin's `SessionStart` hook only checks whether `uvx` is on PATH.
+- The reveal approval is only as trustworthy as the user's Claude Code
+  configuration: an `Elicitation` hook in user, managed or plugin settings
+  can answer the prompt automatically. Deployments that must never release
+  plaintext should set `secret_reveal_mode` to `disabled`.
+- The plugin's `SessionStart` hook only checks whether the plugin's settings
+  were entered and whether `uvx` is on PATH.
   The `/delinea:setup` skill installs uv, through
   `plugins/delinea/scripts/setup-uv.sh` (no `sudo`), only after the user
   approves the install method.

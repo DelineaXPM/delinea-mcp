@@ -18,7 +18,7 @@ import anyio.to_thread
 from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
 from mcp.server.mcpserver import Context, Elicit, Resolve
 from mcp.types import ClientCapabilities, ElicitationCapability
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from delinea_mcp.annotations import tool_metadata
 
@@ -1128,10 +1128,15 @@ def get_secret(id: int, summary: bool = False) -> dict:
 
 
 class RevealConfirmation(BaseModel):
-    """Form shown to the human before a plaintext value is released."""
+    """Approve showing this secret value to the AI assistant."""
+
+    # Rendered by the client's approval dialog, so title and description are
+    # user-facing text rather than code names.
+    model_config = ConfigDict(title="Reveal secret value")
 
     confirm: bool = Field(
-        description="Show this value in plaintext to the AI assistant?"
+        title="Show the value",
+        description="Show this value in plaintext to the AI assistant?",
     )
 
 

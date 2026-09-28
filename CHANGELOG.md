@@ -22,7 +22,7 @@
 - `get_secret` and `fetch` mask password-type fields (`********`) and list
   them under `maskedFields`.
 - New `reveal_secret_field` tool returns one plaintext value only after the
-  user approves an MCP elicitation prompt sent by the server, on both the
+  user approves an MCP elicitation prompt ("Reveal secret value") sent by the server, on both the
   2026-07-28 input-required flow and older protocol versions. New
   `secret_reveal_mode` config key (`elicit`, `client_approval`, `disabled`).
 - Over stdio, `get_secret_environment_variable` fetches the secret itself
@@ -41,6 +41,14 @@
 
 ### Plugin setup
 
+- **Windows support in the plugin is experimental.** The server, skills
+  and credential handoff are platform-neutral, but the plugin's startup
+  check and `/delinea:setup` helper are POSIX shell scripts (they run under
+  the Git Bash that Claude Code uses on Windows) and haven't been verified
+  on Windows yet; there `setup-uv.sh link` only prints PATH instructions.
+- The startup check also notices when the plugin's settings were never
+  entered (Claude Code then leaves the server out silently) and tells the
+  user to fill them in under `/plugin`.
 - A `SessionStart` hook checks for `uvx` and, only when it's missing or off
   PATH, asks Claude to offer `/delinea:setup`. It never installs anything.
 - The `/delinea:setup` skill checks the machine, asks the user once, then

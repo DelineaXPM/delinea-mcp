@@ -128,7 +128,8 @@ The configuration file supports the following keys:
 - **platform_tenant_id** - Tenant ID for Platform API requests.
 - **secret_reveal_mode** - How `reveal_secret_field` is authorised:
   `elicit` (default) asks the user through an MCP elicitation prompt and
-  refuses when the client can't show one; `client_approval` relies on the
+  refuses when the client can't show one (note that client-side hooks can
+  answer that prompt automatically, see [SECURITY.md](SECURITY.md)); `client_approval` relies on the
   client's own tool-approval prompt; `disabled` never reveals plaintext.
 - **script_delivery** - How the environment-variable tools hand over
   credentials: `auto` (default) uses local handoff files for `stdio` and

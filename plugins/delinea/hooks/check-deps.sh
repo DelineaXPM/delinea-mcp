@@ -1,9 +1,17 @@
 #!/bin/sh
 # Delinea plugin startup check. The Delinea MCP server starts through uvx
 # (part of uv), which also provides the Python it runs on. This script only
-# looks for uvx; it never installs or changes anything. It prints nothing
-# when uvx is found, and otherwise leaves Claude a note to offer the
-# consent-based /delinea:setup skill.
+# checks that the plugin's settings were entered and that uvx can be found;
+# it never installs or changes anything. It prints nothing when all is well,
+# and otherwise leaves Claude a note on how to fix it.
+
+# Claude Code exports each plugin setting as CLAUDE_PLUGIN_OPTION_<KEY>. If
+# the required connection settings were never entered, Claude Code leaves
+# the Delinea server out entirely, so say how to fix it. Only non-sensitive
+# settings are read here.
+if [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_BASE_URL-}" ] || [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_USERNAME-}" ]; then
+    echo "Delinea plugin: the Secret Server URL and username haven't been set, so Claude Code didn't start the Delinea MCP server. Tell the user to open /plugin, choose the Delinea plugin, and enter its settings (the password is stored in the operating system's credential store), then run /mcp to connect."
+fi
 
 if command -v uvx >/dev/null 2>&1; then
     exit 0
