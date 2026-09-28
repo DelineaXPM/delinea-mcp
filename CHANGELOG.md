@@ -21,10 +21,14 @@
 
 - `get_secret` and `fetch` mask password-type fields (`********`) and list
   them under `maskedFields`.
-- New `reveal_secret_field` tool returns one plaintext value only after the
-  user approves an MCP elicitation prompt ("Reveal secret value") sent by the server, on both the
-  2026-07-28 input-required flow and older protocol versions. New
-  `secret_reveal_mode` config key (`elicit`, `client_approval`, `disabled`).
+- Plaintext reveal is **disabled by default**. When the user or an
+  administrator enables it (new `secret_reveal_mode` config key,
+  `DELINEA_SECRET_REVEAL_MODE`, or the plugin's "Allow revealing passwords"
+  setting), a new `reveal_secret_field` tool returns one plaintext value
+  only after the user approves an MCP elicitation prompt ("Reveal secret
+  value") sent by the server, on both the 2026-07-28 input-required flow and
+  older protocol versions. Modes: `disabled` (default), `elicit`,
+  `client_approval`.
 - Over stdio, `get_secret_environment_variable` fetches the secret itself
   and writes a private (`0600`), self-deleting env file that expires after
   15 minutes, returning only its path. It no longer needs curl or jq, and
@@ -76,7 +80,8 @@
   `azure_openai_*` config keys. Build SQL from `list_example_reports` and
   run it with `run_report`.
 - `get_secret` and `fetch` no longer return plaintext passwords; use
-  `reveal_secret_field` or `get_secret_environment_variable`.
+  `get_secret_environment_variable`, or enable `secret_reveal_mode` and use
+  `reveal_secret_field`.
 - Over stdio, `get_secret_environment_variable` returns
   `{"script_path", "run", ...}` and `set_secret_field_environment_variable`
   returns `{"result": ...}` or `{"command": ...}` instead of script text.

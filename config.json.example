@@ -20,6 +20,6 @@
   "jwt_key_path": ".cache/jwt.json",
   "oauth_db_path": ".cache/oauth.db",
   "enabled_tools": [],
-  "secret_reveal_mode": "elicit",
+  "secret_reveal_mode": "disabled",
   "script_delivery": "auto"
 }

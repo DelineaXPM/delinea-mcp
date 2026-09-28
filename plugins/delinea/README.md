@@ -59,6 +59,7 @@ When you enable the plugin, Claude Code asks for:
 | Username                                                | Yes      | The account the plugin signs in as, or the Platform client ID when a Platform hostname is set |
 | Password                                                | Yes      | Stored in your operating system's secure credential store                                     |
 | Platform hostname, service account, password, tenant ID | No       | Only for Platform-integrated tenants                                                          |
+| Allow revealing passwords                               | No       | Off by default. When on, each reveal still needs your approval                                |
 
 ## How your secrets stay private
 
@@ -69,9 +70,10 @@ When you enable the plugin, Claude Code asks for:
 - `set_secret_field_environment_variable` stores a value from a file,
   environment variable or hidden prompt on your machine, without Claude
   seeing it.
-- `reveal_secret_field` shows a plaintext value only after you approve a
-  confirmation prompt that the server sends to your client. Claude can't
-  answer that prompt for you.
+- Showing a password in plaintext is **off by default**. If you turn on
+  **Allow revealing passwords**, `reveal_secret_field` shows a value only
+  after you approve a confirmation prompt that the server sends to your
+  client.
 
 ## Data and network use
 

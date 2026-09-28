@@ -14,10 +14,12 @@ Security fixes land on the latest release line (currently 2.x).
 
 ## Design notes for reviewers
 
-- Password-type secret fields are masked in tool results. A plaintext value
-  is released only through `reveal_secret_field`, after the user approves an
-  MCP elicitation prompt sent by the server (configurable with
-  `secret_reveal_mode`).
+- Password-type secret fields are masked in tool results. Plaintext reveal is
+  **disabled by default**: `reveal_secret_field` isn't registered unless the
+  user or an administrator enables it (`secret_reveal_mode` in
+  `config.json`, `DELINEA_SECRET_REVEAL_MODE`, or the plugin's "Allow
+  revealing passwords" setting). When enabled, a value is released only after
+  the user approves an MCP elicitation prompt sent by the server.
 - With the local stdio transport, `get_secret_environment_variable` fetches
   the secret server-side and writes the username/password as shell
   assignments to a `0600` file in a `0700` directory; the file deletes itself
@@ -27,10 +29,6 @@ Security fixes land on the latest release line (currently 2.x).
   short-lived access token) is deleted as soon as it's read. Over HTTP
   transports both tools return scripts that call the API with a short-lived
   token.
-- The reveal approval is only as trustworthy as the user's Claude Code
-  configuration: an `Elicitation` hook in user, managed or plugin settings
-  can answer the prompt automatically. Deployments that must never release
-  plaintext should set `secret_reveal_mode` to `disabled`.
 - The plugin's `SessionStart` hook only checks whether the plugin's settings
   were entered and whether `uvx` is on PATH.
   The `/delinea:setup` skill installs uv, through

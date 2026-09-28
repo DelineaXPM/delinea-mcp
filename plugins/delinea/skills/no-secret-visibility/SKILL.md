@@ -85,7 +85,14 @@ For a value that Secret Server can't generate, such as a cloud API key:
 Revealing is a last resort. First ask what the user needs the value for.
 Usually one of the tools above does the job without displaying it.
 
-If the user still explicitly wants the plaintext:
+If the user still explicitly wants the plaintext and the
+`reveal_secret_field` tool isn't available, plaintext reveal is disabled,
+which is the default. Tell the user they can turn it on themselves (the
+plugin setting **Allow revealing passwords** under `/plugin`, or
+`secret_reveal_mode` in `config.json` for a standalone server). Don't look
+for another route to the value.
+
+If the tool is available:
 
 1. Tell them that the value will be shown to the assistant and saved in the
    conversation transcript.

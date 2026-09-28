@@ -78,6 +78,12 @@ class FakeSession:
 
 
 @pytest.fixture
+def reveal_on(monkeypatch):
+    """Plaintext reveal is off by default; these tests opt in explicitly."""
+    monkeypatch.setitem(tools._CFG, "secret_reveal_mode", "elicit")
+
+
+@pytest.fixture
 def fake_session(monkeypatch):
     session = FakeSession()
     monkeypatch.setattr(SessionManager, "_session", session)
@@ -145,12 +151,53 @@ def test_raise_for_status_ok_is_noop():
 # --------------------------------------------------------------------------- #
 
 
-def test_get_secret_masks_password_fields(fake_session):
+def test_get_secret_masks_password_fields(fake_session, monkeypatch):
+    monkeypatch.delitem(tools._CFG, "secret_reveal_mode", raising=False)
+    monkeypatch.delenv("DELINEA_SECRET_REVEAL_MODE", raising=False)
     result = tools.get_secret(7)
     by_slug = {i["slug"]: i["itemValue"] for i in result["items"]}
     assert by_slug == {"username": "sa", "password": tools.MASK, "notes": "prod"}
     assert result["maskedFields"] == ["password"]
-    assert "reveal_secret_field" in result["maskedNote"]
+    # Reveal is off by default, so the note doesn't offer it.
+    assert "reveal_secret_field" not in result["maskedNote"]
+    assert "disabled" in result["maskedNote"]
+
+
+def test_masked_note_offers_reveal_only_when_enabled(fake_session, reveal_on):
+    assert "reveal_secret_field" in tools.get_secret(7)["maskedNote"]
+
+
+def test_reveal_is_off_by_default(monkeypatch):
+    monkeypatch.delitem(tools._CFG, "secret_reveal_mode", raising=False)
+    monkeypatch.delenv("DELINEA_SECRET_REVEAL_MODE", raising=False)
+    assert tools._reveal_mode() == "disabled"
+    mcp = MCPServer("t")
+    tools.register(mcp)
+    names = {t.name for t in asyncio.run(mcp.list_tools())}
+    assert "reveal_secret_field" not in names and "get_secret" in names
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ("true", "elicit"),
+        ("false", "disabled"),
+        ("", "disabled"),
+        ("elicit", "elicit"),
+        ("client_approval", "client_approval"),
+        ("bogus", "disabled"),
+    ],
+)
+def test_reveal_mode_from_env(monkeypatch, env, expected):
+    monkeypatch.delitem(tools._CFG, "secret_reveal_mode", raising=False)
+    monkeypatch.setenv("DELINEA_SECRET_REVEAL_MODE", env)
+    assert tools._reveal_mode() == expected
+
+
+def test_reveal_config_beats_env(monkeypatch):
+    monkeypatch.setenv("DELINEA_SECRET_REVEAL_MODE", "true")
+    monkeypatch.setitem(tools._CFG, "secret_reveal_mode", "disabled")
+    assert tools._reveal_mode() == "disabled"
 
 
 def test_fetch_secret_never_contains_plaintext(fake_session):
@@ -173,13 +220,13 @@ def _gate(ctx=None, **kw):
     return tools._confirm_reveal(7, "password", ctx or FakeCtx(), **kw)
 
 
-def test_confirm_reveal_asks_the_user_by_default(fake_session):
+def test_confirm_reveal_asks_the_user_when_enabled(reveal_on, fake_session):
     marker = _gate()
     assert isinstance(marker, Elicit)
     assert "transcript" in marker.message and "secret 7" in marker.message
 
 
-def test_confirm_reveal_gates(fake_session, monkeypatch):
+def test_confirm_reveal_gates(reveal_on, fake_session, monkeypatch):
     assert "cannot show a confirmation prompt" in _gate(FakeCtx(supports=False)).error
     monkeypatch.setitem(tools._CFG, "secret_reveal_mode", "disabled")
     assert "disabled" in _gate().error
@@ -187,7 +234,7 @@ def test_confirm_reveal_gates(fake_session, monkeypatch):
     assert _gate(FakeCtx(supports=False)) == tools._RevealGate()
 
 
-def test_confirm_reveal_checks_comment_before_asking(monkeypatch):
+def test_confirm_reveal_checks_comment_before_asking(reveal_on, monkeypatch):
     monkeypatch.setattr(
         SessionManager, "_session", FakeSession(summary={"requiresComment": True})
     )
@@ -246,7 +293,7 @@ def _mcp_reveal(mode, answer):
 
 
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
-def test_reveal_end_to_end_over_mcp(fake_session, mode):
+def test_reveal_end_to_end_over_mcp(fake_session, reveal_on, mode):
     """Real client sessions on both protocol generations (input-required and
     server-to-client request): the prompt reaches the human's client."""
     accept = types.ElicitResult(action="accept", content={"confirm": True})
@@ -596,7 +643,9 @@ def test_run_report_description_points_at_examples_and_api_docs():
 
 
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
-def test_reveal_over_mcp_without_prompt_support(fake_session, monkeypatch, mode):
+def test_reveal_over_mcp_without_prompt_support(
+    fake_session, reveal_on, monkeypatch, mode
+):
     """No elicitation callback: refuse with guidance, or rely on the client's
     own tool-approval prompt when the admin chose client_approval."""
     mcp = MCPServer("t")

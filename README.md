@@ -9,7 +9,7 @@
 ## News
 
 - **2.0.0** — Claude Code plugin, `uvx delinea-mcp` from PyPI, masked
-  passwords with user-approved reveal, private credential-script handoff,
+  passwords (plaintext reveal off by default), private credential-script handoff,
   and paging on every list tool. Breaking changes are listed in the
   [release notes](CHANGELOG.md).
 - **11 Aug 2026** — MCP Protocol v2 (spec revision 2026-07-28, streamable HTTP)
@@ -107,7 +107,7 @@ with no config file at all.
   "jwt_key_path": ".cache/jwt.json",
   "oauth_db_path": ".cache/oauth.db",
   "enabled_tools": [],
-  "secret_reveal_mode": "elicit",
+  "secret_reveal_mode": "disabled",
   "script_delivery": "auto"
 }
 ```
@@ -126,11 +126,15 @@ The configuration file supports the following keys:
   through the Platform, with `delinea_username` as the client ID.
 - **platform_service_account** - Service account used with the Platform API.
 - **platform_tenant_id** - Tenant ID for Platform API requests.
-- **secret_reveal_mode** - How `reveal_secret_field` is authorised:
-  `elicit` (default) asks the user through an MCP elicitation prompt and
-  refuses when the client can't show one (note that client-side hooks can
-  answer that prompt automatically, see [SECURITY.md](SECURITY.md)); `client_approval` relies on the
-  client's own tool-approval prompt; `disabled` never reveals plaintext.
+- **secret_reveal_mode** - Whether plaintext passwords can be shown, and how
+  that's approved. `disabled` (default) never reveals plaintext and doesn't
+  register `reveal_secret_field`. Enable it only on the user's explicit
+  request: `elicit` asks the user through an MCP elicitation prompt for each
+  reveal and refuses when the client can't show one; `client_approval`
+  relies on the client's own tool-approval prompt. The
+  `DELINEA_SECRET_REVEAL_MODE` environment variable sets the same value
+  (`true`/`false` mean `elicit`/`disabled`) when the key isn't in
+  `config.json`.
 - **script_delivery** - How the environment-variable tools hand over
   credentials: `auto` (default) uses local handoff files for `stdio` and
   returns scripts for `sse`; `file` or `inline` force one mode.
@@ -240,9 +244,9 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   tables, columns, special fields and the report SQL rules.
 - `get_secret(id, summary=False)` - retrieve a secret with password fields
   masked, or its summary.
-- `reveal_secret_field(secret_id, field_slug, comment=None)` - return one
-  plaintext value after the user approves a confirmation prompt (see
-  `secret_reveal_mode`).
+- `reveal_secret_field(secret_id, field_slug, comment=None)` - only when
+  plaintext reveal is enabled (see `secret_reveal_mode`; off by default):
+  return one plaintext value after the user approves a confirmation prompt.
 - `get_folder(id, all_children=False)` - fetch folder metadata, optionally
   with the full descendant tree.
 - `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.

@@ -1085,12 +1085,22 @@ def _mask_secret(data: Any) -> Any:
             masked.append(item.get("slug") or item.get("fieldName") or "?")
     if masked:
         data["maskedFields"] = masked
-        data["maskedNote"] = (
+        note = (
             "Password fields are masked. To use a credential without exposing "
-            "it, prefer get_secret_environment_variable. Only if the user "
-            "explicitly needs to see the plaintext, call reveal_secret_field; "
-            "the user must approve that in their client."
+            "it, use get_secret_environment_variable."
         )
+        if _reveal_mode() == "disabled":
+            note += (
+                " Showing plaintext is disabled on this server; the user or an "
+                "administrator can enable it (plugin setting 'Allow revealing "
+                "passwords', or secret_reveal_mode in config.json)."
+            )
+        else:
+            note += (
+                " Only if the user explicitly needs to see the plaintext, call "
+                "reveal_secret_field; the user must approve that in their client."
+            )
+        data["maskedNote"] = note
     return data
 
 
@@ -1101,8 +1111,9 @@ def get_secret(id: int, summary: bool = False) -> dict:
     replaced with ``********`` and listed under ``maskedFields``. Use
     ``summary=True`` for metadata only (name, folder, template, approval
     and checkout requirements). To put a credential to work without
-    exposing it, use ``get_secret_environment_variable``; to show a
-    masked value to the user, use ``reveal_secret_field``.
+    exposing it, use ``get_secret_environment_variable``. Showing a masked
+    value needs ``reveal_secret_field``, which is only available when the
+    server has plaintext reveal enabled.
 
     Parameters
     ----------
@@ -1149,10 +1160,24 @@ class _RevealGate(BaseModel):
         super().__init__(error=error)
 
 
+_REVEAL_MODES = {"elicit", "client_approval", "disabled"}
+# The plugin's "Allow revealing passwords" setting arrives as true/false.
+_REVEAL_ALIASES = {"true": "elicit", "false": "disabled", "": "disabled"}
+
+
 def _reveal_mode() -> str:
-    """Return how plaintext reveals are authorised (see README)."""
-    mode = str(_CFG.get("secret_reveal_mode", "elicit")).lower()
-    return mode if mode in {"elicit", "client_approval", "disabled"} else "elicit"
+    """Return how plaintext reveals are authorised (see README).
+
+    Reveal is off unless explicitly enabled, through the
+    ``secret_reveal_mode`` config key or the ``DELINEA_SECRET_REVEAL_MODE``
+    environment variable. Unrecognised values count as ``disabled``.
+    """
+    raw = _CFG.get("secret_reveal_mode")
+    if raw is None:
+        raw = os.getenv("DELINEA_SECRET_REVEAL_MODE", "disabled")
+    mode = str(raw).strip().lower()
+    mode = _REVEAL_ALIASES.get(mode, mode)
+    return mode if mode in _REVEAL_MODES else "disabled"
 
 
 def _client_supports_elicitation(ctx: Context) -> bool:
@@ -2610,6 +2635,9 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
     enabled_set = set(enabled or [])
     if not enabled_set:
         enabled_set = {name for name, _ in TOOLS}
+    if _reveal_mode() == "disabled":
+        # Off unless explicitly enabled: don't offer a tool that always refuses.
+        enabled_set.discard("reveal_secret_field")
     for name, func in TOOLS:
         if name in enabled_set:
             mcp.tool(**tool_metadata(name))(guard_tool(func))
