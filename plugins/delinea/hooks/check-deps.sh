@@ -10,9 +10,9 @@ if command -v uvx >/dev/null 2>&1; then
 fi
 
 if [ -x ~/.local/bin/uvx ] || [ -x ~/.local/bin/uvx.exe ] || [ -x ~/.cargo/bin/uvx ] || [ -x /opt/homebrew/bin/uvx ] || [ -x /usr/local/bin/uvx ]; then
-    echo "Delinea plugin: uv is installed but its folder isn't on Claude Code's PATH, so the Delinea MCP server can't start in Claude Code. Tell the user, and offer to run the /delinea:setup skill to fix it. Don't change anything without the user's approval."
+    echo "Delinea plugin: uv is installed but its folder isn't on Claude Code's PATH, so the Delinea MCP server can't start in Claude Code. Tell the user, and offer to run the /delinea:setup skill, which can make uv available after a single approval. Don't change anything without the user's approval."
     exit 0
 fi
 
-echo "Delinea plugin: uv (which provides uvx) isn't installed, so the Delinea MCP server can't start in Claude Code. Tell the user, and offer to run the /delinea:setup skill, which installs uv only after the user picks a method and approves it. Don't install anything without the user's approval."
+echo "Delinea plugin: uv (which provides uvx) isn't installed, so the Delinea MCP server can't start in Claude Code. Tell the user, and offer to run the /delinea:setup skill, which can install uv and prepare the server after a single approval. Don't install anything without the user's approval."
 exit 0

@@ -43,9 +43,11 @@
 
 - A `SessionStart` hook checks for `uvx` and, only when it's missing or off
   PATH, asks Claude to offer `/delinea:setup`. It never installs anything.
-- The `/delinea:setup` skill installs uv with the user's choice of package
-  manager, Python package (`pipx`/`pip`), or uv's official installer, each
-  command approved by the user; pre-downloads the server; and covers
+- The `/delinea:setup` skill checks the machine, asks the user once, then
+  installs uv (Homebrew, WinGet, Scoop, pipx, a private PyPI virtual
+  environment, or uv's official installer), links `uvx` onto PATH so no
+  restart is needed where possible, and pre-downloads the server. The logic
+  lives in `plugins/delinea/scripts/setup-uv.sh` (no `sudo`); it covers
   proxies, blocked Python downloads, and a no-uv fallback.
 
 ### Tool quality

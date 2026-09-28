@@ -28,8 +28,9 @@ Security fixes land on the latest release line (currently 2.x).
   transports both tools return scripts that call the API with a short-lived
   token.
 - The plugin's `SessionStart` hook only checks whether `uvx` is on PATH.
-  The `/delinea:setup` skill installs uv only after the user approves each
-  command.
+  The `/delinea:setup` skill installs uv, through
+  `plugins/delinea/scripts/setup-uv.sh` (no `sudo`), only after the user
+  approves the install method.
 - The server connects only to the Secret Server, Delinea Platform (and,
   when explicitly enabled, StrongDM) endpoints you configure. It sends no
   telemetry.

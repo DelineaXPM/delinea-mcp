@@ -14,8 +14,10 @@ manage folders, users, groups, roles and access requests.
   approve it in your client.
 - **building-reports skill**: teaches Claude to build Secret Server SQL
   reports from the tested examples and schema the server provides.
-- **setup skill** (`/delinea:setup`): checks for uv and, only with your
-  approval of each command, installs it and prepares the server.
+- **setup skill** (`/delinea:setup`): checks for uv, asks you once how to
+  install it, then installs it, makes it available to Claude Code and
+  downloads the server. The work is done by `scripts/setup-uv.sh`, a
+  readable script that never uses `sudo`.
 - **A startup check**: when a Claude Code session starts, a small script
   (`hooks/check-deps.sh`) looks for `uvx`. It installs nothing and prints
   nothing when `uvx` is found; otherwise it asks Claude to offer
@@ -72,8 +74,9 @@ telemetry. Tool results that you or Claude request are shown to Claude and
 become part of your conversation. Credential handoff files are written
 to a private temporary folder and are deleted when they're used, after 15
 minutes, or when the server shuts down. The startup check only looks for
-`uvx` on your machine; `/delinea:setup` runs install commands only after
-you approve each one.
+`uvx` on your machine; `/delinea:setup` installs nothing until you approve
+it, and then contacts only your chosen package source (Homebrew, WinGet,
+Scoop, PyPI, or astral.sh for uv's official installer).
 
 Privacy policy: <https://delinea.com/privacy-policy>
 
