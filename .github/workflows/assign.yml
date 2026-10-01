@@ -13,5 +13,5 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    uses: delineaxpm/github-workflows/.github/workflows/assign.yml@main
+    uses: delineaxpm/github-workflows/.github/workflows/assign.yml@00a4caedd0f09fe79e4d18508224f77388660ded # main
     secrets: inherit
