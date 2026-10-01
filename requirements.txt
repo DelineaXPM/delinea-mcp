@@ -115,7 +115,7 @@ pydantic-core==2.46.4
     # via pydantic
 pygments==2.20.0
     # via pytest
-pyjwt==2.13.0
+pyjwt==2.15.1
     # via mcp
 pytest==9.0.3
     # via
@@ -171,7 +171,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   mcp
     #   pydantic
-urllib3==2.7.0
+urllib3==2.8.0
     # via requests
 uvicorn==0.37.0
     # via
