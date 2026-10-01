@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.8.22-python3.13-trixie-slim@sha256:dcbd347aea4390385eabf95e56c7dabe8be38696e1a74ec7084bf7dc0a9641e1
+FROM ghcr.io/astral-sh/uv:0.12.21-python3.13-trixie-slim@sha256:ca9f1a036df3ab14905132452f7c01ec17119fe8c75af450e5daa5acc35a30ec
 
 
 # Ensure stdout/stderr are not buffered and bytecode files are not written
@@ -15,7 +15,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install Node.js for the MCP CLI (if used) and supporting tools
-ARG NODE_VERSION=20
+ARG NODE_VERSION=24
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=cache,target=/var/cache/apt/archives \
     apt-get update \
