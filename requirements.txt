@@ -56,7 +56,7 @@ h11==0.16.0
     #   uvicorn
 httpcore==1.0.9
     # via httpx
-httpcore2==2.10.0 ; sys_platform != 'emscripten'
+httpcore2==2.12.0 ; sys_platform != 'emscripten'
     # via httpx2
 httpx==0.28.1
     # via
@@ -67,7 +67,7 @@ httpx-sse==0.4.1
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
-httpx2==2.10.0
+httpx2==2.12.0
     # via mcp
 httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
     # via httpx2
