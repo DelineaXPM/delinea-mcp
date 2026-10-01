@@ -18,6 +18,7 @@ import logging
 from typing import Any, Iterable
 
 from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
 
@@ -201,4 +202,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(func)
+            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))

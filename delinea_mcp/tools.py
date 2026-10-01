@@ -13,6 +13,7 @@ from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
 from . import constants
 from .session import SessionManager
+from .tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
 if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
@@ -2115,4 +2116,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set.discard("ai_generate_and_run_report")
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(func)
+            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))
