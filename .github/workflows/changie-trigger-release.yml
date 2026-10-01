@@ -7,7 +7,7 @@ permissions:
   pull-requests: write
 jobs:
   changelog:
-    uses: delineaxpm/github-workflows/.github/workflows/changie-trigger-release.yml@00a4caedd0f09fe79e4d18508224f77388660ded # main
+    uses: delineaxpm/github-workflows/.github/workflows/changie-trigger-release.yml@main
     secrets: inherit
     with:
       additional_git_adds: "'charts/*'"
