@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+  workflow_call:
 # Restrict the default GITHUB_TOKEN: these jobs only read the repo.
 permissions:
   contents: read
