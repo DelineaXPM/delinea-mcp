@@ -81,7 +81,8 @@ For Let's Encrypt, use the `privkey.pem` and `fullchain.pem` files.
 
 The configuration file supports the following keys:
 
-- **delinea_username** - Secret Server username. Must be a programmatic user with permission to do the tasks you want.
+- **delinea_username** - Secret Server username. Use a dedicated **Application Account**
+  with permission to do the tasks you want; see [Secret Server account](#secret-server-account).
 - **delinea_base_url** - Base URL of your Secret Server instance.
 - **platform_hostname** - Platform tenant hostname (enables Platform tools).
 - **platform_service_account** - Service account used with the Platform API.
@@ -115,6 +116,28 @@ The configuration file supports the following keys:
   Defaults to `["secret"]` but can include `user`, `folder`, `group` and `role`.
 - **fetch_objects** - Allowed object types for the `fetch` tool.
   Defaults to `["secret"]` but can include the same values as `search_objects`.
+
+### Secret Server account
+
+The server signs in to Secret Server with the `/oauth2/token` password grant
+using `delinea_username` and `DELINEA_PASSWORD`. Create a dedicated
+**Application Account** for it (a Secret Server user with the Application
+Account flag) rather than reusing a person's login:
+
+- Secret Server 12.1 and later turn on **Prevent direct API authentication** by
+  default for new installations, on-premises and Cloud. With it on, the
+  password grant is rejected for interactive user accounts, so the MCP server
+  cannot obtain a token and exits with a `Secret Server authentication failed`
+  error that names this setting. Application Accounts are exempt; alternatively
+  grant the user the **Bypass Direct API Authentication Restriction** role
+  permission.
+- Application Accounts cannot log in to the UI and do not consume a user
+  licence, which is what you want for an unattended server.
+- Upgraded installations keep their previous value of the setting, but the
+  12.2.000007 release notes ask you to review it after upgrading.
+
+See Delinea's documentation on
+[Prevent Direct API Authentication](https://docs.delinea.com/online-help/secret-server/admin/app-settings/prevent-direct-api-authentication/index.htm).
 
 ## Running the Server
 
