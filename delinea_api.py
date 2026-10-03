@@ -4,12 +4,46 @@ import threading
 from dataclasses import dataclass, field
 
 import requests
+from requests import HTTPError
 
 logger = logging.getLogger(__name__)
 if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
     logging.basicConfig(level=logging.DEBUG)  # pragma: no cover - config
 
 DEFAULT_TIMEOUT = 10
+
+# Secret Server 12.1+ turns on "Prevent direct API authentication" for new
+# installations (on-premises and Cloud). It rejects the /oauth2/token password
+# grant used by ``DelineaSession.authenticate`` unless the account is an
+# Application Account or holds the "Bypass Direct API Authentication
+# Restriction" role permission. Surface that in the error instead of a bare
+# ``400 Client Error`` so operators know what to fix.
+_DIRECT_API_AUTH_HINT = (
+    "If the credentials are correct, check that the account is a Secret Server "
+    "Application Account or holds the 'Bypass Direct API Authentication "
+    "Restriction' permission: Secret Server 12.1+ enables 'Prevent direct API "
+    "authentication' by default on new installations, which rejects "
+    "/oauth2/token password logins for interactive user accounts."
+)
+
+
+def _auth_failure_message(response: requests.Response) -> str:
+    """Describe a failed ``/oauth2/token`` call without echoing credentials."""
+    detail = ""
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict):
+        detail = str(body.get("error_description") or body.get("error") or "")
+    if not detail:
+        detail = (getattr(response, "text", "") or "")[:200]
+    message = f"Secret Server authentication failed ({response.status_code})"
+    if detail:
+        message += f": {detail}"
+    if response.status_code in (400, 401, 403):
+        message += f". {_DIRECT_API_AUTH_HINT}"
+    return message
 
 
 @dataclass
@@ -74,7 +108,10 @@ class DelineaSession:
         data = {"username": username, "password": password, "grant_type": "password"}
         logger.debug("Authenticating against %s", url)
         response = self.session.post(url, data=data)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            raise HTTPError(_auth_failure_message(response), response=response) from exc
         payload = response.json()
         token = payload.get("access_token") or payload.get("generatedToken")
         if not token:
