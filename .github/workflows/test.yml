@@ -33,7 +33,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: 'requirements.txt'
       - name: python-install-runtime
-        run: uv python install 3.11
+        run: uv python install 3.13
       - name: uv-dependency-sync
         run: |
           uv sync --frozen --group=test --group=dev
@@ -50,7 +50,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        # Every CPython release inside requires-python (>=3.13) that the
+        # lockfile ships wheels for. Add 3.15 once pydantic-core and
+        # cryptography publish cp315 wheels (uv.lock has none yet).
+        python-version: ['3.13', '3.14']
+    env:
+      # .python-version pins 3.13; without this every leg would silently
+      # sync against 3.13 instead of the matrix interpreter.
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - name: repo-checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -65,6 +72,8 @@ jobs:
         run: |
           uv sync --frozen --group=test --group=dev
           uv run python --version
+          # Fail fast if uv fell back to a different interpreter.
+          uv run python -c "import sys; v = '%d.%d' % sys.version_info[:2]; assert v == '${{ matrix.python-version }}', v"
           uv pip list --format=json | jq '.[] | select(.name=="pytest") | .version'
       - name: delinea-unit-test-execution
         run: |
@@ -77,7 +86,7 @@ jobs:
             tests/ \
             -k "not test_live"
       - name: python-coverage-analysis
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         run: |
           uv add --group=dev coverage
           uv run coverage run -m pytest -q \
@@ -87,7 +96,7 @@ jobs:
           uv run coverage report --omit="tests/*" --show-missing --fail-under=70
           uv run coverage xml
       - name: coverage-upload-codecov
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           file: ./coverage.xml

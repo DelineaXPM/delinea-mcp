@@ -37,7 +37,7 @@ jobs:
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
       - name: python-security-audit
         run: |
-          uv python install 3.11
+          uv python install 3.13
           uv sync --frozen
           # TODO: Add security scanning with safety or bandit
           uv pip list --format=json | jq '.[] | select(.name | contains("security"))'
