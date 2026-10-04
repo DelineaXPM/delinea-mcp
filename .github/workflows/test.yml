@@ -33,7 +33,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: 'requirements.txt'
       - name: python-install-runtime
-        run: uv python install 3.11
+        run: uv python install 3.13
       - name: uv-dependency-sync
         run: |
           uv sync --frozen --group=test --group=dev
@@ -50,7 +50,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        # Keep in step with requires-python in pyproject.toml and
+        # .python-version: uv only syncs interpreters inside that range, so
+        # versions listed here that fall outside it silently run on 3.13.
+        python-version: ['3.13']
     steps:
       - name: repo-checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -77,7 +80,7 @@ jobs:
             tests/ \
             -k "not test_live"
       - name: python-coverage-analysis
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         run: |
           uv add --group=dev coverage
           uv run coverage run -m pytest -q \
@@ -87,7 +90,7 @@ jobs:
           uv run coverage report --omit="tests/*" --show-missing --fail-under=70
           uv run coverage xml
       - name: coverage-upload-codecov
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.13'
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           file: ./coverage.xml

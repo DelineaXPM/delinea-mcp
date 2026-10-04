@@ -32,7 +32,7 @@ body:
     attributes:
       label: UV/Python Version
       description: Run `uv --version` if using the CLI tool, or `python --version` if not. If using a published docker image, then provide that image and version number.
-      placeholder: ex. uv 0.1.0 or Python 3.11.5
+      placeholder: ex. uv 0.1.0 or Python 3.13.5
     validations:
       required: true
   - type: input
