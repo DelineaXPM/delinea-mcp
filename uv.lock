@@ -46,19 +46,6 @@ wheels = [
 ]
 
 [[package]]
-name = "authlib"
-version = "1.7.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "joserfc" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/f2/e05664d5275ce811fd4e9df0a2b3f0086ee19a8a80358d95499fa82fd50c/authlib-1.7.1.tar.gz", hash = "sha256:8c09b0f9d080c823e594b52316af70f79a1fa4eed64d0363a076233c04ef063a", size = 175884, upload-time = "2026-05-04T08:11:25.033Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/82/730650ee5e5b598b7bfdc291b784bc2f6fe02a5671695485403365101088/authlib-1.7.1-py2.py3-none-any.whl", hash = "sha256:8470f4aa6b5590ac41bd81d6e6ee12448ce36a0da0af19bbed69fb53fb4e8ad9", size = 258826, upload-time = "2026-05-04T08:11:23.208Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2025.8.3"
 source = { registry = "https://pypi.org/simple" }
@@ -280,10 +267,10 @@ name = "delinea-mcp"
 version = "1.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "authlib" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "httpx-sse" },
+    { name = "joserfc" },
     { name = "mcp" },
     { name = "openai" },
     { name = "requests" },
@@ -302,10 +289,10 @@ dev = [
     { name = "pytest-asyncio" },
 ]
 test = [
-    { name = "authlib" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "httpx-sse" },
+    { name = "joserfc" },
     { name = "mcp" },
     { name = "openai" },
     { name = "pytest" },
@@ -315,10 +302,10 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "authlib", specifier = ">=1.6.4" },
     { name = "fastapi", specifier = ">=0.117.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "httpx-sse", specifier = ">=0.4.1" },
+    { name = "joserfc", specifier = ">=1.7.4" },
     { name = "mcp", specifier = ">=2.0.0,<3" },
     { name = "openai", specifier = ">=1.10.0" },
     { name = "requests", specifier = ">=2.32.4" },
@@ -334,10 +321,10 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
 ]
 test = [
-    { name = "authlib", specifier = ">=1.6.4" },
     { name = "fastapi", specifier = ">=0.117.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "httpx-sse", specifier = ">=0.4.1" },
+    { name = "joserfc", specifier = ">=1.7.4" },
     { name = "mcp", specifier = ">=2.0.0,<3" },
     { name = "openai", specifier = ">=1.10.0" },
     { name = "pytest", specifier = ">=8.4.2" },

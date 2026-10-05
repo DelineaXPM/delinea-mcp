@@ -234,7 +234,7 @@ def _ai_env_configured() -> bool:
 - `mcp` - Model Context Protocol implementation
 - `fastapi` - HTTP server for SSE transport
 - `delinea_api` - Secret Server API client (external dependency)
-- `authlib` - OAuth 2.0 and JWT handling
+- `joserfc` - JWT signing and verification (JOSE)
 - `httpx` - HTTP client for API requests
 - `uvicorn` - ASGI server for production deployment
 
