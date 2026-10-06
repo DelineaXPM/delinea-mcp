@@ -16,10 +16,6 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-authlib==1.7.1
-    # via
-    #   delinea-mcp (pyproject.toml)
-    #   delinea-mcp (pyproject.toml:test)
 certifi==2025.8.3
     # via
     #   httpcore
@@ -40,7 +36,6 @@ coverage==7.10.7
     # via delinea-mcp (pyproject.toml:dev)
 cryptography==50.0.0
     # via
-    #   authlib
     #   joserfc
     #   pyjwt
 distro==1.9.0
@@ -82,7 +77,9 @@ iniconfig==2.1.0
 jiter==0.11.0
     # via openai
 joserfc==1.7.4
-    # via authlib
+    # via
+    #   delinea-mcp (pyproject.toml)
+    #   delinea-mcp (pyproject.toml:test)
 jsonschema==4.25.1
     # via mcp
 jsonschema-specifications==2025.9.1
