@@ -16,6 +16,8 @@ from types import SimpleNamespace
 
 import pytest
 import requests
+from delinea_mcp import annotations, api, server, tools
+from delinea_mcp.session import SessionManager
 from mcp import types
 from mcp.client import Client
 from mcp.server.elicitation import (
@@ -24,9 +26,6 @@ from mcp.server.elicitation import (
     DeclinedElicitation,
 )
 from mcp.server.mcpserver import Elicit, MCPServer
-
-from delinea_mcp import annotations, api, server, tools
-from delinea_mcp.session import SessionManager
 
 
 class Resp:
@@ -140,6 +139,83 @@ def test_raise_for_status_status_hint_without_error_code():
     with pytest.raises(api.DelineaAPIError, match="list_example_reports") as info:
         api.raise_for_status(sql, "POST /v1/reports")
     assert "retry" not in str(info.value)
+
+
+@pytest.fixture
+def fresh_api():
+    """A private copy of delinea_mcp.api.
+
+    Some older suites replace ``delinea_api.DelineaSession`` at import time
+    and never restore it, so sign-in tests load their own module instance.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_fresh_delinea_api", api.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class _SignInSession:
+    """Stands in for requests.Session during DelineaSession sign-in."""
+
+    response: Resp | None = None
+
+    def __init__(self):
+        self.headers = {}
+
+    def post(self, url, data=None, **kwargs):
+        return type(self).response
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "detail"),
+    [
+        (400, {"error": "Login failed."}, "Login failed."),
+        (
+            401,
+            {"error": "invalid_grant", "error_description": "Account is locked"},
+            "Account is locked",
+        ),
+        (403, {"message": "Forbidden"}, "Forbidden"),
+    ],
+)
+def test_sign_in_rejection_explains_direct_api_setting(
+    fresh_api, monkeypatch, status, body, detail
+):
+    api = fresh_api
+    monkeypatch.setattr(_SignInSession, "response", Resp(body, status, "Rejected"))
+    monkeypatch.setattr(api.requests, "Session", _SignInSession)
+    monkeypatch.setenv("DELINEA_USERNAME", "svc-mcp")
+    monkeypatch.setenv("DELINEA_PASSWORD", "very-secret-pw")
+    monkeypatch.delenv("PLATFORM_HOSTNAME", raising=False)
+    with pytest.raises(api.DelineaAPIError) as info:
+        api.DelineaSession(base_url="https://ss.example.com/SecretServer")
+    msg = str(info.value)
+    assert msg.startswith(f"Secret Server sign-in as 'svc-mcp' failed: HTTP {status}")
+    assert detail in msg
+    assert "Application Account" in msg and "Prevent direct API authentication" in msg
+    assert "very-secret-pw" not in msg
+    assert info.value.status_code == status
+
+
+def test_sign_in_server_error_has_no_direct_api_hint(fresh_api, monkeypatch):
+    api = fresh_api
+    monkeypatch.setattr(
+        _SignInSession,
+        "response",
+        Resp(
+            ValueError("no json"), 503, "Service Unavailable", text="<html>down</html>"
+        ),
+    )
+    monkeypatch.setattr(api.requests, "Session", _SignInSession)
+    monkeypatch.setenv("DELINEA_USERNAME", "svc-mcp")
+    monkeypatch.setenv("DELINEA_PASSWORD", "pw")
+    monkeypatch.delenv("PLATFORM_HOSTNAME", raising=False)
+    with pytest.raises(api.DelineaAPIError) as info:
+        api.DelineaSession(base_url="https://ss.example.com/SecretServer")
+    assert "Application Account" not in str(info.value)
+    assert "<html>down</html>" in str(info.value)
 
 
 def test_raise_for_status_ok_is_noop():

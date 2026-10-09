@@ -47,6 +47,22 @@ _ERROR_CODE_HINTS = {
 }
 
 
+# Secret Server 12.1+ turns on "Prevent direct API authentication" for new
+# installations (on-premises and Cloud). It rejects the /oauth2/token password
+# grant used by ``DelineaSession.authenticate`` unless the account is an
+# Application Account or holds the "Bypass Direct API Authentication
+# Restriction" role permission, so say that instead of a bare 400.
+_DIRECT_API_AUTH_HINT = (
+    "Check the username and password. If they're correct, check that the "
+    "account is a Secret Server Application Account or holds the 'Bypass "
+    "Direct API Authentication Restriction' permission: Secret Server 12.1+ "
+    "enables 'Prevent direct API authentication' by default on new "
+    "installations, which rejects /oauth2/token password logins for "
+    "interactive user accounts."
+)
+_SIGN_IN_HINTS = dict.fromkeys((400, 401, 403), _DIRECT_API_AUTH_HINT)
+
+
 class DelineaAPIError(requests.HTTPError):
     """HTTP error whose message carries the API's explanation and a hint."""
 
@@ -80,8 +96,13 @@ def _api_error_detail(response: requests.Response) -> str:
     return " ".join(dict.fromkeys(parts))[:500]
 
 
-def raise_for_status(response: requests.Response, action: str) -> None:
-    """Raise :class:`DelineaAPIError` with an actionable message on failure."""
+def raise_for_status(
+    response: requests.Response, action: str, hints: dict[int, str] | None = None
+) -> None:
+    """Raise :class:`DelineaAPIError` with an actionable message on failure.
+
+    *hints* overrides the next-step hint for specific status codes.
+    """
     if response.status_code < 400:
         return
     reason = response.reason or ""
@@ -90,7 +111,9 @@ def raise_for_status(response: requests.Response, action: str) -> None:
     if detail:
         message += f" - {detail}"
     code_hint = next((h for c, h in _ERROR_CODE_HINTS.items() if c in detail), None)
-    if code_hint:
+    if hints and response.status_code in hints:
+        hint = hints[response.status_code]
+    elif code_hint:
         hint = code_hint
     elif response.status_code >= 500:
         hint = "The server reported an internal error; retry, or run health_check."
@@ -163,7 +186,9 @@ class DelineaSession:
         data = {"username": username, "password": password, "grant_type": "password"}
         logger.debug("Authenticating against %s", url)
         response = self.session.post(url, data=data)
-        raise_for_status(response, f"Secret Server sign-in as {username!r}")
+        raise_for_status(
+            response, f"Secret Server sign-in as {username!r}", _SIGN_IN_HINTS
+        )
         payload = response.json()
         token = payload.get("access_token") or payload.get("generatedToken")
         if not token:

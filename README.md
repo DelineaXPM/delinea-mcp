@@ -193,13 +193,13 @@ Account flag) rather than reusing a person's login:
 
 - Secret Server 12.1 and later turn on **Prevent direct API authentication** by
   default for new installations, on-premises and Cloud. With it on, the
-  password grant is rejected for interactive user accounts, so the MCP server
-  cannot obtain a token and exits with a `Secret Server authentication failed`
-  error that names this setting. Application Accounts are exempt; alternatively
+  password grant is rejected for interactive user accounts, so the server
+  can't get a token and reports a `Secret Server sign-in ... failed` error
+  that names this setting. Application Accounts are exempt; alternatively,
   grant the user the **Bypass Direct API Authentication Restriction** role
   permission.
-- Application Accounts cannot log in to the UI and do not consume a user
-  licence, which is what you want for an unattended server.
+- Application Accounts can't sign in to the UI and don't use a user licence,
+  which suits an unattended server.
 - Upgraded installations keep their previous value of the setting, but the
   12.2.000007 release notes ask you to review it after upgrading.
 

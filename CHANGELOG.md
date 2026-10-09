@@ -97,8 +97,14 @@
 
 - License copyright: Delinea, 2026 (originally written by Gal Diskin, 2025).
 - New `SECURITY.md` with private vulnerability reporting.
-- Includes the anyio 4.14.2 security bump and the tool error guard for MCP
-  SDK 2.1+.
+- Secret Server sign-in rejections (400/401/403) explain the Secret Server
+  12.1+ **Prevent direct API authentication** default and how to fix it
+  (use an Application Account, or grant **Bypass Direct API Authentication
+  Restriction**); the README has a new "Secret Server account" section.
+- Security work released since 1.1.0 (#60, #61, #63, #64): `authlib`
+  dropped in favor of `joserfc` for JWT handling; mcp 2.2.0, pyjwt 2.15.1,
+  urllib3 2.8.0 and anyio 4.14.2 in the lockfile; refreshed container base
+  image and pinned CI actions; tool error text preserved on MCP SDK 2.1+.
 
 ## v1.1.0 — MCP protocol 2026-07-28, StrongDM backend, security batch
 

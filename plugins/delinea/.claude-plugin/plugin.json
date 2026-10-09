@@ -29,7 +29,7 @@
     "delinea_username": {
       "type": "string",
       "title": "Username",
-      "description": "Secret Server account the plugin signs in as. When a Platform hostname is set, this is the Platform service account (client ID) used to reach Secret Server.",
+      "description": "Secret Server account the plugin signs in as. Use a dedicated Application Account: Secret Server 12.1+ blocks password sign-in for regular users by default. When a Platform hostname is set, this is the Platform service account (client ID) used to reach Secret Server.",
       "required": true
     },
     "delinea_password": {
