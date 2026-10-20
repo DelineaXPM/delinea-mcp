@@ -16,7 +16,7 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-certifi==2025.8.3
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
