@@ -193,3 +193,16 @@ SPECIAL_FIELDS = """
 ## Special Column
 - `Color`: When included in a SQL query, this column will apply the specified color to the row in the report.
 """
+
+# Secret Server Cloud (October 21-22, 2026 release, item 767043) validates
+# custom report SQL and rejects anything that is not a plain read-only query.
+# The same text is shown to MCP clients via ``list_example_reports`` and fed to
+# the Azure OpenAI prompt in ``generate_sql_query``.
+REPORT_SQL_RULES = """
+## Report SQL Rules
+Secret Server validates custom report SQL and only accepts a single read-only
+SELECT statement. It rejects SQL that uses IF, WHILE, BEGIN ... END, TRY/CATCH,
+PRINT, temporary tables (#name) or database-qualified three-part names
+(database.schema.table). Rejected SQL fails at report creation and the
+Secret Server message is returned in the ``error`` field of ``run_report``.
+"""

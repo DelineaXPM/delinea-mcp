@@ -143,9 +143,12 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 ### Secret Server
 
 - `run_report(sql_query, report_name=None)` - create and execute a temporary report.
+  Secret Server accepts only a single read-only SELECT statement as custom report SQL
+  (no IF, WHILE, BEGIN/END, TRY/CATCH, PRINT, temporary tables or database-qualified
+  names); rejected SQL comes back with the Secret Server message in `error`.
 - `ai_generate_and_run_report(description)` - generate SQL using Azure OpenAI and run it.
   Requires the Azure OpenAI variables.
-- `list_example_reports()` - list sample queries and table information.
+- `list_example_reports()` - list sample queries, table information and the report SQL rules.
 - `get_secret(id, summary=False)` - retrieve a secret or summary details.
 - `get_folder(id)` - fetch folder metadata and children.
 - `search_secrets(query, lookup=False)` - search or look up secrets.

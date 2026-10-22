@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from delinea_mcp.session import SessionManager
@@ -108,3 +109,71 @@ def test_list_example_reports():
     text = server.list_example_reports()
     assert "Retrieve Secrets" in text
     assert "Special Fields" in text
+
+
+def test_list_example_reports_includes_sql_rules():
+    text = server.list_example_reports()
+    assert "Report SQL Rules" in text
+    assert "temporary tables" in text
+
+
+def _rejected(message: str) -> Exception:
+    """Mimic ``requests.HTTPError``: a bare status in ``str()`` and the
+    Secret Server validation message only in ``response.text``."""
+    exc = RuntimeError("400 Client Error: Bad Request for url: /api/v1/reports")
+    exc.response = SimpleNamespace(text=message)  # type: ignore[attr-defined]
+    return exc
+
+
+def test_run_report_surfaces_rejected_sql_message(monkeypatch):
+    from delinea_mcp import tools
+
+    body = '{"message":"Custom report SQL must be a read-only query"}'
+
+    def fake_request(method, path, **kwargs):
+        assert path == "/v1/reports"
+        raise _rejected(body)
+
+    mock_session = SimpleNamespace(request=fake_request)
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
+    result = tools.run_report("IF 1 = 1 SELECT 1", report_name="t")
+    assert "400 Client Error" in result["error"]
+    assert "read-only query" in result["error"]
+
+
+def test_run_report_surfaces_execute_failure_body(monkeypatch):
+    from delinea_mcp import tools
+
+    def fake_request(method, path, **kwargs):
+        if path == "/v1/reports":
+            return DummyResponse({"id": 7})
+        assert path == "/v1/reports/execute"
+        raise _rejected("report 7 timed out")
+
+    mock_session = SimpleNamespace(request=fake_request)
+    monkeypatch.setattr(SessionManager, "_session", mock_session)
+    result = tools.run_report("SELECT 1", report_name="t")
+    assert "Failed to execute report 7" in result["error"]
+    assert "timed out" in result["error"]
+
+
+def test_generate_sql_query_prompt_includes_sql_rules(monkeypatch):
+    from delinea_mcp import tools
+
+    captured = {}
+
+    class DummyChat:
+        @staticmethod
+        def create(model, messages, temperature, max_tokens, n):
+            captured["messages"] = messages
+            message = SimpleNamespace(content="SELECT 1")
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    fake_openai = SimpleNamespace(ChatCompletion=DummyChat)
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.setattr(tools, "_CFG", {})
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "e")
+    monkeypatch.setenv("AZURE_OPENAI_KEY", "k")
+    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "dep")
+    assert tools.generate_sql_query("desc") == "SELECT 1"
+    assert "Report SQL Rules" in captured["messages"][0]["content"]
