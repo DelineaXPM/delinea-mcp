@@ -94,7 +94,7 @@ openai==1.109.0
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
-opentelemetry-api==1.44.0
+opentelemetry-api==1.45.1
     # via mcp
 packaging==25.0
     # via pytest
