@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Iterable
 
 from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
@@ -756,7 +756,7 @@ def ai_generate_and_run_report(description: str) -> dict:
     return result
 
 
-def list_example_reports() -> str:
+def list_example_reports() -> str | dict:
     """Return sample queries, table information and special fields."""
     logger.debug("list_example_reports")
     return (
@@ -1551,7 +1551,7 @@ def health_check() -> dict:
         return {"error": f"Failed to perform health check: {exc}"}
 
 
-def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
+def search(query: str) -> dict:
     """Return search results in MCP format.
 
     Parameters
@@ -1561,9 +1561,9 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
 
     Returns
     -------
-    list[dict]
-        Each result object contains ``id``, ``title``, ``text`` and ``url`` as
-        defined by the MCP specification.
+    dict
+        ``{"results": [...]}`` where each result object contains ``id``,
+        ``title``, ``text`` and ``url`` as defined by the MCP specification.
     """
     logger.debug("search(%s)", query)
     from . import secretserver_users
@@ -1632,7 +1632,7 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
     return {"results": results}
 
 
-def fetch(id: str) -> Dict[str, Any]:
+def fetch(id: str) -> dict:
     """Retrieve the full record for an identifier returned by ``search``.
 
     Parameters

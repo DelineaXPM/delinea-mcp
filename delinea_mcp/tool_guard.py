@@ -13,6 +13,14 @@ result sent over the legacy ``/mcp/sse`` transport kills the client's whole
 session with an error that never mentions size. With the limit set, an
 oversized result is replaced by an ``{"error": ...}`` payload asking the
 caller to narrow the request.
+
+Because the wrapper may return ``{"error": ...}`` in place of the declared
+result, every registered tool's return annotation must admit a ``dict``
+(``dict``, ``X | dict``, ``Any``). The MCP server derives an output schema
+from that annotation and validates results against it; a tool annotated
+``-> str`` or ``-> dict[str, list[dict]]`` would make the SDK reject the
+error payload and the model would again see only ``Error executing tool``.
+``tests/test_tool_guard.py`` checks the whole registry for this.
 """
 
 from __future__ import annotations
