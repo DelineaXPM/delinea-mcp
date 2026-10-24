@@ -6,6 +6,14 @@ text of unexpected handler exceptions to the client: the model sees only
 failures as ``{"error": ...}`` payloads; this wrapper closes the remaining
 gaps (uninitialised sessions, invalid JSON arguments, unsupported enum
 values) so upgrading the SDK does not silently degrade error messages.
+
+Because the wrapper may return ``{"error": ...}`` in place of the declared
+result, every registered tool's return annotation must admit a ``dict``
+(``dict``, ``X | dict``, ``Any``). The MCP server derives an output schema
+from that annotation and validates results against it; a tool annotated
+``-> str`` or ``-> dict[str, list[dict]]`` would make the SDK reject the
+error payload and the model would again see only ``Error executing tool``.
+``tests/test_tool_guard.py`` checks the whole registry for this.
 """
 
 from __future__ import annotations

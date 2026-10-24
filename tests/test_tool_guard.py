@@ -1,6 +1,12 @@
 import inspect
+import json
 
-from delinea_mcp import secretserver_users, tools, user_platform_tools
+import jsonschema  # a dependency of ``mcp`` itself
+import pytest
+from mcp import Client
+from mcp.server.mcpserver import MCPServer
+
+from delinea_mcp import secretserver_users, strongdm_tools, tools, user_platform_tools
 from delinea_mcp.session import SessionManager
 from delinea_mcp.tool_guard import guard_tool
 
@@ -69,3 +75,71 @@ def test_registered_ss_local_tool_reports_uninitialised_session(monkeypatch):
     monkeypatch.setattr(SessionManager, "_session", None)
     result = mcp.tools["secretserver_local_user_management"](action="get", user_id=1)
     assert set(result) == {"error"}
+
+
+# --- SDK output-schema interplay -------------------------------------------
+#
+# ``MCPServer.tool()`` derives an ``outputSchema`` from the return annotation
+# and validates every result against it. ``guard_tool`` returns
+# ``{"error": ...}`` on failure, so that payload must satisfy the schema of
+# every registered tool or the SDK discards the detail and the client sees
+# only ``Error executing tool <name>`` (the exact regression #61 fixed).
+
+
+def _server_with_all_tools() -> MCPServer:
+    mcp = MCPServer("delinea-test")
+    for module in (tools, secretserver_users, user_platform_tools, strongdm_tools):
+        module.register(mcp)
+    return mcp
+
+
+def _guard_payload_fits(schema: dict) -> bool:
+    """True if ``{"error": ...}`` validates, plain or SDK-wrapped in ``result``."""
+    payload = {"error": "boom"}
+    for candidate in (payload, {"result": payload}):
+        try:
+            jsonschema.validate(candidate, schema)
+            return True
+        except jsonschema.ValidationError:
+            continue
+    return False
+
+
+@pytest.mark.asyncio
+async def test_every_registered_tool_schema_accepts_guard_error_payload():
+    async with Client(_server_with_all_tools()) as client:
+        listed = (await client.list_tools()).tools
+    assert listed, "no tools registered"
+    offenders = [
+        f"{tool.name}: {tool.output_schema}"
+        for tool in listed
+        if tool.output_schema is not None
+        and not _guard_payload_fits(tool.output_schema)
+    ]
+    assert not offenders, "\n".join(offenders)
+
+
+@pytest.mark.asyncio
+async def test_search_error_detail_survives_output_validation(monkeypatch):
+    # A malformed backend payload makes ``search`` raise inside the loop.
+    monkeypatch.setattr(tools, "_SEARCH_ALLOWED", {"secret"})
+    monkeypatch.setattr(tools, "search_secrets", lambda query: {"records": None})
+    mcp = MCPServer("delinea-test")
+    tools.register(mcp, {"search"})
+    async with Client(mcp) as client:
+        result = await client.call_tool("search", {"query": "x"})
+    assert result.is_error is False
+    payload = json.loads(result.content[0].text)
+    assert set(payload) == {"error"}
+    assert "NoneType" in payload["error"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_error_detail_survives_output_validation():
+    mcp = MCPServer("delinea-test")
+    tools.register(mcp, {"fetch"})
+    async with Client(mcp) as client:
+        result = await client.call_tool("fetch", {"id": "no-slash"})
+    assert result.is_error is False
+    payload = json.loads(result.content[0].text)
+    assert payload == {"error": "identifier must be in '<type>/<id>' format"}
