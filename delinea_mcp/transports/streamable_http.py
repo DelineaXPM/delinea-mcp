@@ -8,7 +8,10 @@ The session manager is constructed directly (rather than via
   or every request fails with "Task group is not initialized".
 - The SDK's app builder enables DNS-rebinding protection pinned to
   localhost Hosts, which would reject remote-connector requests with 421.
-  The endpoint is bearer-guarded instead, matching the SSE transport.
+  The endpoint is bearer-guarded instead, matching the SSE transport, and
+  the spec-mandated ``Origin`` check is a per-route dependency
+  (``origin_guard``, see ``delinea_mcp.transports.origin``); ``Host`` is
+  deliberately left alone so reverse proxies keep working.
 """
 
 from __future__ import annotations
@@ -49,6 +52,7 @@ def mount_streamable_http_routes(
     dependency: Callable[..., Awaitable] | None = None,
     *,
     stateless: bool = True,
+    origin_guard: Callable[..., Awaitable] | None = None,
 ) -> None:
     """Register the /mcp endpoint as a real FastAPI route.
 
@@ -73,6 +77,7 @@ def mount_streamable_http_routes(
         mcp_endpoint,
         methods=["POST"] if stateless else ["GET", "POST", "DELETE"],
         include_in_schema=False,
+        dependencies=[Depends(origin_guard)] if origin_guard else None,
     )
 
 

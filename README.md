@@ -66,6 +66,7 @@ Non-secret parameters belong in `config.json`:
   "port": 8000,
   "debug": false,
   "external_hostname": null,
+  "allowed_origins": [],
   "ssl_keyfile": null,
   "ssl_certfile": null,
   "registration_psk": null,
@@ -104,7 +105,11 @@ The configuration file supports the following keys:
 - **chatgpt_disable_scope_checks** - Skip scope validation on ChatGPT requests. Enable only if you encounter problems connecting to ChatGPT.
 - **port** - Port for the HTTP server in `sse` mode.
 - **debug** - Enable verbose logging.
-- **external_hostname** - Hostname used when constructing OAuth token audiences. Don't add HTTP(S) prefix or port.
+- **external_hostname** - Hostname used when constructing OAuth token audiences and always accepted as a browser `Origin`. Don't add HTTP(S) prefix or port.
+- **allowed_origins** - Extra browser origins allowed to call the MCP HTTP endpoints (`/mcp`, `/mcp/sse`, `/messages/`),
+  e.g. `https://app.example.com`, or `https://app.example.com:*` for any port. Loopback origins and `external_hostname`
+  are always allowed. A request carrying any other `Origin` header is answered with HTTP 403 (the DNS-rebinding
+  protection the MCP spec requires); requests without an `Origin` header, i.e. every non-browser MCP client, are unaffected.
 - **ssl_keyfile** - Path to the SSL key for HTTPS. (eg `privkey.pem`)
 - **ssl_certfile** - Path to the SSL certificate for HTTPS. (eg `fullchain.pem`)
 - **registration_psk** - Pre-shared key required to register OAuth clients. You will need to type in this secret in your browser to approve OAuth connections.

@@ -237,6 +237,10 @@ def run_server(argv: list[str] | None = None) -> None:
             import uvicorn
             from fastapi import FastAPI, Request
 
+            from delinea_mcp.transports.origin import (
+                allowed_origins_for,
+                install_origin_guard,
+            )
             from delinea_mcp.transports.sse import mount_sse_routes
             from delinea_mcp.transports.streamable_http import (
                 build_session_manager,
@@ -265,8 +269,11 @@ def run_server(argv: list[str] | None = None) -> None:
                     )
                     return await call_next(request)
 
-            mount_sse_routes(app, mcp)
-            mount_streamable_http_routes(app, manager, stateless=stateless)
+            origin_guard = install_origin_guard(app, allowed_origins_for(cfg))
+            mount_sse_routes(app, mcp, origin_guard=origin_guard)
+            mount_streamable_http_routes(
+                app, manager, stateless=stateless, origin_guard=origin_guard
+            )
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("oauth", "sse"):
             import uvicorn
@@ -274,6 +281,10 @@ def run_server(argv: list[str] | None = None) -> None:
 
             from delinea_mcp.auth.routes import mount_oauth_routes
             from delinea_mcp.auth.validators import require_scopes
+            from delinea_mcp.transports.origin import (
+                allowed_origins_for,
+                install_origin_guard,
+            )
             from delinea_mcp.transports.sse import mount_sse_routes
             from delinea_mcp.transports.streamable_http import (
                 build_session_manager,
@@ -308,8 +319,11 @@ def run_server(argv: list[str] | None = None) -> None:
                 audience=audience,
                 chatgpt_no_scope_check=bool(cfg.get("chatgpt_disable_scope_checks")),
             )
-            mount_sse_routes(app, mcp, guard)
-            mount_streamable_http_routes(app, manager, guard, stateless=stateless)
+            origin_guard = install_origin_guard(app, allowed_origins_for(cfg))
+            mount_sse_routes(app, mcp, guard, origin_guard=origin_guard)
+            mount_streamable_http_routes(
+                app, manager, guard, stateless=stateless, origin_guard=origin_guard
+            )
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)
         case ("passthrough", _):
             raise NotImplementedError(
