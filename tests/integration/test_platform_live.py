@@ -329,3 +329,55 @@ def test_platform_user_role_management_mutations_attempt_then_fallback_live(acti
         assert "user_role_management" in out["error"]
     else:
         assert "result" in out
+
+
+# --------------------------------------------------------------------------- #
+# platform_reports (read-only, safe)                                          #
+# --------------------------------------------------------------------------- #
+
+LOGIN_REPORT = "User Last Login Report"
+
+
+def test_platform_reports_list_live():
+    """The report library lists at least one definition and honours filters."""
+    _require_platform()
+    out = user_platform_tools.platform_reports("list", page_size=100)
+    assert "error" not in out, out
+    names = [d["name"] for d in out.get("reportDefinitions", [])]
+    assert out.get("totalCount", 0) >= 1 and names
+
+    identity = user_platform_tools.platform_reports("list", service="Identity")
+    assert "error" not in identity, identity
+    assert all(
+        d["service"] == "Identity" for d in identity.get("reportDefinitions", [])
+    )
+
+
+def test_platform_reports_describe_and_run_live():
+    """``describe`` flattens inputs/columns and ``run`` returns a page of rows."""
+    _require_platform()
+    listing = user_platform_tools.platform_reports("list", page_size=100)
+    names = [d["name"] for d in listing.get("reportDefinitions", [])]
+    assert names, listing
+    name = LOGIN_REPORT if LOGIN_REPORT in names else names[0]
+
+    described = user_platform_tools.platform_reports("describe", name)
+    assert described.get("name") == name, described
+    assert "inputs" in described and "columns" in described
+    assert "callbacks" not in described
+
+    result = user_platform_tools.platform_reports("run", name, page_size=2)
+    if name == LOGIN_REPORT:
+        assert result.get("reportDefinitionName") == name, result
+        assert isinstance(result.get("data"), list)
+        assert len(result["data"]) <= 2
+    else:
+        # Reports with required inputs answer with a structured hint.
+        assert ("data" in result) or ("hint" in result), result
+
+
+def test_platform_reports_unknown_name_live():
+    _require_platform()
+    out = user_platform_tools.platform_reports("describe", "mcp-itest-no-such-report")
+    assert out["error"].endswith("HTTP 404"), out
+    assert "Unknown report" in out["hint"]

@@ -75,6 +75,7 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "platform_user_management": _DESTR,  # deprecated alias of user_management
     "platform_role_management": _DESTR,
     "platform_user_role_management": _DESTR,
+    "platform_reports": _RO,  # run only adds a "View" audit entry
     # ---- StrongDM. Grant/revoke change security posture, so they carry the
     # destructive hint even though granting is technically additive.
     "sdm_search": _RO,
