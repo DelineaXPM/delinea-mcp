@@ -24,6 +24,8 @@ Endpoint references
 * ``POST /identity/Roles/UpdateRole`` — update role + add/remove members
 * ``POST /identity/Redrock/Query`` — generic SQL-like query for users,
   roles, groups
+* ``GET  /report/api/report/report-definitions`` — Platform report
+  library (``platform_reports``); ``POST .../{name}/results`` runs one
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ import logging
 import os
 import threading
 from typing import Any, Iterable
+from urllib.parse import quote
 
 import requests
 
@@ -689,12 +692,343 @@ def platform_user_role_management(
 # In v1.0.0 the canonical names ``user_management`` and ``search_users`` are
 # served from this module.  ``platform_user_management`` is retained as a
 # deprecated alias.
+# --------------------------------------------------------------------------- #
+# Platform reports (Insights > Reports)                                       #
+# --------------------------------------------------------------------------- #
+
+_REPORT_ACTIONS = ("list", "describe", "run", "snapshots", "snapshot_results")
+# Running a report fans out to the Platform services behind it and can take
+# well over the 30 s default; override with ``PLATFORM_REPORT_TIMEOUT``.
+_REPORT_RUN_TIMEOUT = float(os.getenv("PLATFORM_REPORT_TIMEOUT", "120"))
+_REPORT_RUN_HINT = (
+    "The report may need required inputs (see action='describe'); date "
+    "inputs take ISO-8601 strings via their start/end parameters."
+)
+
+
+def _report_url(path: str) -> str:
+    """Build a Platform *report service* URL (``/report/api/...``).
+
+    The reporting backend is a separate Platform service from the identity
+    API behind :func:`_platform_url`; it publishes its own OpenAPI document
+    at ``https://<tenant>/report/swagger/v1/swagger.json`` and accepts the
+    same ``xpmheadless`` bearer token.
+    """
+    return f"https://{platform_hostname}/report/api{path}"
+
+
+def _report_response(response: requests.Response, hint: str | None = None) -> dict:
+    """Return the JSON body, or ``{"error": ...}`` for non-2xx responses."""
+    body = _json_or_error(response)
+    if response.status_code < 400:
+        return body
+    result: dict = {
+        "error": f"Platform report API returned HTTP {response.status_code}",
+        "detail": body,
+    }
+    if response.status_code == 404:
+        result["hint"] = "Unknown report name or snapshot id; use action='list'."
+    elif hint:
+        result["hint"] = hint
+    return result
+
+
+def _normalise_report_filters(filters: list | dict | str | None) -> list[dict]:
+    """Translate caller-friendly filters into ``FilterRunValueModel`` items.
+
+    Accepted forms (they may be mixed inside one list):
+
+    * ``{"parameter": "UserLoginData.email", "value": "kevin",
+      "operator": "Contains"}`` -- ``parameter`` is the string that
+      ``describe`` reports for an input (``<callback>.<key>``);
+      ``operator``, ``type`` (default ``"Text"``) and ``label`` are optional.
+    * A dict shorthand ``{"UserLoginData.email": "kevin"}``.
+    * A ready-made ``FilterRunValueModel`` (has a ``filterValue`` key),
+      passed through untouched.
+    * A JSON string encoding any of the above.
+
+    ``None`` (or an empty list / dict) means "no filters"; any other scalar
+    is rejected so a malformed request never runs the report unfiltered.
+    """
+    if filters is None:
+        return []
+    filters = _parse_json_data(filters)
+    if isinstance(filters, dict):
+        if "filterValue" in filters or "parameter" in filters:
+            items = [filters]
+        else:
+            items = [
+                {"parameter": key, "value": value} for key, value in filters.items()
+            ]
+    elif isinstance(filters, list):
+        items = filters
+    else:
+        raise ValueError("filters must be a list, a dict or a JSON string")
+
+    normalised: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("each filter must be an object")
+        if "filterValue" in item:
+            normalised.append(item)
+            continue
+        parameter = str(item.get("parameter") or "")
+        if not parameter:
+            raise ValueError("each filter needs a 'parameter' (see action='describe')")
+        callback, _, key = parameter.partition(".")
+        if not key:
+            callback, key = "", parameter
+        value = item.get("value")
+        entry: dict = {
+            "filterValue": {
+                "filterType": item.get("type") or "Text",
+                "stringValue": "" if value is None else str(value),
+                "filterParameterKey": key,
+            }
+        }
+        if callback:
+            entry["callbackName"] = callback
+        if item.get("operator"):
+            entry["operatorValue"] = item["operator"]
+        if item.get("label"):
+            entry["displayName"] = item["label"]
+        normalised.append(entry)
+    return normalised
+
+
+def _compact_report_definition(definition: dict) -> dict:
+    """Reduce a ``ReportDefinitionModel`` to what a caller needs to run it.
+
+    Drops the backend ``callbacks`` (internal service URLs, headers and
+    paging plumbing) and flattens ``frontEndConfiguration`` into the
+    ``inputs`` the report accepts and the ``columns`` it returns.
+    """
+    front = definition.get("frontEndConfiguration") or {}
+    inputs: list[dict] = []
+    for item in (front.get("form") or {}).get("inputs") or []:
+        conf = item.get("configuration") or {}
+        entry: dict = {
+            "label": item.get("label"),
+            "type": item.get("inputType"),
+            "required": bool(conf.get("required")),
+        }
+        nested = conf.get("configuration") or {}
+        if nested.get("startDateFilterParameter") or nested.get(
+            "endDateFilterParameter"
+        ):
+            # Date ranges are two plain parameters that accept ISO-8601
+            # strings; the composite ``filterParameter`` itself is not
+            # accepted by the run endpoint.
+            entry["start_parameter"] = nested.get("startDateFilterParameter")
+            entry["end_parameter"] = nested.get("endDateFilterParameter")
+            entry["value_format"] = "ISO-8601 date or datetime string"
+        else:
+            entry["parameter"] = conf.get("filterParameter")
+        if conf.get("operatorOptions"):
+            entry["operators"] = conf["operatorOptions"]
+        if conf.get("defaultValue") not in (None, ""):
+            entry["default"] = conf["defaultValue"]
+        if conf.get("allowMultiple") is not None:
+            entry["allow_multiple"] = bool(conf["allowMultiple"])
+        inputs.append(entry)
+    columns = [
+        {
+            "name": column.get("columnName"),
+            "type": column.get("columnType"),
+            "property": column.get("propertyMap"),
+            "sortable": bool(column.get("isSortable")),
+        }
+        for column in front.get("gridColumnModels") or []
+    ]
+    return {
+        "service": definition.get("service"),
+        "name": definition.get("name"),
+        "description": definition.get("description"),
+        "is_async": definition.get("isAsync"),
+        "time_to_live": definition.get("timeToLive"),
+        "inputs": inputs,
+        "columns": columns,
+    }
+
+
+def platform_reports(
+    action: str = "list",
+    report: str | None = None,
+    filters: list | dict | str | None = None,
+    *,
+    page: int = 1,
+    page_size: int = 50,
+    service: str | None = None,
+    query: str | None = None,
+    snapshot_id: str | None = None,
+) -> dict:
+    """Browse and run Delinea Platform reports (Insights > Reports), read-only.
+
+    The Platform report library (Fall 2026 release) covers every Platform
+    service: Secret Server (e.g. "Top 10 Viewers of Secrets"), Identity
+    (MFA login events, failed logins, last / missing logins, password
+    resets), Permissions (members of a role, users with a permission),
+    Inventory, Entitlement and Identity Lifecycle.  Report *names* are the
+    identifiers.  Typical flow: ``list`` -> ``describe`` -> ``run``.
+
+    Endpoint coverage (Platform report service, ``/report/api/...``):
+
+    * ``"list"`` -> ``GET /report/report-definitions`` (optional ``query``
+      full-text match and ``service`` exact match, paged).
+    * ``"describe"`` -> ``GET /report/report-definitions/{report}``,
+      reduced to the report's ``inputs`` (each with the ``parameter`` string
+      to use in ``filters``, its ``operators`` and whether it is
+      ``required``) and its result ``columns``.
+    * ``"run"`` -> ``POST /report/report-definitions/{report}/results``,
+      executed synchronously; returns ``{"data": [...], "totalCount": N,
+      "reportDefinitionName": ...}`` for the requested page.
+    * ``"snapshots"`` -> ``GET /report/report-snapshots`` (saved runs the
+      service account owns or was given access to).
+    * ``"snapshot_results"`` -> ``GET /report/report-snapshots/{id}/results``.
+
+    Nothing is created, scheduled, shared or deleted; a ``run`` only adds a
+    "View" entry to the report's audit history.  Runs wait up to
+    ``PLATFORM_REPORT_TIMEOUT`` seconds (default 120) for the backend.
+
+    Parameters
+    ----------
+    action:
+        ``"list"``, ``"describe"``, ``"run"``, ``"snapshots"`` or
+        ``"snapshot_results"``.
+    report:
+        Report name (required for ``describe`` / ``run``).
+    filters:
+        For ``run``: a list of ``{"parameter": "<callback>.<key>",
+        "value": "...", "operator": "Contains"}`` objects using the
+        ``parameter`` strings from ``describe`` (``operator`` optional; date
+        inputs take ISO-8601 strings on their ``start_parameter`` /
+        ``end_parameter``).  A ``{"<parameter>": "<value>"}`` dict or a JSON
+        string of either form is also accepted.
+    page / page_size:
+        Result paging for ``list``, ``run``, ``snapshots`` and
+        ``snapshot_results``.
+    service:
+        For ``list``: exact service name (``"Secret Server"``,
+        ``"Identity"``, ``"Permissions"``, ...).
+    query:
+        For ``list`` / ``snapshots``: free-text match on name/description.
+    snapshot_id:
+        Required for ``snapshot_results``.
+
+    Returns
+    -------
+    dict
+        The report service payload, or ``{"error": ..., "detail": ...,
+        "hint": ...}`` when the service rejects the request.
+    """
+
+    logger.debug("platform_reports(action=%s, report=%s)", action, report)
+
+    if action not in _REPORT_ACTIONS:
+        return {
+            "error": f"Unknown action {action!r}; use one of {list(_REPORT_ACTIONS)}"
+        }
+    if action in ("describe", "run") and not report:
+        return {"error": f"report name required for action={action!r}"}
+    if action == "snapshot_results" and not snapshot_id:
+        return {"error": "snapshot_id required for action='snapshot_results'"}
+
+    try:
+        page = max(int(page), 1)
+        page_size = max(int(page_size), 1)
+    except (TypeError, ValueError):
+        return {"error": "page and page_size must be positive integers"}
+
+    # Normalise filters before touching the network so a malformed request
+    # fails fast instead of first fetching (or failing to fetch) a token.
+    filter_values: list[dict] = []
+    if action == "run":
+        try:
+            filter_values = _normalise_report_filters(filters)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
+    try:
+        headers = _build_headers()
+    except RuntimeError as exc:
+        return {"error": str(exc)}
+
+    paging = {"RecordsPerPage": page_size, "PageNumber": page}
+    try:
+        if action == "list":
+            params: dict[str, Any] = dict(paging)
+            if query:
+                params["SearchText"] = query
+            if service:
+                params["Service.Eq"] = service
+            response = requests.get(
+                _report_url("/report/report-definitions"),
+                headers=headers,
+                params=params,
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            return _report_response(response)
+
+        if action == "describe":
+            response = requests.get(
+                _report_url(f"/report/report-definitions/{quote(report, safe='')}"),
+                headers=headers,
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            result = _report_response(response)
+            if "error" in result:
+                return result
+            return _compact_report_definition(result)
+
+        if action == "run":
+            payload = {
+                "reportDefinitionName": report,
+                "filterValues": filter_values,
+                "pagination": {"recordsPerPage": page_size, "pageNumber": page},
+            }
+            response = requests.post(
+                _report_url(
+                    f"/report/report-definitions/{quote(report, safe='')}/results"
+                ),
+                headers=headers,
+                json=payload,
+                timeout=_REPORT_RUN_TIMEOUT,
+            )
+            return _report_response(response, hint=_REPORT_RUN_HINT)
+
+        if action == "snapshots":
+            params = dict(paging)
+            if query:
+                params["SearchText"] = query
+            response = requests.get(
+                _report_url("/report/report-snapshots"),
+                headers=headers,
+                params=params,
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            return _report_response(response)
+
+        response = requests.get(
+            _report_url(
+                f"/report/report-snapshots/{quote(snapshot_id, safe='')}/results"
+            ),
+            headers=headers,
+            params=paging,
+            timeout=_REPORT_RUN_TIMEOUT,
+        )
+        return _report_response(response)
+    except Exception as exc:
+        logger.exception("Platform report request failed")
+        return {"error": str(exc)}
+
+
 TOOLS = [
     ("user_management", user_management),
     ("search_users", search_users),
     ("platform_user_management", platform_user_management),
     ("platform_role_management", platform_role_management),
     ("platform_user_role_management", platform_user_role_management),
+    ("platform_reports", platform_reports),
 ]
 
 
