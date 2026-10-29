@@ -746,10 +746,13 @@ def _normalise_report_filters(filters: list | dict | str | None) -> list[dict]:
     * A ready-made ``FilterRunValueModel`` (has a ``filterValue`` key),
       passed through untouched.
     * A JSON string encoding any of the above.
+
+    ``None`` (or an empty list / dict) means "no filters"; any other scalar
+    is rejected so a malformed request never runs the report unfiltered.
     """
-    filters = _parse_json_data(filters)
-    if not filters:
+    if filters is None:
         return []
+    filters = _parse_json_data(filters)
     if isinstance(filters, dict):
         if "filterValue" in filters or "parameter" in filters:
             items = [filters]
@@ -936,6 +939,15 @@ def platform_reports(
     except (TypeError, ValueError):
         return {"error": "page and page_size must be positive integers"}
 
+    # Normalise filters before touching the network so a malformed request
+    # fails fast instead of first fetching (or failing to fetch) a token.
+    filter_values: list[dict] = []
+    if action == "run":
+        try:
+            filter_values = _normalise_report_filters(filters)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
     try:
         headers = _build_headers()
     except RuntimeError as exc:
@@ -969,10 +981,6 @@ def platform_reports(
             return _compact_report_definition(result)
 
         if action == "run":
-            try:
-                filter_values = _normalise_report_filters(filters)
-            except ValueError as exc:
-                return {"error": str(exc)}
             payload = {
                 "reportDefinitionName": report,
                 "filterValues": filter_values,

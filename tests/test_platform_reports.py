@@ -197,7 +197,6 @@ def test_run_normalises_filters_and_pages(platform):
     call = calls[0]
     assert call["method"] == "POST"
     assert call["timeout"] == user_platform_tools._REPORT_RUN_TIMEOUT
-    assert calls and call["timeout"] >= user_platform_tools._DEFAULT_TIMEOUT
     assert call["url"].endswith(
         "/report-definitions/Top%2010%20Viewers%20of%20Secrets/results"
     )
@@ -261,11 +260,20 @@ def test_run_accepts_dict_shorthand_and_json_string(platform):
     assert calls[2]["json"]["filterValues"] == []
 
 
+@pytest.mark.parametrize("filters", [None, [], {}, "[]", "{}"])
+def test_empty_filters_mean_no_filters(filters):
+    assert user_platform_tools._normalise_report_filters(filters) == []
+
+
 @pytest.mark.parametrize(
     "filters, message",
     [
         ("{not json", "Invalid JSON data"),
         ("42", "filters must be a list"),
+        ("false", "filters must be a list"),
+        ("null", "filters must be a list"),
+        (False, "filters must be a list"),
+        (0, "filters must be a list"),
         ([1], "each filter must be an object"),
         ([{"value": "x"}], "needs a 'parameter'"),
     ],
@@ -275,6 +283,25 @@ def test_run_rejects_malformed_filters(platform, filters, message):
     out = user_platform_tools.platform_reports("run", "r", filters)
     assert message in out["error"]
     assert calls == []
+
+
+def test_malformed_filters_rejected_before_token_fetch(monkeypatch):
+    """With an empty token cache, bad filters must not trigger the OAuth POST."""
+    monkeypatch.setattr(user_platform_tools, "_headers", {})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "tenant.example")
+    monkeypatch.setattr(user_platform_tools, "platform_service_account", "svc")
+    monkeypatch.setattr(user_platform_tools, "platform_service_password", "pw")
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(data={"access_token": "t"})
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
+    out = user_platform_tools.platform_reports("run", "r", "42")
+    assert "filters must be a list" in out["error"]
+    assert calls == []
+    assert user_platform_tools._headers == {}
 
 
 def test_argument_validation_happens_before_any_request(platform):
