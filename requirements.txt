@@ -102,13 +102,13 @@ pluggy==1.6.0
     # via pytest
 pycparser==2.23 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
-pydantic==2.13.4
+pydantic==2.14.2
     # via
     #   fastapi
     #   mcp
     #   mcp-types
     #   openai
-pydantic-core==2.46.4
+pydantic-core==2.50.2
     # via pydantic
 pygments==2.20.0
     # via pytest
@@ -153,7 +153,7 @@ truststore==0.10.4 ; sys_platform != 'emscripten'
     # via
     #   httpcore2
     #   httpx2
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   fastapi
     #   mcp
@@ -163,7 +163,7 @@ typing-extensions==4.15.0
     #   pydantic
     #   pydantic-core
     #   typing-inspection
-typing-inspection==0.4.2
+typing-inspection==0.4.4
     # via
     #   fastapi
     #   mcp
