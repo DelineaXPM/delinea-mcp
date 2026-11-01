@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.12.21-python3.13-trixie-slim@sha256:ca9f1a036df3ab14905132452f7c01ec17119fe8c75af450e5daa5acc35a30ec
+FROM ghcr.io/astral-sh/uv:0.13.4-python3.13-trixie-slim@sha256:bd45432c1376a243b6761b3546b344caff2d6e2a2b9530354f99b609b1f10ef1
 
 
 # Ensure stdout/stderr are not buffered and bytecode files are not written
