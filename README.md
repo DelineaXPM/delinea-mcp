@@ -210,6 +210,21 @@ without them the tools return guidance instead of failing):
   `list`, `add` or `remove` users on a Platform role.
 - `platform_user_management(...)` - deprecated alias of `user_management`.
 
+### Delinea Platform reports
+
+The Platform report library (Insights > Reports, Fall 2026 release) is exposed
+read-only through the same Platform credentials:
+
+- `platform_reports(action, report=None, filters=None, page=1, page_size=50, service=None, query=None, snapshot_id=None)` -
+  `list` the library (`query` matches name/description, `service` is an exact
+  service name such as `Secret Server` or `Identity`), `describe` a report's
+  inputs and result columns, `run` it synchronously for one page of rows, or
+  read saved `snapshots` / `snapshot_results`. `filters` for `run` is a list of
+  `{"parameter": "<callback>.<key>", "value": "...", "operator": "Contains"}`
+  objects using the `parameter` strings returned by `describe`; date inputs take
+  ISO-8601 strings on their `start_parameter` / `end_parameter`. Nothing is
+  created, scheduled or shared.
+
 ### Secret Server local users (legacy)
 
 For SS-only deployments without Platform configured:
