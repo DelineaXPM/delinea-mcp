@@ -22,9 +22,17 @@ class _ResponseAlreadySent(Response):
 
 
 def mount_sse_routes(
-    app: FastAPI, mcp: MCPServer, dependency: Callable[..., Awaitable] | None = None
+    app: FastAPI,
+    mcp: MCPServer,
+    dependency: Callable[..., Awaitable] | None = None,
+    *,
+    origin_guard: Callable[..., Awaitable] | None = None,
 ) -> None:
     transport = SseServerTransport(MESSAGES_PATH)
+    # The Origin check (DNS-rebinding guard, see transports/origin.py) is a
+    # route-level dependency so it covers both channels and runs before the
+    # bearer check, without touching the OAuth routes.
+    route_dependencies = [Depends(origin_guard)] if origin_guard else None
 
     async def sse_endpoint(
         request: Request, auth=Depends(dependency) if dependency else None
@@ -47,10 +55,14 @@ def mount_sse_routes(
         )
         return _ResponseAlreadySent()
 
-    app.add_api_route("/mcp/sse", sse_endpoint, methods=["GET"])
+    app.add_api_route(
+        "/mcp/sse", sse_endpoint, methods=["GET"], dependencies=route_dependencies
+    )
     # Register the POST channel through FastAPI instead of app.mount():
     # Depends() does not apply to mounted ASGI sub-apps, so mounting
     # transport.handle_post_message directly leaves every tool call
     # (get_secret, update_secret_fields, ...) without the bearer-token
     # check. post_message above exists for exactly this route.
-    app.add_api_route(MESSAGES_PATH, post_message, methods=["POST"])
+    app.add_api_route(
+        MESSAGES_PATH, post_message, methods=["POST"], dependencies=route_dependencies
+    )

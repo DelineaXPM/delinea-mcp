@@ -145,7 +145,7 @@ def test_oauth_sse(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sse,
         "mount_sse_routes",
-        lambda app, mcp, dep=None: called.setdefault("sse", True),
+        lambda app, mcp, dep=None, **kw: called.setdefault("sse", True),
     )
     server.run_server(["--config", "config.json"])
     assert called["run"] and called["oauth"] and called["sse"]
@@ -187,8 +187,9 @@ def test_oauth_sse_https_audience(monkeypatch, tmp_path):
         lambda app, cfg=None: called.setdefault("oauth", True),
     )
 
-    def fake_mount(app, mcp, dep=None):
+    def fake_mount(app, mcp, dep=None, **kw):
         called["aud"] = dep
+        called["origin_guard"] = kw.get("origin_guard")
 
     monkeypatch.setattr(sse, "mount_sse_routes", fake_mount)
 
@@ -242,8 +243,9 @@ def test_oauth_sse_external_hostname(monkeypatch, tmp_path):
         lambda app, cfg=None: called.setdefault("oauth", True),
     )
 
-    def fake_mount(app, mcp, dep=None):
+    def fake_mount(app, mcp, dep=None, **kw):
         called["aud"] = dep
+        called["origin_guard"] = kw.get("origin_guard")
 
     monkeypatch.setattr(sse, "mount_sse_routes", fake_mount)
 
@@ -260,3 +262,32 @@ def test_oauth_sse_external_hostname(monkeypatch, tmp_path):
     monkeypatch.setattr(validators, "require_scopes", fake_require_scopes)
     server.run_server(["--config", "config.json"])
     assert called["audience"] == "http://example.com:8000"
+    # The Origin guard is wired into the OAuth app as well as the open one.
+    assert callable(called["origin_guard"])
+
+
+def test_none_sse_mounts_origin_guard(monkeypatch, tmp_path):
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({"auth_mode": "none", "transport_mode": "sse"}))
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    captured = {}
+
+    def fake_uvicorn_run(app, host="0.0.0.0", port=8000, **kw):
+        captured["app"] = app
+
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=fake_uvicorn_run)
+    )
+    server.run_server(["--config", "config.json"])
+    from delinea_mcp.transports.origin import OriginNotAllowed
+
+    app = captured["app"]
+    assert OriginNotAllowed in app.exception_handlers
+    routes = {r.path: r for r in app.router.routes}
+    # Every MCP channel carries the Origin guard (spec MUST).
+    for path in ("/mcp", "/mcp/sse", "/messages/"):
+        assert len(routes[path].dependencies) == 1, path
