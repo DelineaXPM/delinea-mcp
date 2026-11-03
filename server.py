@@ -11,7 +11,13 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from delinea_api import DelineaSession
-from delinea_mcp import secretserver_users, strongdm_tools, tools, user_platform_tools
+from delinea_mcp import (
+    secretserver_users,
+    strongdm_tools,
+    tool_guard,
+    tools,
+    user_platform_tools,
+)
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
     search_secretserver_local_users,
@@ -76,6 +82,7 @@ CURRENT_CONFIG: dict[str, Any] = {}
 def _init_from_config(cfg: dict[str, Any]) -> None:
     """Initialise sessions and tool registration from a config dict."""
     tools.configure(cfg)
+    tool_guard.configure(cfg.get("max_result_bytes"))
     global _debug
     _debug = bool(cfg.get("debug", False))
     if _debug and not logging.getLogger().handlers:
