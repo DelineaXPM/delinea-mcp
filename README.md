@@ -67,6 +67,7 @@ Non-secret parameters belong in `config.json`:
   "debug": false,
   "external_hostname": null,
   "allowed_origins": [],
+  "max_result_bytes": null,
   "ssl_keyfile": null,
   "ssl_certfile": null,
   "registration_psk": null,
@@ -97,6 +98,8 @@ The configuration file supports the following keys:
   mode the server exposes both the streamable HTTP endpoint at `/mcp`
   (current MCP transport, serves protocol revisions 2024-11-05 through
   2026-07-28) and the legacy HTTP+SSE endpoints at `/mcp/sse` + `/messages/`.
+  Prefer `/mcp`: SDK-based clients cannot receive a tool result larger than
+  1 MiB over `/mcp/sse` (see **max_result_bytes**).
 - **streamable_http_stateless** - default `true`; run `/mcp` without server-side
   sessions (recommended for remote connectors). Set `false` to enable
   session-based operation with the standalone GET stream.
@@ -110,6 +113,13 @@ The configuration file supports the following keys:
   e.g. `https://app.example.com`, or `https://app.example.com:*` for any port. Loopback origins and `external_hostname`
   are always allowed. A request carrying any other `Origin` header is answered with HTTP 403 (the DNS-rebinding
   protection the MCP spec requires); requests without an `Origin` header, i.e. every non-browser MCP client, are unaffected.
+- **max_result_bytes** - Optional cap, in bytes, on a single tool result; default `null` (no cap). MCP SDK clients
+  read `/mcp/sse` responses with a fixed 1 MiB event limit, so a larger result there (a big `run_report` or
+  `execute_report`, a broad `search_secrets`) drops the client's whole session with an error that never mentions
+  size. With a cap set, an oversized result is replaced by an `{"error": "Result too large: ..."}` payload asking
+  the model to narrow the request. `/mcp` with the default `streamable_http_json_response` has no such limit
+  (results of 16 MiB were tested), so set this only if clients use `/mcp/sse`; `524288` (512 KiB) leaves room for
+  tools that also return structured content. The cap applies to every transport.
 - **ssl_keyfile** - Path to the SSL key for HTTPS. (eg `privkey.pem`)
 - **ssl_certfile** - Path to the SSL certificate for HTTPS. (eg `fullchain.pem`)
 - **registration_psk** - Pre-shared key required to register OAuth clients. You will need to type in this secret in your browser to approve OAuth connections.
