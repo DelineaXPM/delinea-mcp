@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Iterable
 
 from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
@@ -76,6 +76,20 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
     return data
 
 
+def _error_detail(exc: Exception) -> str:
+    """Return ``str(exc)`` plus the HTTP response body when there is one.
+
+    ``requests.HTTPError`` alone only says ``400 Client Error``; the reason
+    Secret Server rejected the request (for example custom report SQL that
+    failed validation) is in the response body, so surface it to the caller.
+    """
+    detail = str(exc)
+    body = getattr(getattr(exc, "response", None), "text", None)
+    if body:
+        detail = f"{detail}: {str(body).strip()[:500]}"
+    return detail
+
+
 def create_report(report_name: str, sql_query: str) -> int:
     """Create a temporary report and return its numeric identifier.
 
@@ -105,9 +119,11 @@ def create_report(report_name: str, sql_query: str) -> int:
             },
         )
         return response.json()["id"]
-    except Exception as exc:  # pragma: no cover - network failures
+    except Exception as exc:
         logger.exception("Failed to create report '%s'", report_name)
-        raise RuntimeError(f"Failed to create report '{report_name}': {exc}")
+        raise RuntimeError(
+            f"Failed to create report '{report_name}': {_error_detail(exc)}"
+        )
 
 
 def execute_report(report_id: int) -> dict:
@@ -132,9 +148,11 @@ def execute_report(report_id: int) -> dict:
             json={"id": report_id, "useDefaultParameters": True},
         )
         return response.json()
-    except Exception as exc:  # pragma: no cover - network failures
+    except Exception as exc:
         logger.exception("Failed to execute report %s", report_id)
-        raise RuntimeError(f"Failed to execute report {report_id}: {exc}")
+        raise RuntimeError(
+            f"Failed to execute report {report_id}: {_error_detail(exc)}"
+        )
 
 
 def run_report(sql_query: str, report_name: str | None = None) -> dict:
@@ -143,7 +161,10 @@ def run_report(sql_query: str, report_name: str | None = None) -> dict:
     Parameters
     ----------
     sql_query:
-        The SQL query to run.
+        The SQL query to run. Secret Server only accepts a single read-only
+        SELECT statement as custom report SQL (no IF, WHILE, BEGIN ... END,
+        TRY/CATCH, PRINT, temporary tables or database-qualified names); call
+        ``list_example_reports`` for the rules, table list and sample queries.
     report_name:
         Optional name for the temporary report.
 
@@ -207,7 +228,8 @@ def generate_sql_query(user_query: str) -> str:
         "fields to generate the SQL.\n\n"
         f"Tables and Columns:\n{constants.TABLES_AND_COLUMNS}\n\n"
         f"Example Queries:\n{constants.EXAMPLE_QUERIES_TEXT}\n\n"
-        f"Special Fields:\n{constants.SPECIAL_FIELDS}"
+        f"Special Fields:\n{constants.SPECIAL_FIELDS}\n"
+        f"Rules:\n{constants.REPORT_SQL_RULES}"
         "\nGenerate only the SQL without markdown formatting."
     )
 
@@ -742,7 +764,12 @@ def update_secret_generated_password(
 
 
 def ai_generate_and_run_report(description: str) -> dict:
-    """Generate SQL from a description, run it, and return the results."""
+    """Generate SQL from a description, run it, and return the results.
+
+    The generated SQL must satisfy the Secret Server custom-report rules
+    (a single read-only SELECT; see ``list_example_reports``). If Secret
+    Server rejects it, the result carries its message in ``error``.
+    """
     logger.debug("ai_generate_and_run_report(%s)", description)
     sql = generate_sql_query(description)
     if sql.startswith("Error"):
@@ -756,8 +783,9 @@ def ai_generate_and_run_report(description: str) -> dict:
     return result
 
 
-def list_example_reports() -> str:
-    """Return sample queries, table information and special fields."""
+def list_example_reports() -> str | dict:
+    """Return sample queries, table information, special fields and the
+    rules Secret Server enforces on custom report SQL."""
     logger.debug("list_example_reports")
     return (
         constants.EXAMPLE_QUERIES_TEXT
@@ -765,6 +793,8 @@ def list_example_reports() -> str:
         + constants.TABLES_AND_COLUMNS
         + "\n\nSpecial Fields:\n"
         + constants.SPECIAL_FIELDS
+        + "\n"
+        + constants.REPORT_SQL_RULES
     )
 
 
@@ -1551,7 +1581,7 @@ def health_check() -> dict:
         return {"error": f"Failed to perform health check: {exc}"}
 
 
-def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
+def search(query: str) -> dict:
     """Return search results in MCP format.
 
     Parameters
@@ -1561,9 +1591,9 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
 
     Returns
     -------
-    list[dict]
-        Each result object contains ``id``, ``title``, ``text`` and ``url`` as
-        defined by the MCP specification.
+    dict
+        ``{"results": [...]}`` where each result object contains ``id``,
+        ``title``, ``text`` and ``url`` as defined by the MCP specification.
     """
     logger.debug("search(%s)", query)
     from . import secretserver_users
@@ -1632,7 +1662,7 @@ def search(query: str) -> Dict[str, List[Dict[str, Any]]]:
     return {"results": results}
 
 
-def fetch(id: str) -> Dict[str, Any]:
+def fetch(id: str) -> dict:
     """Retrieve the full record for an identifier returned by ``search``.
 
     Parameters

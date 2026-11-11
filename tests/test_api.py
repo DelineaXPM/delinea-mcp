@@ -119,6 +119,94 @@ def test_session_no_token(monkeypatch):
         delinea_api.DelineaSession(base_url="http://x")
 
 
+class RejectingResponse(DummyResponse):
+    """Mimic ``requests`` on a 4xx/5xx: ``raise_for_status`` raises HTTPError."""
+
+    def __init__(self, data=None, status_code=400, text=""):
+        super().__init__(data, status_code)
+        self.text = text
+        self._has_json = data is not None
+
+    def json(self):
+        if not self._has_json:
+            raise ValueError("no JSON body")
+        return self._data
+
+    def raise_for_status(self):
+        import requests
+
+        raise requests.HTTPError(f"{self.status_code} Client Error", response=self)
+
+
+def _reload_with_auth_response(monkeypatch, resp):
+    import delinea_api
+
+    importlib.reload(delinea_api)
+    monkeypatch.setattr(delinea_api, "requests", DummyRequests(post_resp=resp))
+    monkeypatch.setenv("DELINEA_USERNAME", "u")
+    monkeypatch.setenv("DELINEA_PASSWORD", "very-secret-pw")
+    return delinea_api
+
+
+def test_session_auth_rejected_explains_direct_api_setting(monkeypatch):
+    import requests
+
+    delinea_api = _reload_with_auth_response(
+        monkeypatch, RejectingResponse({"error": "Login failed."}, status_code=400)
+    )
+    with pytest.raises(requests.HTTPError) as excinfo:
+        delinea_api.DelineaSession(base_url="http://x")
+    msg = str(excinfo.value)
+    assert msg.startswith("Secret Server authentication failed (400): Login failed.")
+    assert "Application Account" in msg
+    assert "Prevent direct API authentication" in msg
+    assert "very-secret-pw" not in msg
+    assert excinfo.value.response.status_code == 400
+    assert isinstance(excinfo.value.__cause__, requests.HTTPError)
+
+
+def test_session_auth_rejected_prefers_error_description(monkeypatch):
+    import requests
+
+    delinea_api = _reload_with_auth_response(
+        monkeypatch,
+        RejectingResponse(
+            {"error": "invalid_grant", "error_description": "Account is locked"},
+            status_code=401,
+        ),
+    )
+    with pytest.raises(requests.HTTPError, match=r"\(401\): Account is locked\."):
+        delinea_api.DelineaSession(base_url="http://x")
+
+
+def test_session_auth_server_error_falls_back_to_text(monkeypatch):
+    import requests
+
+    delinea_api = _reload_with_auth_response(
+        monkeypatch,
+        RejectingResponse(
+            None, status_code=503, text="<html>Service Unavailable</html>"
+        ),
+    )
+    with pytest.raises(requests.HTTPError) as excinfo:
+        delinea_api.DelineaSession(base_url="http://x")
+    msg = str(excinfo.value)
+    assert msg == (
+        "Secret Server authentication failed (503): <html>Service Unavailable</html>"
+    )
+    assert "Application Account" not in msg
+
+
+def test_auth_failure_message_without_detail():
+    import delinea_api
+
+    importlib.reload(delinea_api)
+    # DummyResponse has no ``text`` attribute and an empty JSON body.
+    msg = delinea_api._auth_failure_message(DummyResponse({}, status_code=403))
+    expected = "Secret Server authentication failed (403). "
+    assert msg == expected + delinea_api._DIRECT_API_AUTH_HINT
+
+
 def test_generate_sql_query(monkeypatch):
     import delinea_api
 

@@ -67,6 +67,7 @@ Non-secret parameters belong in `config.json`:
   "debug": false,
   "external_hostname": null,
   "allowed_origins": [],
+  "max_result_bytes": null,
   "ssl_keyfile": null,
   "ssl_certfile": null,
   "registration_psk": null,
@@ -82,7 +83,8 @@ For Let's Encrypt, use the `privkey.pem` and `fullchain.pem` files.
 
 The configuration file supports the following keys:
 
-- **delinea_username** - Secret Server username. Must be a programmatic user with permission to do the tasks you want.
+- **delinea_username** - Secret Server username. Use a dedicated **Application Account**
+  with permission to do the tasks you want; see [Secret Server account](#secret-server-account).
 - **delinea_base_url** - Base URL of your Secret Server instance.
 - **platform_hostname** - Platform tenant hostname (enables Platform tools).
 - **platform_service_account** - Service account used with the Platform API.
@@ -97,6 +99,8 @@ The configuration file supports the following keys:
   mode the server exposes both the streamable HTTP endpoint at `/mcp`
   (current MCP transport, serves protocol revisions 2024-11-05 through
   2026-07-28) and the legacy HTTP+SSE endpoints at `/mcp/sse` + `/messages/`.
+  Prefer `/mcp`: SDK-based clients cannot receive a tool result larger than
+  1 MiB over `/mcp/sse` (see **max_result_bytes**).
 - **streamable_http_stateless** - default `true`; run `/mcp` without server-side
   sessions (recommended for remote connectors). Set `false` to enable
   session-based operation with the standalone GET stream.
@@ -110,6 +114,15 @@ The configuration file supports the following keys:
   e.g. `https://app.example.com`, or `https://app.example.com:*` for any port. Loopback origins and `external_hostname`
   are always allowed. A request carrying any other `Origin` header is answered with HTTP 403 (the DNS-rebinding
   protection the MCP spec requires); requests without an `Origin` header, i.e. every non-browser MCP client, are unaffected.
+- **max_result_bytes** - Optional cap, in bytes, on a single tool result; default `null` (no cap). MCP SDK clients
+  read `/mcp/sse` responses with a fixed 1 MiB event limit, so a larger result there (a big `run_report` or
+  `execute_report`, a broad `search_secrets`) drops the client's whole session with an error that never mentions
+  size. With a cap set, an oversized result is replaced by an `{"error": "Result too large: ..."}` payload asking
+  the model to narrow the request. `/mcp` with the default `streamable_http_json_response` has no such limit
+  (results of 16 MiB were tested), so set this only if clients use `/mcp/sse`; `524288` (512 KiB) is a safe value.
+  The size is measured on the complete response, including the `structuredContent` copy some tools send, and an
+  oversized exception message is truncated rather than replaced. Must be a whole number; fractions and negative
+  values are rejected at startup. The cap applies to every transport.
 - **ssl_keyfile** - Path to the SSL key for HTTPS. (eg `privkey.pem`)
 - **ssl_certfile** - Path to the SSL certificate for HTTPS. (eg `fullchain.pem`)
 - **registration_psk** - Pre-shared key required to register OAuth clients. You will need to type in this secret in your browser to approve OAuth connections.
@@ -120,6 +133,28 @@ The configuration file supports the following keys:
   Defaults to `["secret"]` but can include `user`, `folder`, `group` and `role`.
 - **fetch_objects** - Allowed object types for the `fetch` tool.
   Defaults to `["secret"]` but can include the same values as `search_objects`.
+
+### Secret Server account
+
+The server signs in to Secret Server with the `/oauth2/token` password grant
+using `delinea_username` and `DELINEA_PASSWORD`. Create a dedicated
+**Application Account** for it (a Secret Server user with the Application
+Account flag) rather than reusing a person's login:
+
+- Secret Server 12.1 and later turn on **Prevent direct API authentication** by
+  default for new installations, on-premises and Cloud. With it on, the
+  password grant is rejected for interactive user accounts, so the MCP server
+  cannot obtain a token and exits with a `Secret Server authentication failed`
+  error that names this setting. Application Accounts are exempt; alternatively
+  grant the user the **Bypass Direct API Authentication Restriction** role
+  permission.
+- Application Accounts cannot log in to the UI and do not consume a user
+  licence, which is what you want for an unattended server.
+- Upgraded installations keep their previous value of the setting, but the
+  12.2.000007 release notes ask you to review it after upgrading.
+
+See Delinea's documentation on
+[Prevent Direct API Authentication](https://docs.delinea.com/online-help/secret-server/admin/app-settings/prevent-direct-api-authentication/index.htm).
 
 ## Running the Server
 
@@ -148,9 +183,12 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 ### Secret Server
 
 - `run_report(sql_query, report_name=None)` - create and execute a temporary report.
+  Secret Server accepts only a single read-only SELECT statement as custom report SQL
+  (no IF, WHILE, BEGIN/END, TRY/CATCH, PRINT, temporary tables or database-qualified
+  names); rejected SQL comes back with the Secret Server message in `error`.
 - `ai_generate_and_run_report(description)` - generate SQL using Azure OpenAI and run it.
   Requires the Azure OpenAI variables.
-- `list_example_reports()` - list sample queries and table information.
+- `list_example_reports()` - list sample queries, table information and the report SQL rules.
 - `get_secret(id, summary=False)` - retrieve a secret or summary details.
 - `get_folder(id)` - fetch folder metadata and children.
 - `search_secrets(query, lookup=False)` - search or look up secrets.
