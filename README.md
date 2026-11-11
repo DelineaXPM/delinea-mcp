@@ -119,8 +119,10 @@ The configuration file supports the following keys:
   `execute_report`, a broad `search_secrets`) drops the client's whole session with an error that never mentions
   size. With a cap set, an oversized result is replaced by an `{"error": "Result too large: ..."}` payload asking
   the model to narrow the request. `/mcp` with the default `streamable_http_json_response` has no such limit
-  (results of 16 MiB were tested), so set this only if clients use `/mcp/sse`; `524288` (512 KiB) leaves room for
-  tools that also return structured content. The cap applies to every transport.
+  (results of 16 MiB were tested), so set this only if clients use `/mcp/sse`; `524288` (512 KiB) is a safe value.
+  The size is measured on the complete response, including the `structuredContent` copy some tools send, and an
+  oversized exception message is truncated rather than replaced. Must be a whole number; fractions and negative
+  values are rejected at startup. The cap applies to every transport.
 - **ssl_keyfile** - Path to the SSL key for HTTPS. (eg `privkey.pem`)
 - **ssl_certfile** - Path to the SSL certificate for HTTPS. (eg `fullchain.pem`)
 - **registration_psk** - Pre-shared key required to register OAuth clients. You will need to type in this secret in your browser to approve OAuth connections.
