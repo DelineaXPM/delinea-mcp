@@ -291,3 +291,22 @@ def test_none_sse_mounts_origin_guard(monkeypatch, tmp_path):
     # Every MCP channel carries the Origin guard (spec MUST).
     for path in ("/mcp", "/mcp/sse", "/messages/"):
         assert len(routes[path].dependencies) == 1, path
+
+
+def test_max_result_bytes_configures_tool_guard(monkeypatch, tmp_path):
+    from delinea_mcp import tool_guard
+
+    monkeypatch.setattr(tool_guard, "_max_result_bytes", None)
+    cfg = tmp_path / "config.json"
+    cfg.write_text(
+        json.dumps(
+            {"auth_mode": "none", "transport_mode": "stdio", "max_result_bytes": 4096}
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    server.run_server(["--config", "config.json"])
+    assert tool_guard._max_result_bytes == 4096
