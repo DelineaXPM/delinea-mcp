@@ -1,8 +1,11 @@
 [project]
 name = "delinea-mcp"
-version = "1.1.0"
+version = "1.2.0"
 description = "MCP server for the Delinea Secret Server and Platform APIs"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Delinea" }]
 requires-python = ">=3.13"
 dependencies = [
   "fastapi>=0.117.1",
@@ -14,6 +17,13 @@ dependencies = [
   "requests>=2.32.4",
   "uvicorn>=0.35.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/DelineaXPM/delinea-mcp"
+Repository = "https://github.com/DelineaXPM/delinea-mcp"
+
+[project.scripts]
+delinea-mcp = "server:run_server"
 
 [project.optional-dependencies]
 strongdm = ["strongdm>=17.8.0"]
@@ -30,4 +40,21 @@ test = [
   "pytest>=8.4.2",
   "pytest-asyncio>=1.1.0",
   "requests>=2.32.4",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["delinea_mcp", "server.py", "delinea_api.py"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+  "delinea_mcp",
+  "server.py",
+  "delinea_api.py",
+  "tests",
+  "README.md",
+  "LICENSE",
 ]

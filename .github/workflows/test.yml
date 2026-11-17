@@ -119,3 +119,27 @@ jobs:
           # Basic container validation - server help command
           timeout 30s docker run --rm delinea-mcp:test python server.py --help || true
           echo "✅ Docker container basic validation completed"
+  package-smoke:
+    name: wheel-install-verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: repo-checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: uv-setup-env
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+      - name: python-install-runtime
+        run: uv python install 3.13
+      - name: wheel-build
+        run: uv build --wheel
+      - name: wheel-install-and-verify
+        run: |
+          # Run from a temp dir so repo modules cannot shadow the installed wheel.
+          WHEEL="$(ls "$GITHUB_WORKSPACE"/dist/*.whl)"
+          EXPECTED="$(grep -m1 '^version = ' "$GITHUB_WORKSPACE/pyproject.toml" | cut -d'"' -f2)"
+          cd "$(mktemp -d)"
+          uv venv --python 3.13 venv
+          uv pip install --python venv/bin/python "$WHEEL"
+          venv/bin/delinea-mcp --help
+          ACTUAL="$(venv/bin/python -c "import importlib.metadata as m; print(m.version('delinea-mcp'))")"
+          test "$ACTUAL" = "$EXPECTED" || { echo "version mismatch: $ACTUAL != $EXPECTED"; exit 1; }
