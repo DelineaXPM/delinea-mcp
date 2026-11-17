@@ -310,3 +310,113 @@ def test_max_result_bytes_configures_tool_guard(monkeypatch, tmp_path):
     monkeypatch.setattr(server, "mcp", DummyMCP())
     server.run_server(["--config", "config.json"])
     assert tool_guard._max_result_bytes == 4096
+
+
+def _fresh_server(monkeypatch, plugin=None):
+    if plugin is None:
+        monkeypatch.delenv("DELINEA_MCP_PLUGIN", raising=False)
+    else:
+        monkeypatch.setenv("DELINEA_MCP_PLUGIN", plugin)
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.modules.pop("server", None)
+    server = importlib.import_module("server")
+    monkeypatch.setattr(server, "mcp", DummyMCP())
+    return server
+
+
+def _record_init(monkeypatch, server):
+    seen = []
+    monkeypatch.setattr(server, "_init_from_config", seen.append)
+    return seen
+
+
+def test_plugin_mode_ignores_cwd_and_cached_config(monkeypatch, tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"transport_mode": "sse"}))
+    monkeypatch.chdir(tmp_path)
+    server = _fresh_server(monkeypatch, plugin="1")
+    monkeypatch.setattr(server, "CURRENT_CONFIG", {"transport_mode": "sse"})
+    monkeypatch.setitem(
+        sys.modules, "uvicorn", types.SimpleNamespace(run=lambda *a, **k: None)
+    )
+    seen = _record_init(monkeypatch, server)
+    server.run_server([])
+    assert seen == [{}]
+    assert server.mcp.called == "stdio"
+
+
+def test_plugin_mode_honours_explicit_config(monkeypatch, tmp_path):
+    cfg = {"transport_mode": "stdio", "enabled_tools": ["get_secret"]}
+    (tmp_path / "explicit.json").write_text(json.dumps(cfg))
+    monkeypatch.chdir(tmp_path)
+    server = _fresh_server(monkeypatch, plugin="1")
+    seen = _record_init(monkeypatch, server)
+    server.run_server(["--config", "explicit.json"])
+    assert seen == [cfg]
+
+
+def test_plugin_flag_other_than_1_is_off(monkeypatch, tmp_path):
+    cfg = {"transport_mode": "stdio", "enabled_tools": ["get_secret"]}
+    (tmp_path / "config.json").write_text(json.dumps(cfg))
+    monkeypatch.chdir(tmp_path)
+    server = _fresh_server(monkeypatch, plugin="true")
+    seen = _record_init(monkeypatch, server)
+    server.run_server([])
+    assert seen == [cfg]
+
+
+def test_plugin_mode_skips_import_time_config(monkeypatch):
+    from delinea_mcp import config
+
+    calls = []
+    real = config.load_config
+
+    def spy(*a, **k):
+        calls.append(a)
+        return real(*a, **k)
+
+    monkeypatch.setattr(config, "load_config", spy)
+    _fresh_server(monkeypatch, plugin="1")
+    assert calls == []
+    _fresh_server(monkeypatch, plugin="0")
+    assert calls == [()]
+
+
+class _RecordingSession:
+    def __init__(self, **kw):
+        self.kw = kw
+
+
+def _init_session(monkeypatch, cfg, env_user="env"):
+    server = _fresh_server(monkeypatch)
+    for key in ("DELINEA_USERNAME", "DELINEA_PASSWORD", "DELINEA_BASE_URL"):
+        monkeypatch.delenv(key, raising=False)
+    if env_user:
+        monkeypatch.setenv("DELINEA_USERNAME", env_user)
+    monkeypatch.setenv("DELINEA_PASSWORD", "pw")
+    monkeypatch.setenv("DELINEA_BASE_URL", "https://ss.example")
+    inited = []
+    monkeypatch.setattr(server, "DelineaSession", _RecordingSession)
+    monkeypatch.setattr(server.SessionManager, "init", inited.append)
+    server._init_from_config(cfg)
+    return inited
+
+
+def test_init_from_env_only(monkeypatch):
+    inited = _init_session(monkeypatch, {})
+    assert inited[0].kw["username"] == "env"
+    assert inited[0].kw["base_url"] == "https://ss.example"
+
+
+def test_init_config_username_wins_over_env(monkeypatch):
+    inited = _init_session(monkeypatch, {"delinea_username": "cfg"})
+    assert inited[0].kw["username"] == "cfg"
+
+
+def test_init_placeholder_or_blank_username_falls_back_to_env(monkeypatch):
+    for value in ("<username>", "", "  "):
+        inited = _init_session(monkeypatch, {"delinea_username": value})
+        assert inited[0].kw["username"] == "env"
+
+
+def test_init_without_any_username_skips_session(monkeypatch):
+    assert _init_session(monkeypatch, {}, env_user=None) == []

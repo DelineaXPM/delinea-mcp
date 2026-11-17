@@ -79,6 +79,11 @@ mcp = MCPServer("DelineaMCP", version=_VERSION)
 CURRENT_CONFIG: dict[str, Any] = {}
 
 
+def _plugin_mode() -> bool:
+    """Return True when launched as a Claude Code plugin (DELINEA_MCP_PLUGIN=1)."""
+    return os.getenv("DELINEA_MCP_PLUGIN") == "1"
+
+
 def _init_from_config(cfg: dict[str, Any]) -> None:
     """Initialise sessions and tool registration from a config dict."""
     tools.configure(cfg)
@@ -89,9 +94,12 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
         logging.basicConfig(level=logging.DEBUG)
     elif _debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    if not cfg.get("delinea_username"):
-        os.environ.pop("DELINEA_USERNAME", None)
     username = cfg.get("delinea_username")
+    if isinstance(username, str):
+        stripped = username.strip()
+        if not stripped or (stripped.startswith("<") and stripped.endswith(">")):
+            username = None  # blank or <placeholder> means unset, as in tools
+    username = username or os.getenv("DELINEA_USERNAME")
     password = os.getenv("DELINEA_PASSWORD")
     base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
 
@@ -151,7 +159,10 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
 # Store the loaded config so run_server can reuse it when --config is not passed.
 # NOTE: Do not call _init_from_config here - initialization happens in run_server()
 # to avoid duplicate tool registration warnings.
-CURRENT_CONFIG = load_config()
+# Plugin mode (DELINEA_MCP_PLUGIN=1) skips this so an installed package never
+# reads an ambient config.json; configuration then comes from env only.
+if not _plugin_mode():
+    CURRENT_CONFIG = load_config()
 
 
 def generate_sql_query(user_query: str) -> str:
@@ -194,6 +205,10 @@ def run_server(argv: list[str] | None = None) -> None:
         _init_from_config(cfg)
         # Update module-level current config
         globals()["CURRENT_CONFIG"] = cfg
+    elif _plugin_mode():
+        # Plugin mode: cwd is the user's project, so ignore any config.json there
+        cfg = {}
+        _init_from_config(cfg)
     else:
         # Try to read config from current directory, fallback to cached config
         current_dir_config = Path("config.json")
