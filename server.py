@@ -18,6 +18,7 @@ from delinea_mcp import (
     tools,
     user_platform_tools,
 )
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
     search_secretserver_local_users,
@@ -113,7 +114,14 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             platform_hostname=platform_hostname,
         )
         SessionManager.init(session)
+    # Precedence: config list, DELINEA_ENABLED_TOOLS, read-only set in plugin
+    # mode, else empty (= all tools).
     enabled = set(cfg.get("enabled_tools", []))
+    if not enabled:
+        raw = os.getenv("DELINEA_ENABLED_TOOLS", "")
+        enabled = {n.strip() for n in raw.split(",") if n.strip()}
+    if not enabled and _plugin_mode():
+        enabled = {n for n, a in TOOL_ANNOTATIONS.items() if a.read_only_hint}
     tools.register(mcp, enabled)
 
     # Register the legacy SS-local user tools under the same enabled_tools
