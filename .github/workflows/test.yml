@@ -136,7 +136,7 @@ jobs:
         run: |
           # Run from a temp dir so repo modules cannot shadow the installed wheel.
           WHEEL="$(ls "$GITHUB_WORKSPACE"/dist/*.whl)"
-          EXPECTED="$(grep -m1 '^version = ' "$GITHUB_WORKSPACE/pyproject.toml" | cut -d'"' -f2)"
+          EXPECTED="$(uv version --short --project "$GITHUB_WORKSPACE")"
           cd "$(mktemp -d)"
           uv venv --python 3.13 venv
           uv pip install --python venv/bin/python "$WHEEL"

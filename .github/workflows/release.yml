@@ -14,12 +14,25 @@ on:
           - minor
           - patch
           - prerelease
+      pypi-repository:
+        description: 'PyPI repository to publish to'
+        required: false
+        default: 'pypi'
+        type: choice
+        options:
+          - pypi
+          - testpypi
   workflow_call:
     inputs:
       release-type:
         description: 'Type of release to create'
         required: false
         default: 'auto'
+        type: string
+      pypi-repository:
+        description: 'PyPI repository to publish to (pypi or testpypi)'
+        required: false
+        default: 'pypi'
         type: string
 permissions:
   contents: write
@@ -39,6 +52,7 @@ jobs:
     timeout-minutes: 8
     outputs:
       release-version: ${{ steps.version-detect.outputs.version }}
+      pypi-version: ${{ steps.version-detect.outputs.pypi-version }}
       should-release: ${{ steps.version-detect.outputs.should-release }}
     steps:
       - name: repo-checkout-full-history
@@ -52,12 +66,77 @@ jobs:
           aqua_version: v2.53.9
           working_directory: .
           # TODO: Create aqua.yaml with goreleaser and other required binaries
+      - name: uv-setup
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
       - name: release-version-detection
         id: version-detect
         run: |
-          # TODO: Implement proper version detection logic
-          echo "version=v0.1.0" >> $GITHUB_OUTPUT
-          echo "should-release=true" >> $GITHUB_OUTPUT
+          VERSION="$(uv version --short)"
+          {
+            echo "version=v${VERSION}"
+            echo "pypi-version=${VERSION}"
+            echo "should-release=true"
+          } >> "$GITHUB_OUTPUT"
+  pypi-build:
+    name: pypi-distribution-build
+    needs: prepare-release-environment
+    if: needs.prepare-release-environment.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: repo-checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: uv-python-setup
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+      - name: python-runtime-install
+        run: uv python install 3.13
+      - name: python-distribution-build
+        run: uv build
+      - name: wheel-version-verification
+        env:
+          EXPECTED: ${{ needs.prepare-release-environment.outputs.pypi-version }}
+        run: |
+          WHEEL="$(ls dist/*.whl)"
+          case "$WHEEL" in
+            *"delinea_mcp-${EXPECTED}-"*) echo "wheel ${WHEEL} matches ${EXPECTED}" ;;
+            *) echo "::error::wheel ${WHEEL} does not match version ${EXPECTED}"; exit 1 ;;
+          esac
+      - name: python-dist-upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-dist
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+  pypi-publish:
+    name: pypi-trusted-publish
+    needs: [prepare-release-environment, pypi-build]
+    if: needs.prepare-release-environment.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Trusted Publisher must be registered on PyPI (or TestPyPI) for this
+    # repo, workflow filename release.yml, and environment name pypi (or testpypi).
+    environment:
+      name: ${{ inputs.pypi-repository }}
+      url: ${{ inputs.pypi-repository == 'testpypi' && 'https://test.pypi.org/p/delinea-mcp' || 'https://pypi.org/p/delinea-mcp' }}
+    permissions:
+      id-token: write
+    steps:
+      - name: python-dist-download
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: python-dist
+          path: dist/
+      - name: uv-python-setup
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+      - name: pypi-trusted-publish
+        env:
+          UV_PUBLISH_URL: ${{ inputs.pypi-repository == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+          # Skips files already uploaded so a re-run does not fail.
+          UV_PUBLISH_CHECK_URL: ${{ inputs.pypi-repository == 'testpypi' && 'https://test.pypi.org/simple/' || 'https://pypi.org/simple/' }}
+        run: uv publish --trusted-publishing always dist/*
   delinea-mcp-release-execution:
     name: goreleaser-python-release
     needs: prepare-release-environment
