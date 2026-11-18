@@ -1,0 +1,62 @@
+{
+  "name": "delinea",
+  "version": "1.2.0",
+  "description": "Delinea Secret Server and Platform tools for Claude, run locally via uvx",
+  "author": { "name": "Delinea", "url": "https://delinea.com" },
+  "homepage": "https://github.com/DelineaXPM/delinea-mcp",
+  "repository": "https://github.com/DelineaXPM/delinea-mcp",
+  "license": "MIT",
+  "keywords": ["secrets", "pam", "secret-server", "delinea", "mcp"],
+  "userConfig": {
+    "secret_server_url": {
+      "type": "string",
+      "title": "Secret Server URL",
+      "description": "For example https://tenant.secretservercloud.com",
+      "required": true
+    },
+    "secret_server_username": {
+      "type": "string",
+      "title": "Secret Server application account",
+      "description": "Secret Server Application Account username",
+      "required": true
+    },
+    "secret_server_password": {
+      "type": "string",
+      "title": "Secret Server password",
+      "description": "Application account password",
+      "sensitive": true,
+      "required": true
+    },
+    "platform_hostname": {
+      "type": "string",
+      "title": "Platform hostname (optional)",
+      "description": "<tenant>.secureplatform.io. Set when Secret Server runs on Delinea Platform; used for login and Platform tools.",
+      "default": ""
+    },
+    "platform_service_account": {
+      "type": "string",
+      "title": "Platform service account (optional)",
+      "description": "Enables Platform user search and reports. Needs Platform hostname and service password.",
+      "default": ""
+    },
+    "platform_service_password": {
+      "type": "string",
+      "title": "Platform service password (optional)",
+      "description": "Password for the Platform service account",
+      "sensitive": true,
+      "default": ""
+    },
+    "platform_tenant_id": {
+      "type": "string",
+      "title": "Platform tenant ID (optional)",
+      "description": "Only needed for multi-tenant Platform setups",
+      "default": ""
+    },
+    "enabled_tools": {
+      "type": "string",
+      "title": "Enabled tools",
+      "description": "Comma-separated tool names. Leave blank for the read-only default set.",
+      "default": ""
+    }
+  }
+}

@@ -4,6 +4,8 @@ import os
 import sys
 import types
 
+import pytest
+
 
 class DummyMCP:
     def __init__(self):
@@ -354,6 +356,16 @@ def test_plugin_mode_honours_explicit_config(monkeypatch, tmp_path):
     assert seen == [cfg]
 
 
+def test_abbreviated_config_flag_rejected(monkeypatch, tmp_path):
+    (tmp_path / "somefile").write_text(json.dumps({"transport_mode": "stdio"}))
+    monkeypatch.chdir(tmp_path)
+    server = _fresh_server(monkeypatch, plugin="1")
+    seen = _record_init(monkeypatch, server)
+    with pytest.raises(SystemExit):
+        server.run_server(["--conf", "somefile"])
+    assert seen == []
+
+
 def test_plugin_flag_other_than_1_is_off(monkeypatch, tmp_path):
     cfg = {"transport_mode": "stdio", "enabled_tools": ["get_secret"]}
     (tmp_path / "config.json").write_text(json.dumps(cfg))
@@ -388,7 +400,14 @@ class _RecordingSession:
 
 def _init_session(monkeypatch, cfg, env_user="env"):
     server = _fresh_server(monkeypatch)
-    for key in ("DELINEA_USERNAME", "DELINEA_PASSWORD", "DELINEA_BASE_URL"):
+    for key in (
+        "DELINEA_USERNAME",
+        "DELINEA_PASSWORD",
+        "DELINEA_BASE_URL",
+        "DELINEA_SECRET_SERVER_USERNAME",
+        "DELINEA_SECRET_SERVER_PASSWORD",
+        "DELINEA_SECRET_SERVER_URL",
+    ):
         monkeypatch.delenv(key, raising=False)
     if env_user:
         monkeypatch.setenv("DELINEA_USERNAME", env_user)
@@ -420,3 +439,18 @@ def test_init_placeholder_or_blank_username_falls_back_to_env(monkeypatch):
 
 def test_init_without_any_username_skips_session(monkeypatch):
     assert _init_session(monkeypatch, {}, env_user=None) == []
+
+
+def test_init_from_new_env_names_only(monkeypatch):
+    server = _fresh_server(monkeypatch)
+    for key in ("DELINEA_USERNAME", "DELINEA_PASSWORD", "DELINEA_BASE_URL"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("DELINEA_SECRET_SERVER_USERNAME", "newu")
+    monkeypatch.setenv("DELINEA_SECRET_SERVER_PASSWORD", "newp")
+    monkeypatch.setenv("DELINEA_SECRET_SERVER_URL", "https://new.example")
+    inited = []
+    monkeypatch.setattr(server, "DelineaSession", _RecordingSession)
+    monkeypatch.setattr(server.SessionManager, "init", inited.append)
+    server._init_from_config({})
+    assert inited[0].kw["username"] == "newu"
+    assert inited[0].kw["base_url"] == "https://new.example"

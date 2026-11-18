@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
+from delinea_api import env_first
 from delinea_mcp.annotations import TOOL_ANNOTATIONS
 
 from . import constants
@@ -38,8 +39,11 @@ def configure(cfg: dict[str, Any]) -> None:
         _FETCH_ALLOWED = {str(o).lower() for o in cfg["fetch_objects"]}
 
 
-def _cfg_or_env(key: str) -> str | None:
-    """Return a config value with placeholder-aware fallback to environment."""
+def _cfg_or_env(key: str, *env_names: str) -> str | None:
+    """Return a config value with placeholder-aware fallback to environment.
+
+    ``env_names`` are checked in order (first non-empty wins); default is ``key``.
+    """
 
     cfg_val = _CFG.get(key.lower())
     if isinstance(cfg_val, str):
@@ -48,12 +52,14 @@ def _cfg_or_env(key: str) -> str | None:
             cfg_val = None
     if cfg_val is not None:
         return cfg_val
-    return os.getenv(key)
+    return env_first(*env_names) if env_names else os.getenv(key)
 
 
 def _api_base_url() -> str:
     """Return the full API base URL including `/api` if configured."""
-    base = _cfg_or_env("DELINEA_BASE_URL")
+    base = _cfg_or_env(
+        "DELINEA_BASE_URL", "DELINEA_SECRET_SERVER_URL", "DELINEA_BASE_URL"
+    )
     try:
         session = SessionManager.get()
         if getattr(session, "base_url", None):

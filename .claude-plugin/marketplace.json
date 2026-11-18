@@ -1,0 +1,13 @@
+{
+  "name": "delinea",
+  "owner": { "name": "Delinea", "url": "https://delinea.com" },
+  "metadata": { "description": "Delinea plugins for Claude Code" },
+  "plugins": [
+    {
+      "name": "delinea",
+      "source": "./plugin",
+      "description": "Delinea Secret Server and Platform tools for Claude, run locally via uvx",
+      "version": "1.2.0"
+    }
+  ]
+}

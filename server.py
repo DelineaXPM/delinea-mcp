@@ -10,7 +10,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from delinea_api import DelineaSession
+from delinea_api import DelineaSession, env_first
 from delinea_mcp import (
     secretserver_users,
     strongdm_tools,
@@ -100,9 +100,13 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
         stripped = username.strip()
         if not stripped or (stripped.startswith("<") and stripped.endswith(">")):
             username = None  # blank or <placeholder> means unset, as in tools
-    username = username or os.getenv("DELINEA_USERNAME")
-    password = os.getenv("DELINEA_PASSWORD")
-    base_url = cfg.get("delinea_base_url") or os.getenv("DELINEA_BASE_URL")
+    username = username or env_first(
+        "DELINEA_SECRET_SERVER_USERNAME", "DELINEA_USERNAME"
+    )
+    password = env_first("DELINEA_SECRET_SERVER_PASSWORD", "DELINEA_PASSWORD")
+    base_url = cfg.get("delinea_base_url") or env_first(
+        "DELINEA_SECRET_SERVER_URL", "DELINEA_BASE_URL"
+    )
 
     platform_hostname = cfg.get("platform_hostname") or os.getenv(
         "PLATFORM_HOSTNAME", ""
@@ -197,7 +201,7 @@ def list_example_reports() -> str:
 
 
 def run_server(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     # --config is optional; when omitted we use the module-level CURRENT_CONFIG
     parser.add_argument("--config", default=None)
     args = parser.parse_args(argv)

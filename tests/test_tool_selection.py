@@ -42,6 +42,9 @@ def reg(monkeypatch):
         "SDM_API_ACCESS_KEY",
         "DELINEA_USERNAME",
         "DELINEA_PASSWORD",
+        "DELINEA_SECRET_SERVER_USERNAME",
+        "DELINEA_SECRET_SERVER_PASSWORD",
+        "DELINEA_SECRET_SERVER_URL",
     ):
         monkeypatch.delenv(var, raising=False)
     fake = NameMCP()

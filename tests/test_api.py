@@ -312,3 +312,125 @@ def test_request_auto_reauth(monkeypatch):
     assert resp.json() == {"ok": True}
     assert dummy.request_calls == 2
     assert dummy.post_count == 2
+
+
+# --- DELINEA_SECRET_SERVER_* env names (checked before the legacy names) ---
+
+_NEW = {
+    "user": "DELINEA_SECRET_SERVER_USERNAME",
+    "pw": "DELINEA_SECRET_SERVER_PASSWORD",
+    "url": "DELINEA_SECRET_SERVER_URL",
+}
+_OLD = {
+    "user": "DELINEA_USERNAME",
+    "pw": "DELINEA_PASSWORD",
+    "url": "DELINEA_BASE_URL",
+}
+_ENV_ALL = (*_NEW.values(), *_OLD.values(), "DELINEA_USER", "PLATFORM_HOSTNAME")
+# name -> (which vars to set, expected value)
+_ENV_CASES = {
+    "new_only": ({"n": "new"}, "new"),
+    "both": ({"n": "new", "o": "old"}, "new"),
+    "old_only": ({"o": "old"}, "old"),
+    "blank_new": ({"n": "", "o": "old"}, "old"),
+}
+
+
+def _api(monkeypatch):
+    import delinea_api
+
+    importlib.reload(delinea_api)
+    for k in _ENV_ALL:
+        monkeypatch.delenv(k, raising=False)
+    return delinea_api
+
+
+def _set(monkeypatch, setting, spec):
+    if "n" in spec:
+        monkeypatch.setenv(_NEW[setting], spec["n"])
+    if "o" in spec:
+        monkeypatch.setenv(_OLD[setting], spec["o"])
+
+
+@pytest.mark.parametrize("case", _ENV_CASES)
+@pytest.mark.parametrize("setting", ["user", "pw", "url"])
+def test_authenticate_new_env_names(monkeypatch, setting, case):
+    delinea_api = _api(monkeypatch)
+    spec, want = _ENV_CASES[case]
+    dummy = DummyRequests()
+    monkeypatch.setattr(delinea_api, "requests", dummy)
+    for s, default in (("user", "u"), ("pw", "p"), ("url", "http://x")):
+        if s != setting:
+            monkeypatch.setenv(_NEW[s], default)
+    _set(monkeypatch, setting, spec)
+    delinea_api.DelineaSession()
+    url, data = dummy.post_called
+    got = {
+        "user": data["username"],
+        "pw": data["password"],
+        "url": url.removesuffix("/oauth2/token"),
+    }[setting]
+    assert got == want
+
+
+def test_session_base_url_default(monkeypatch):
+    delinea_api = _api(monkeypatch)
+    monkeypatch.setattr(delinea_api, "requests", DummyRequests())
+    monkeypatch.setenv(_NEW["user"], "u")
+    monkeypatch.setenv(_NEW["pw"], "p")
+    assert delinea_api.DelineaSession().base_url == "https://localhost/SecretServer"
+
+
+class _PlatformRequests(DummyRequests):
+    def post(self, url, data=None, **kwargs):
+        return super().post(url, data)
+
+
+@pytest.mark.parametrize("case", _ENV_CASES)
+@pytest.mark.parametrize("setting", ["user", "pw"])
+def test_authenticate_platform_new_env_names(monkeypatch, setting, case):
+    delinea_api = _api(monkeypatch)
+    spec, want = _ENV_CASES[case]
+    dummy = _PlatformRequests()
+    monkeypatch.setattr(delinea_api, "requests", dummy)
+    for s, default in (("user", "u"), ("pw", "p")):
+        if s != setting:
+            monkeypatch.setenv(_NEW[s], default)
+    _set(monkeypatch, setting, spec)
+    delinea_api.DelineaSession(base_url="http://x", platform_hostname="plat.example")
+    url, data = dummy.post_called
+    assert url == "https://plat.example/identity/api/oauth2/token/xpmplatform"
+    got = data["client_id" if setting == "user" else "client_secret"]
+    assert got == want
+
+
+def test_authenticate_legacy_delinea_user_still_works(monkeypatch):
+    delinea_api = _api(monkeypatch)
+    dummy = DummyRequests()
+    monkeypatch.setattr(delinea_api, "requests", dummy)
+    monkeypatch.setenv("DELINEA_USER", "legacy")
+    monkeypatch.setenv("DELINEA_PASSWORD", "p")
+    delinea_api.DelineaSession(base_url="http://x")
+    assert dummy.post_called[1]["username"] == "legacy"
+
+
+def test_env_first(monkeypatch):
+    delinea_api = _api(monkeypatch)
+    assert delinea_api.env_first("DELINEA_USER", "DELINEA_PASSWORD") is None
+    monkeypatch.setenv("DELINEA_PASSWORD", "x")
+    assert delinea_api.env_first("DELINEA_USER", "DELINEA_PASSWORD") == "x"
+
+
+@pytest.mark.parametrize("case", _ENV_CASES)
+def test_api_base_url_new_env_names(monkeypatch, case):
+    for k in _ENV_ALL:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(tools, "_CFG", {})
+
+    def no_session(cls):
+        raise RuntimeError
+
+    monkeypatch.setattr(SessionManager, "get", classmethod(no_session))
+    spec, want = _ENV_CASES[case]
+    _set(monkeypatch, "url", spec)
+    assert tools._api_base_url() == f"{want}/api"

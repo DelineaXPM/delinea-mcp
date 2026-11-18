@@ -46,12 +46,28 @@ def _auth_failure_message(response: requests.Response) -> str:
     return message
 
 
+def env_first(*names: str) -> str | None:
+    """Return the first non-empty env var among names."""
+    return next((v for n in names if (v := os.getenv(n))), None)
+
+
+def _env_username() -> str | None:
+    return env_first(
+        "DELINEA_SECRET_SERVER_USERNAME", "DELINEA_USERNAME", "DELINEA_USER"
+    )
+
+
+def _env_password() -> str | None:
+    return env_first("DELINEA_SECRET_SERVER_PASSWORD", "DELINEA_PASSWORD")
+
+
 @dataclass
 class DelineaSession:
     """Session for interacting with Delinea Secret Server.
 
-    Credentials are read from ``DELINEA_USERNAME`` and ``DELINEA_PASSWORD``
-    environment variables. Authentication is performed automatically on
+    Credentials are read from ``DELINEA_SECRET_SERVER_USERNAME`` and
+    ``DELINEA_SECRET_SERVER_PASSWORD`` (falling back to ``DELINEA_USERNAME`` and
+    ``DELINEA_PASSWORD``) environment variables. Authentication is performed automatically on
     creation, storing the bearer token for subsequent requests.
     """
 
@@ -67,8 +83,10 @@ class DelineaSession:
     )
 
     def __post_init__(self) -> None:
-        self.base_url = self.base_url or os.getenv(
-            "DELINEA_BASE_URL", "https://localhost/SecretServer"
+        self.base_url = (
+            self.base_url
+            or env_first("DELINEA_SECRET_SERVER_URL", "DELINEA_BASE_URL")
+            or "https://localhost/SecretServer"
         )
         self.platform_hostname = self.platform_hostname or os.getenv(
             "PLATFORM_HOSTNAME", ""
@@ -90,18 +108,18 @@ class DelineaSession:
 
         Parameters
         ----------
-        username: optional username, defaults to ``DELINEA_USERNAME`` env var.
-        password: optional password, defaults to ``DELINEA_PASSWORD`` env var.
+        username: optional username, defaults to ``DELINEA_SECRET_SERVER_USERNAME`` then
+            ``DELINEA_USERNAME`` / ``DELINEA_USER`` env var.
+        password: optional password, defaults to ``DELINEA_SECRET_SERVER_PASSWORD``
+            then ``DELINEA_PASSWORD`` env var.
 
         Returns
         -------
         str
             Access token returned by the server.
         """
-        username = (
-            username or os.getenv("DELINEA_USERNAME") or os.getenv("DELINEA_USER")
-        )
-        password = password or os.getenv("DELINEA_PASSWORD")
+        username = username or _env_username()
+        password = password or _env_password()
         if not username or not password:
             raise ValueError("username and password required")
         url = self.base_url.rstrip("/") + "/oauth2/token"
@@ -133,21 +151,18 @@ class DelineaSession:
 
         Parameters
         ----------
-        client_id: defaults to ``DELINEA_USERNAME`` / ``DELINEA_USER`` env var.
-        client_secret: defaults to ``DELINEA_PASSWORD`` env var.
+        client_id: defaults to ``self.username``, else ``DELINEA_SECRET_SERVER_USERNAME``,
+            ``DELINEA_USERNAME`` or ``DELINEA_USER`` env var.
+        client_secret: defaults to ``DELINEA_SECRET_SERVER_PASSWORD`` then
+            ``DELINEA_PASSWORD`` env var.
 
         Returns
         -------
         str
             Access token issued by the Platform identity service.
         """
-        client_id = (
-            client_id
-            or self.username
-            or os.getenv("DELINEA_USERNAME")
-            or os.getenv("DELINEA_USER")
-        )
-        client_secret = client_secret or os.getenv("DELINEA_PASSWORD")
+        client_id = client_id or self.username or _env_username()
+        client_secret = client_secret or _env_password()
         if not client_id or not client_secret:
             raise ValueError("client_id and client_secret required")
         hostname = self.platform_hostname.rstrip("/")

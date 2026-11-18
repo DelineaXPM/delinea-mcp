@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "delinea": {
+      "command": "uvx",
+      "args": ["--no-config", "--python", "3.13", "delinea-mcp==1.2.0"],
+      "env": {
+        "DELINEA_MCP_PLUGIN": "1",
+        "DELINEA_SECRET_SERVER_URL": "${user_config.secret_server_url}",
+        "DELINEA_SECRET_SERVER_USERNAME": "${user_config.secret_server_username}",
+        "DELINEA_SECRET_SERVER_PASSWORD": "${user_config.secret_server_password}",
+        "PLATFORM_HOSTNAME": "${user_config.platform_hostname}",
+        "PLATFORM_SERVICE_ACCOUNT": "${user_config.platform_service_account}",
+        "PLATFORM_SERVICE_PASSWORD": "${user_config.platform_service_password}",
+        "PLATFORM_TENANT_ID": "${user_config.platform_tenant_id}",
+        "DELINEA_ENABLED_TOOLS": "${user_config.enabled_tools}"
+      }
+    }
+  }
+}
