@@ -64,28 +64,28 @@ plugin/
   "name": "delinea",
   "displayName": "Delinea",
   "version": "1.2.0",
-  "description": "Delinea Secret Server, Platform, and StrongDM tools for Claude",
+  "description": "Delinea Secret Server and Platform tools for Claude, run locally via uvx",
   "author": { "name": "Delinea", "url": "https://delinea.com" },
   "homepage": "https://github.com/DelineaXPM/delinea-mcp",
   "repository": "https://github.com/DelineaXPM/delinea-mcp",
   "license": "MIT",
   "keywords": ["secrets", "pam", "secret-server", "delinea"],
   "userConfig": {
-    "base_url": {
+    "secret_server_url": {
       "type": "string",
       "title": "Secret Server URL",
       "description": "For example https://tenant.secretservercloud.com",
       "required": true
     },
-    "username": {
+    "secret_server_username": {
       "type": "string",
-      "title": "Application account",
+      "title": "Secret Server application account",
       "description": "Secret Server Application Account username",
       "required": true
     },
-    "password": {
+    "secret_server_password": {
       "type": "string",
-      "title": "Password",
+      "title": "Secret Server password",
       "description": "Application account password",
       "sensitive": true,
       "required": true
@@ -93,15 +93,29 @@ plugin/
     "platform_hostname": {
       "type": "string",
       "title": "Platform hostname (optional)",
-      "description": "<tenant>.secureplatform.io",
+      "default": ""
+    },
+    "platform_service_account": {
+      "type": "string",
+      "title": "Platform service account (optional)",
+      "default": ""
+    },
+    "platform_service_password": {
+      "type": "string",
+      "title": "Platform service password (optional)",
+      "sensitive": true,
+      "default": ""
+    },
+    "platform_tenant_id": {
+      "type": "string",
+      "title": "Platform tenant ID (optional)",
       "default": ""
     },
     "enabled_tools": {
       "type": "string",
-      "multiple": true,
       "title": "Enabled tools",
-      "description": "Leave empty for the read-only default set",
-      "default": []
+      "description": "Comma-separated tool names. Leave blank for the read-only default set.",
+      "default": ""
     }
   }
 }
@@ -114,18 +128,27 @@ plugin/
   "mcpServers": {
     "delinea": {
       "command": "uvx",
-      "args": ["delinea-mcp==1.2.0"],
+      "args": ["--no-config", "--python", "3.13", "delinea-mcp==1.2.0"],
       "env": {
-        "DELINEA_BASE_URL": "${user_config.base_url}",
-        "DELINEA_USERNAME": "${user_config.username}",
-        "DELINEA_PASSWORD": "${user_config.password}",
+        "DELINEA_MCP_PLUGIN": "1",
+        "DELINEA_SECRET_SERVER_URL": "${user_config.secret_server_url}",
+        "DELINEA_SECRET_SERVER_USERNAME": "${user_config.secret_server_username}",
+        "DELINEA_SECRET_SERVER_PASSWORD": "${user_config.secret_server_password}",
         "PLATFORM_HOSTNAME": "${user_config.platform_hostname}",
-        "DELINEA_MCP_NO_CWD_CONFIG": "1"
+        "PLATFORM_SERVICE_ACCOUNT": "${user_config.platform_service_account}",
+        "PLATFORM_SERVICE_PASSWORD": "${user_config.platform_service_password}",
+        "PLATFORM_TENANT_ID": "${user_config.platform_tenant_id}",
+        "DELINEA_ENABLED_TOOLS": "${user_config.enabled_tools}"
       }
     }
   }
 }
 ```
+
+Shipped decisions: `enabled_tools` is a plain comma-separated string (userConfig has no usable list default), plugin
+mode is `DELINEA_MCP_PLUGIN=1` (exact string), `--no-config` stops a project `uv.toml` redirecting the package index,
+and `--python 3.13` pins the interpreter. The `DELINEA_SECRET_SERVER_*` names are preferred and fall back to the
+legacy `DELINEA_BASE_URL` / `DELINEA_USERNAME` / `DELINEA_PASSWORD`.
 
 Sensitive `userConfig` values are stored in the OS credential store, not in `settings.json`. Directory policy also
 requires prompting through `userConfig` rather than reading a credential already set in the user's environment.
@@ -137,9 +160,9 @@ requires prompting through `userConfig` rather than reading a credential already
 1. Add a `[build-system]` (hatchling) and `[project.scripts] delinea-mcp = "server:run_server"`. Ship `server` and
    `delinea_api` as top-level modules. Moving them into `delinea_mcp/` is cleaner, but `uvx` installs into an isolated
    environment, so it isn't required for the plugin. Revisit if pip users hit module-name collisions.
-2. Add environment fallbacks in `_init_from_config`: `DELINEA_USERNAME`, and `DELINEA_ENABLED_TOOLS` as a
+2. Add environment fallbacks in `_init_from_config`: `DELINEA_SECRET_SERVER_USERNAME` / `DELINEA_USERNAME`, and `DELINEA_ENABLED_TOOLS` as a
    comma-separated list. Remove the `os.environ.pop("DELINEA_USERNAME")`.
-3. Gate the cwd `config.json` lookup behind an explicit opt-in (gap 4). Also check the import-time
+3. Gate the cwd `config.json` lookup behind plugin mode, `DELINEA_MCP_PLUGIN=1` (gap 4, resolved). Also check the import-time
    `load_config(DEFAULT_PATH)`: once installed, that path resolves next to `site-packages`.
 4. When launched by the plugin with no `enabled_tools`, register only the read-only tool set.
 5. Add tests for each change, keeping 100% coverage on non-test files per `AGENTS.md`.
@@ -192,15 +215,18 @@ requires prompting through `userConfig` rather than reading a credential already
 
 ## Open decisions
 
-- **Plugin name.** It is permanent once published. Recommendation: `delinea` (components appear as `delinea:...`).
+- **Plugin name (resolved: `delinea`).** It is permanent once published. Recommendation: `delinea` (components appear as `delinea:...`).
   Alternative: `delinea-mcp`. A bare `mcp` or `plugin` is reserved.
-- **Remote mode.** Optionally add a second server for customers who already host the SSE/OAuth deployment
+- **Remote mode (deferred).** Optionally add a second server for customers who already host the SSE/OAuth deployment
   (`"type": "http", "url": "${user_config.server_url}"`). Skipped for v1: it only works in Claude Code and adds a server
   that fails when no URL is set.
-- **Claude Desktop.** A `.mcpb` extension would replace the manual setup in `docs/claude-desktop.md`. Treat it as a
+- **Claude Desktop (deferred).** A `.mcpb` extension would replace the manual setup in `docs/claude-desktop.md`. Treat it as a
   separate track; bundling `.mcpb` inside the plugin is held for review.
-- **Directory submitter.** Identify who at Delinea holds Owner or Directory rights on claude.ai. This is the only
+- **Directory submitter (open).** Identify who at Delinea holds Owner or Directory rights on claude.ai. This is the only
   external blocker.
+- **Platform domain (open).** `secureplatform.io` (plugin.json, repo docs) versus `delinea.app` (plugin README install
+  example); confirm which is current.
+- **LICENSE copyright holder (open).** Confirm with the owners before the PyPI release.
 
 ## References
 

@@ -247,10 +247,39 @@ print(m.version('delinea-mcp'))"` matches `pyproject.toml`. It fails today becau
 - Add the listing fields to `plugin.json`: `icon` (an SVG or PNG under `plugin/`), plus `documentationUrl`,
   `supportUrl`, `privacyPolicyUrl`, and `termsOfServiceUrl`, using URLs from Delinea.
 - Root `README.md`: add a Claude Code plugin install section. Update `docs/claude-desktop.md` with a pointer to it.
-- Changelog entry through changie.
+- Changelog: a `v1.2.0` section in the hand-written `CHANGELOG.md` (the repo has no changie config).
+- Document `DELINEA_SECRET_SERVER_{URL,USERNAME,PASSWORD}` (preferred, with legacy fallback), `DELINEA_MCP_PLUGIN`
+  and `DELINEA_ENABLED_TOOLS` in the root README configuration section.
+- Update `docs/claude-plugin-plan.md` with final decisions (key names, string `enabled_tools`, Platform settings).
 - Optional, after v1: a `skills/secret-server/SKILL.md` usage-guidance skill.
 
-### Phase 7: Release and distribution (manual)
+### Phase 7: Resilient startup on Secret Server auth failure
+
+**Complexity:** Moderate
+
+**Problem:** `_init_from_config` builds `DelineaSession`, which authenticates in `__post_init__`. A wrong URL or
+password, or a network blip at launch, raises and kills the process, so `/mcp` shows "failed" with no reason.
+
+**Tests First (RED):**
+
+- With credentials set and authentication raising (`ConnectionError`, HTTP 401, `ValueError`), `_init_from_config`
+  returns normally and tools still register.
+- A tool call after a failed startup returns an error payload naming the cause (for example "Secret Server login
+  failed: ..."), never the password.
+- A later tool call retries authentication and succeeds once the server is reachable (transient failure recovers
+  without restarting).
+- Concurrent first calls authenticate once.
+
+**Implementation (GREEN):**
+
+- `SessionManager` gains a lazy path: store a factory instead of a built session; `get()` builds it on first use under
+  a lock and raises a clear `RuntimeError` on failure. `guard_tool` already turns tool exceptions into error payloads.
+- `_init_from_config` registers the factory and logs (does not raise) a startup authentication failure.
+
+**Verify:** plugin-mode smoke test with an unreachable URL answers `initialize` and lists tools; a tool call returns the
+login error.
+
+### Phase 8: Release and distribution (manual)
 
 **Complexity:** Simple (process)
 
@@ -321,6 +350,7 @@ default).
 | `.github/workflows/release.yml` PyPI job                     | Supply chain: publishes the code users execute                      | manual required  |
 | `plugin/.mcp.json`, `plugin.json` userConfig                 | Credential flow into the server process                             | security-focused |
 | `pyproject.toml` build config                                | Wheel contents (no tests or docs leaking, required modules present) | standard         |
+| `delinea_mcp/session.py` lazy session (Phase 7)              | Auth error handling; must not leak credentials in error payloads    | security-focused |
 
 ---
 

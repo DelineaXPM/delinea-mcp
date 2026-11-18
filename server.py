@@ -201,7 +201,8 @@ def list_example_reports() -> str:
 
 
 def run_server(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(allow_abbrev=False)
+    # Plugin mode rejects abbreviations so a manifest can't sneak in "--conf".
+    parser = argparse.ArgumentParser(allow_abbrev=not _plugin_mode())
     # --config is optional; when omitted we use the module-level CURRENT_CONFIG
     parser.add_argument("--config", default=None)
     args = parser.parse_args(argv)

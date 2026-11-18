@@ -43,10 +43,22 @@
 - Initialize project: `uv pip sync requirements.txt`
 - Use `uv run server.py --config config.json`
 
+### Claude Code plugin
+
+For Claude Code, install the plugin instead of running the server by hand:
+
+```text
+/plugin marketplace add DelineaXPM/delinea-mcp
+/plugin install delinea@delinea
+```
+
+It runs this server locally via `uvx` from PyPI (`delinea-mcp`), prompts for your settings, stores passwords in the OS
+keychain, and enables only the read-only tools by default. See [plugin/README.md](plugin/README.md).
+
 ## Configuration
 
 Secrets such as passwords continue to come from environment variables.
-Provide `DELINEA_PASSWORD` in your shell environment.
+Provide `DELINEA_SECRET_SERVER_PASSWORD` (or the legacy `DELINEA_PASSWORD`) in your shell environment.
 Optional features rely on additional variables such as `AZURE_OPENAI_KEY` or `PLATFORM_SERVICE_PASSWORD`.
 
 Non-secret parameters belong in `config.json`:
@@ -134,10 +146,32 @@ The configuration file supports the following keys:
 - **fetch_objects** - Allowed object types for the `fetch` tool.
   Defaults to `["secret"]` but can include the same values as `search_objects`.
 
+### Environment variables
+
+Each preferred name falls back to the legacy name, which still works. A blank value counts as unset.
+`delinea_base_url` and `delinea_username` in `config.json` take precedence over the environment.
+
+| Preferred                        | Legacy fallback                         |
+| -------------------------------- | --------------------------------------- |
+| `DELINEA_SECRET_SERVER_URL`      | `DELINEA_BASE_URL`                      |
+| `DELINEA_SECRET_SERVER_USERNAME` | `DELINEA_USERNAME`, then `DELINEA_USER` |
+| `DELINEA_SECRET_SERVER_PASSWORD` | `DELINEA_PASSWORD`                      |
+
+Other variables:
+
+- **DELINEA_ENABLED_TOOLS** - Comma-separated tool names to register. Precedence: `enabled_tools` in the config file,
+  then this variable, then the read-only default in plugin mode, otherwise all tools.
+- **DELINEA_MCP_PLUGIN** - Set to exactly `1` for plugin mode. The server then ignores any `config.json` in the working
+  directory (an explicit `--config` still works), and by default exposes only the read-only tools.
+- **PLATFORM_HOSTNAME** - When set, Secret Server login goes through Delinea Platform OAuth. Also needed by the Platform tools.
+- **PLATFORM_SERVICE_ACCOUNT**, **PLATFORM_SERVICE_PASSWORD** - Needed by the Platform user tools.
+  **PLATFORM_TENANT_ID** is optional.
+
 ### Secret Server account
 
 The server signs in to Secret Server with the `/oauth2/token` password grant
-using `delinea_username` and `DELINEA_PASSWORD`. Create a dedicated
+using `delinea_username` (or `DELINEA_SECRET_SERVER_USERNAME`) and the password from `DELINEA_SECRET_SERVER_PASSWORD`
+(or `DELINEA_PASSWORD`). Create a dedicated
 **Application Account** for it (a Secret Server user with the Application
 Account flag) rather than reusing a person's login:
 

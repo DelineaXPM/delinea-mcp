@@ -1,5 +1,34 @@
 # Release Notes
 
+## v1.2.0 — Claude Code plugin
+
+### Claude Code plugin
+
+- New **Claude Code plugin** (`plugin/`) and marketplace (`.claude-plugin/marketplace.json`).
+  Install with `/plugin marketplace add DelineaXPM/delinea-mcp` and `/plugin install delinea@delinea`;
+  see `plugin/README.md`. It launches the server with `uvx --no-config --python 3.13 delinea-mcp==1.2.0`
+  and stores passwords in the OS keychain.
+- The server is now published to **PyPI as `delinea-mcp`** (Trusted Publishing) with a `delinea-mcp`
+  console script.
+
+### Plugin mode
+
+- `DELINEA_MCP_PLUGIN=1` turns on plugin mode: any `config.json` in the working directory is ignored and
+  config is not loaded at import time (an explicit `--config` still works), so an opened project cannot
+  reconfigure the server.
+- In plugin mode only the **read-only tools** are exposed by default.
+- New `DELINEA_ENABLED_TOOLS` env var: a comma-separated tool allowlist. Precedence is config
+  `enabled_tools`, then this variable, then the plugin read-only default, otherwise all tools.
+
+### Configuration
+
+- New preferred env names with fallback to the legacy ones (a blank value counts as unset):
+  `DELINEA_SECRET_SERVER_URL` (then `DELINEA_BASE_URL`), `DELINEA_SECRET_SERVER_USERNAME`
+  (then `DELINEA_USERNAME`, `DELINEA_USER`), `DELINEA_SECRET_SERVER_PASSWORD` (then `DELINEA_PASSWORD`).
+  Config file values still win for the URL and username.
+- The username now works from the environment alone. Previously the server discarded
+  `DELINEA_USERNAME` when the config file had none.
+
 ## v1.1.0 — MCP protocol 2026-07-28, StrongDM backend, security batch
 
 ### MCP protocol / SDK

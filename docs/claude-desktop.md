@@ -2,6 +2,8 @@
 
 Use Claude for Desktop with a local instance of the Delinea MCP server.
 
+> For Claude Code, use the plugin instead: see [Claude Code plugin](../README.md#claude-code-plugin).
+
 ## Configuration
 
 Add an entry to `claude_desktop_config.json` pointing to the `server.py` script and your configuration file:

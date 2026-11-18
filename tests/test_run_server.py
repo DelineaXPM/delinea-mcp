@@ -366,6 +366,16 @@ def test_abbreviated_config_flag_rejected(monkeypatch, tmp_path):
     assert seen == []
 
 
+def test_abbreviated_config_flag_still_works_outside_plugin_mode(monkeypatch, tmp_path):
+    cfg = {"transport_mode": "stdio"}
+    (tmp_path / "somefile").write_text(json.dumps(cfg))
+    monkeypatch.chdir(tmp_path)
+    server = _fresh_server(monkeypatch, plugin=None)
+    seen = _record_init(monkeypatch, server)
+    server.run_server(["--conf", "somefile"])
+    assert seen == [cfg]
+
+
 def test_plugin_flag_other_than_1_is_off(monkeypatch, tmp_path):
     cfg = {"transport_mode": "stdio", "enabled_tools": ["get_secret"]}
     (tmp_path / "config.json").write_text(json.dumps(cfg))
