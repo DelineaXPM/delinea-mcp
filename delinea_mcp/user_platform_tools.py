@@ -40,7 +40,7 @@ from urllib.parse import quote
 import requests
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import platform_host, raise_for_status, redact
+from delinea_mcp.api import mask_fields, platform_host, raise_for_status, redact
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -334,7 +334,7 @@ def user_management(
         action,
         user_id,
         username,
-        data,
+        mask_fields(data),  # a new user's data can carry a password
     )
 
     try:

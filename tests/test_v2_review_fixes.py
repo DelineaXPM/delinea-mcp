@@ -928,3 +928,39 @@ def test_field_push_error_never_echoes_value(tmp_path, monkeypatch, capsys):
     assert field_push.main([str(job)]) == 1
     err = capsys.readouterr().err
     assert "S3cr3t-Value" not in err and "********" in err
+
+
+def test_mask_fields_hides_credentials_in_logged_data():
+    data = {
+        "userName": "ann",
+        "password": "Pw-1",
+        "nested": [{"clientSecret": "s", "apiKey": "k", "note": "ok"}],
+    }
+    assert api.mask_fields(data) == {
+        "userName": "ann",
+        "password": "********",
+        "nested": [{"clientSecret": "********", "apiKey": "********", "note": "ok"}],
+    }
+    assert api.mask_fields('{"password": "x"}') == "<JSON text, 17 chars>"
+    assert api.mask_fields(None) is None
+
+
+@pytest.mark.parametrize(
+    "data", [{"password": "Pw-Logged-9"}, '{"password": "Pw-Logged-9"}']
+)
+def test_user_management_debug_log_masks_passwords(monkeypatch, caplog, data):
+    import logging
+
+    from delinea_mcp import secretserver_users
+
+    class S:
+        def request(self, method, path, **kwargs):
+            return Resp({"ok": True})
+
+    monkeypatch.setattr(SessionManager, "_session", S())
+    with caplog.at_level(logging.DEBUG, logger="delinea_mcp.secretserver_users"):
+        secretserver_users.secretserver_local_user_management(
+            "reset_password", user_id=6, data=data
+        )
+    assert "Pw-Logged-9" not in caplog.text
+    assert "secretserver_local_user_management(action=reset_password" in caplog.text

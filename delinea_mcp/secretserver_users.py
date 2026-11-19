@@ -18,6 +18,7 @@ import logging
 from typing import Any, Iterable
 
 from delinea_mcp.annotations import tool_metadata
+from delinea_mcp.api import mask_fields
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
@@ -112,7 +113,7 @@ def secretserver_local_user_management(
         "secretserver_local_user_management(action=%s, user_id=%s, data=%s)",
         action,
         user_id,
-        data,
+        mask_fields(data),  # create and reset_password carry passwords
     )
     session = SessionManager.get()
 
