@@ -44,8 +44,13 @@ def _server_env(**extra: str) -> dict[str, str]:
         "DELINEA_BASE_URL": os.environ["DELINEA_BASE_URL"],
         "DELINEA_USERNAME": os.environ["DELINEA_USERNAME"],
         "DELINEA_PASSWORD": os.environ["DELINEA_PASSWORD"],
-        # Empty optional plugin settings, exactly as userConfig substitutes them.
-        "PLATFORM_HOSTNAME": "",
+        # Empty optional plugin settings, exactly as userConfig substitutes them;
+        # LIVE_SS_VIA_PLATFORM=1 signs in through the Platform instead.
+        "PLATFORM_HOSTNAME": (
+            os.environ.get("PLATFORM_HOSTNAME", "")
+            if os.getenv("LIVE_SS_VIA_PLATFORM") == "1"
+            else ""
+        ),
         "PLATFORM_SERVICE_ACCOUNT": "",
         "PLATFORM_SERVICE_PASSWORD": "",
         "PLATFORM_TENANT_ID": "",

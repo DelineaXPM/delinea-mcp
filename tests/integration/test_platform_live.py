@@ -93,7 +93,10 @@ def test_search_users_live_returns_records():
     """A wildcard search against the service-account substring should hit at
     least the service user itself."""
     _require_platform()
-    out = user_platform_tools.search_users("test_mcp")
+    # Search for the configured service account (minus any @domain), so the
+    # test works on any tenant rather than one account name.
+    account = os.environ["PLATFORM_SERVICE_ACCOUNT"].split("@")[0]
+    out = user_platform_tools.search_users(account)
     assert out.get("success") is True
     results = (out.get("Result") or {}).get("Results", [])
     # At least the service account itself should match.

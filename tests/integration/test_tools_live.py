@@ -72,12 +72,23 @@ def test_secret_and_folder_live():
 def test_folder_crud_live():
     require_credentials()
     name = unique_name("mcp-folder")
-    res = server.folder_management("create", data={"name": name})
+    parent = int(os.getenv("LIVE_FOLDER_ID") or -1)
+    res = server.folder_management(
+        "create",
+        data={
+            "folderName": name,
+            "parentFolderId": parent,
+            "folderTypeId": 1,
+            "inheritPermissions": True,
+            "inheritSecretPolicy": True,
+        },
+    )
     fid = res.get("result", {}).get("id") or res.get("result", {}).get("folderId")
     if not fid:
-        pytest.skip("folder create failed")
+        pytest.skip(f"folder create failed: {res.get('error', '')[:120]}")
+    current = server.folder_management("get", folder_id=fid)
     updated = server.folder_management(
-        "update", folder_id=fid, data={"name": name + "-u"}
+        "update", folder_id=fid, data={**current, "folderName": name + "-u"}
     )
     assert "error" not in updated
     deleted = server.folder_management("delete", folder_id=fid)

@@ -53,14 +53,20 @@ haven't been verified on Windows yet.
 
 When you enable the plugin, Claude Code asks for:
 
-| Setting                                                 | Required | Notes                                                                                         |
-| ------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------- |
-| Secret Server URL                                       | Yes      | For example `https://example.secretservercloud.com`                                           |
-| Username                                                | Yes      | The account the plugin signs in as, or the Platform client ID when a Platform hostname is set |
-| Password                                                | Yes      | Stored in your operating system's secure credential store                                     |
-| Platform hostname, service account, password, tenant ID | No       | Only for Platform-integrated tenants                                                          |
-| Allow revealing passwords                               | No       | Off by default. When on, each reveal still needs your approval                                |
-| Enabled tools                                           | No       | Blank = every tool. Enter comma-separated tool names to limit what Claude can do              |
+<!-- markdownlint-disable MD013 -->
+
+| Setting                                        | Required      | Notes                                                                                                                                  |
+| ---------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Secret Server URL                              | Yes           | For example `https://example.secretservercloud.com`                                                                                    |
+| Username or client ID                          | Yes           | On the Delinea Platform (the usual setup): your Platform service account's client ID. Standalone Secret Server: an Application Account |
+| Password                                       | Yes           | Client secret or password, stored in your operating system's credential store                                                          |
+| Delinea Platform hostname                      | Platform only | For example `example.delinea.app`. With it set, the plugin signs in through the Platform                                               |
+| Separate Platform service account and password | No            | Leave empty to use the account above for the Platform user, role and report tools too                                                  |
+| Platform secondary tenant ID                   | No            | Leave empty unless your service account must act inside a specific child tenant                                                        |
+| Allow revealing passwords                      | No            | Off by default. When on, each reveal still needs your approval                                                                         |
+| Enabled tools                                  | No            | Blank = every tool. Enter comma-separated tool names to limit what Claude can do                                                       |
+
+<!-- markdownlint-enable MD013 -->
 
 ## How your secrets stay private
 

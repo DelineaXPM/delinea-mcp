@@ -40,6 +40,19 @@ def _init_live_session():
     # DELINEA_PASSWORD as a client_secret — which is a different credential
     # space.  The user_platform_tools module reads PLATFORM_HOSTNAME from
     # the env separately.
+    # LIVE_SS_VIA_PLATFORM=1: the vault runs on the Platform and the account
+    # is a Platform service account, so sign in through the Platform exactly
+    # as the server does with PLATFORM_HOSTNAME set.
+    if os.getenv("LIVE_SS_VIA_PLATFORM") == "1":
+        SessionManager.init(
+            DelineaSession(
+                base_url=base_url,
+                username=os.environ["DELINEA_USERNAME"],
+                platform_hostname=os.environ["PLATFORM_HOSTNAME"],
+            )
+        )
+        yield
+        return
     saved_platform_host = os.environ.pop("PLATFORM_HOSTNAME", None)
     try:
         session = DelineaSession(

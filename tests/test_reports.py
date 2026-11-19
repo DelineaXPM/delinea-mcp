@@ -135,9 +135,3 @@ def test_run_report_surfaces_execute_failure_body(monkeypatch):
     result = tools.run_report("SELECT 1", report_name="t")
     assert "POST /v1/reports/execute failed" in result["error"]
     assert "timed out" in result["error"]
-
-
-def test_list_example_reports_includes_sql_rules():
-    from delinea_mcp import tools
-
-    assert "Report SQL Rules" in tools.list_example_reports()

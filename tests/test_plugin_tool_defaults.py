@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from mcp.server.mcpserver import MCPServer
+
 from delinea_mcp import server, tools
 from delinea_mcp.session import SessionManager
-from mcp.server.mcpserver import MCPServer
 
 
 @pytest.fixture
@@ -75,3 +76,39 @@ def test_env_all_enables_everything(fresh, monkeypatch):
 def test_config_list_beats_env(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "folder_management")
     assert fresh({"enabled_tools": ["get_secret"]}) == {"get_secret"}
+
+
+def test_platform_tools_reuse_main_account(fresh, monkeypatch):
+    """One Platform service account serves the vault and the Platform tools."""
+    from delinea_mcp import user_platform_tools
+
+    seen = {}
+    monkeypatch.setattr(
+        user_platform_tools, "configure", lambda **kw: seen.update(kw) or None
+    )
+    monkeypatch.setattr(server, "DelineaSession", lambda **kw: object())
+    monkeypatch.setenv("DELINEA_USERNAME", "svc-client")
+    monkeypatch.setenv("DELINEA_PASSWORD", "svc-secret")
+    monkeypatch.setenv("PLATFORM_HOSTNAME", "acme.delinea.app")
+    monkeypatch.setenv("PLATFORM_SERVICE_ACCOUNT", "")
+    monkeypatch.setenv("PLATFORM_SERVICE_PASSWORD", "")
+    fresh()
+    assert seen["service_account"] == "svc-client"
+    assert seen["service_password"] == "svc-secret"
+
+
+def test_separate_platform_account_wins(fresh, monkeypatch):
+    from delinea_mcp import user_platform_tools
+
+    seen = {}
+    monkeypatch.setattr(
+        user_platform_tools, "configure", lambda **kw: seen.update(kw) or None
+    )
+    monkeypatch.setattr(server, "DelineaSession", lambda **kw: object())
+    monkeypatch.setenv("DELINEA_USERNAME", "vault-user")
+    monkeypatch.setenv("DELINEA_PASSWORD", "vault-pw")
+    monkeypatch.setenv("PLATFORM_HOSTNAME", "acme.delinea.app")
+    monkeypatch.setenv("PLATFORM_SERVICE_ACCOUNT", "platform-svc")
+    monkeypatch.setenv("PLATFORM_SERVICE_PASSWORD", "platform-pw")
+    fresh()
+    assert seen["service_account"] == "platform-svc"

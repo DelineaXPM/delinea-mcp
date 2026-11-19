@@ -22,7 +22,8 @@ import time
 from pathlib import Path
 
 import requests
-from delinea_mcp.api import DelineaAPIError, raise_for_status
+
+from delinea_mcp.api import DelineaAPIError, raise_for_status, redact
 from delinea_mcp.tls import use_system_trust_store
 
 
@@ -77,9 +78,9 @@ def main(argv: list[str] | None = None) -> int:
         hint = ""
         if exc.status_code == 401:
             hint = " The access token expired; ask the assistant to prepare the command again."
-        return _fail(f"{exc}{hint}")
+        return _fail(redact(f"{exc}{hint}", value))
     except requests.RequestException as exc:
-        return _fail(f"couldn't reach Secret Server: {exc}")
+        return _fail(redact(f"couldn't reach Secret Server: {exc}", value))
     print(f"Field '{field}' updated on secret {secret_id}.")
     return 0
 

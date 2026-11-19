@@ -45,6 +45,16 @@
 
 ### Plugin setup
 
+- **One Platform service account is enough.** With a Platform hostname set,
+  the vault session signs in through the Platform, and the Platform user,
+  role and report tools now reuse that account unless a separate
+  `PLATFORM_SERVICE_*` pair is given. The plugin settings say so.
+- Error text built from API responses masks any value the user just
+  submitted (`set_secret_field_environment_variable` and `field_push`), even
+  if a server echoes it in a validation message.
+- `scripts/seed_test_tenant.py` creates the folder, secret and IDs the live
+  tests expect; the live tests can sign in through the Platform
+  (`LIVE_SS_VIA_PLATFORM=1`).
 - Outbound TLS is verified against the **operating system's certificate
   store** (`truststore`), so the server signs in on networks that inspect
   TLS (Cloudflare Gateway, Zscaler, Netskope) and to on-premises Secret

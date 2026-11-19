@@ -10,14 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import stat
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import requests
-from delinea_mcp import annotations, api, server, tools
-from delinea_mcp.session import SessionManager
 from mcp import types
 from mcp.client import Client
 from mcp.server.elicitation import (
@@ -26,6 +25,9 @@ from mcp.server.elicitation import (
     DeclinedElicitation,
 )
 from mcp.server.mcpserver import Elicit, MCPServer
+
+from delinea_mcp import annotations, api, server, tools
+from delinea_mcp.session import SessionManager
 
 
 class Resp:
@@ -715,7 +717,7 @@ def test_run_report_truncates(monkeypatch):
 def test_run_report_description_points_at_examples_and_api_docs():
     doc = tools.run_report.__doc__
     assert "list_example_reports" in doc
-    assert "docs.delinea.com" in doc
+    assert re.search(r"https://docs\.delinea\.com/\S+", doc)
 
 
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
@@ -737,3 +739,40 @@ def test_reveal_over_mcp_without_prompt_support(
     assert "cannot show a confirmation prompt" in text and "hunter2" not in text
     monkeypatch.setitem(tools._CFG, "secret_reveal_mode", "client_approval")
     assert "hunter2" in asyncio.run(call()).content[0].text
+
+
+def test_redact_masks_submitted_value():
+    assert (
+        api.redact("bad value 'hunter22' given", "hunter22")
+        == "bad value '********' given"
+    )
+    assert api.redact("nothing here", "hunter22") == "nothing here"
+    assert api.redact("a b c", "a") == "a b c"  # too short to mask safely
+    assert api.redact("x", None) == "x"
+
+
+def test_field_push_error_never_echoes_value(tmp_path, monkeypatch, capsys):
+    """Even if the server echoes the submitted value, stderr shows a mask."""
+    from delinea_mcp import field_push
+
+    job = tmp_path / "job.json"
+    job.write_text(
+        json.dumps(
+            {
+                "expires": 9e12,
+                "source": "env:DMCP_SECRET",
+                "field": "api-key",
+                "secret_id": 7,
+                "url": "https://ss.example.com/api/v1/secrets/7/fields/api-key",
+                "token": "t",
+                "params": None,
+            }
+        )
+    )
+    monkeypatch.setenv("DMCP_SECRET", "S3cr3t-Value")
+    monkeypatch.setattr(field_push, "use_system_trust_store", lambda: False)
+    echo = Resp({"message": "Value 'S3cr3t-Value' is invalid"}, 400, "Bad Request")
+    monkeypatch.setattr(field_push.requests, "put", lambda *a, **k: echo)
+    assert field_push.main([str(job)]) == 1
+    err = capsys.readouterr().err
+    assert "S3cr3t-Value" not in err and "********" in err

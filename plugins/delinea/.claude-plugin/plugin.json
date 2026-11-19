@@ -28,40 +28,40 @@
     },
     "delinea_username": {
       "type": "string",
-      "title": "Username",
-      "description": "Secret Server account the plugin signs in as. Use a dedicated Application Account: Secret Server 12.1+ blocks password sign-in for regular users by default. When a Platform hostname is set, this is the Platform service account (client ID) used to reach Secret Server.",
+      "title": "Username or client ID",
+      "description": "For Secret Server on the Delinea Platform (the usual setup), your Platform service account's client ID, with the Platform hostname below. For a standalone Secret Server, a Secret Server Application Account (Secret Server 12.1+ blocks password sign-in for regular users by default).",
       "required": true
     },
     "delinea_password": {
       "type": "string",
       "title": "Password",
-      "description": "Password (or Platform client secret) for the account above. Stored in your operating system's secure credential store.",
+      "description": "Password or client secret for the account above. Stored in your operating system's secure credential store.",
       "sensitive": true,
       "required": true
     },
     "platform_hostname": {
       "type": "string",
-      "title": "Delinea Platform hostname (optional)",
-      "description": "Your Delinea Platform tenant, e.g. example.delinea.app. Leave empty for a standalone Secret Server.",
+      "title": "Delinea Platform hostname",
+      "description": "Your Platform tenant, e.g. example.delinea.app. Set it when Secret Server runs on the Delinea Platform; leave empty for a standalone Secret Server.",
       "default": ""
     },
     "platform_service_account": {
       "type": "string",
-      "title": "Platform service account (optional)",
-      "description": "Platform service account used by the Platform user and role tools. Leave empty if you don't use them.",
+      "title": "Separate Platform service account (optional)",
+      "description": "Leave empty to use the account above for the Platform user, role and report tools too. Only set it to use a different account for them.",
       "default": ""
     },
     "platform_service_password": {
       "type": "string",
-      "title": "Platform service account password (optional)",
-      "description": "Password for the Platform service account. Stored in your operating system's secure credential store.",
+      "title": "Separate Platform service account password (optional)",
+      "description": "Only with a separate Platform service account above. Stored in your operating system's secure credential store.",
       "sensitive": true,
       "default": ""
     },
     "platform_tenant_id": {
       "type": "string",
-      "title": "Platform tenant ID (optional)",
-      "description": "Only needed when your Platform administrator gave you a secondary tenant ID.",
+      "title": "Platform secondary tenant ID (rarely needed)",
+      "description": "Leave empty. Only for multi-tenant Platform setups where the service account must act inside a specific child tenant.",
       "default": ""
     },
     "allow_plaintext_reveal": {

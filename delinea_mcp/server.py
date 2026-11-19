@@ -7,6 +7,8 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
+from mcp.server.mcpserver import MCPServer
+
 from delinea_mcp import (
     secretserver_users,
     strongdm_tools,
@@ -64,7 +66,6 @@ from delinea_mcp.user_platform_tools import (
     search_users,
     user_management,
 )
-from mcp.server.mcpserver import MCPServer
 
 logger = logging.getLogger(__name__)
 _debug = False
@@ -156,10 +157,17 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     # Platform is not configured the tools return a clear error directing
     # the caller to either configure Platform or use secretserver_local_*.
     if cfg.get("platform_hostname"):
+        # With a Platform hostname, the main account is already a Platform
+        # service account (the vault session signs in through the Platform),
+        # so the Platform tools reuse it unless a separate one is given.
+        service_account = cfg.get("platform_service_account")
+        service_password = os.getenv("PLATFORM_SERVICE_PASSWORD")
+        if not service_account and not service_password:
+            service_account, service_password = username, password
         user_platform_tools.configure(
             hostname=cfg.get("platform_hostname"),
-            service_account=cfg.get("platform_service_account"),
-            service_password=os.getenv("PLATFORM_SERVICE_PASSWORD"),
+            service_account=service_account,
+            service_password=service_password,
             tenant_id=cfg.get("platform_tenant_id"),
         )
         logger.debug("Configured user_platform_tools from config")
@@ -307,6 +315,8 @@ def run_server(argv: list[str] | None = None) -> None:
             mcp.run(transport="stdio")
         case ("none", "sse"):
             import uvicorn
+            from fastapi import FastAPI, Request
+
             from delinea_mcp.transports.origin import (
                 allowed_origins_for,
                 install_origin_guard,
@@ -317,7 +327,6 @@ def run_server(argv: list[str] | None = None) -> None:
                 make_lifespan,
                 mount_streamable_http_routes,
             )
-            from fastapi import FastAPI, Request
 
             stateless = bool(cfg.get("streamable_http_stateless", True))
             manager = build_session_manager(
@@ -349,6 +358,8 @@ def run_server(argv: list[str] | None = None) -> None:
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # nosec B104
         case ("oauth", "sse"):
             import uvicorn
+            from fastapi import FastAPI, Request
+
             from delinea_mcp.auth.routes import mount_oauth_routes
             from delinea_mcp.auth.validators import require_scopes
             from delinea_mcp.transports.origin import (
@@ -361,7 +372,6 @@ def run_server(argv: list[str] | None = None) -> None:
                 make_lifespan,
                 mount_streamable_http_routes,
             )
-            from fastapi import FastAPI, Request
 
             stateless = bool(cfg.get("streamable_http_stateless", True))
             manager = build_session_manager(

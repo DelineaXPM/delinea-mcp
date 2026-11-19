@@ -12,7 +12,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Annotated, Any, Dict, Iterable, List
+from typing import Annotated, Any, Iterable
 
 import anyio.to_thread
 from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
@@ -21,6 +21,7 @@ from mcp.types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, ConfigDict, Field
 
 from delinea_mcp.annotations import tool_metadata
+from delinea_mcp.api import redact
 
 from . import constants
 from .session import SessionManager
@@ -829,7 +830,11 @@ def set_secret_field_environment_variable(
                 session.request("PUT", field_path, **kwargs)
             except Exception as exc:  # pragma: no cover - network failures
                 logger.exception("Failed to update field %s", field_slug)
-                return {"error": f"Failed to update field {field_slug!r}: {exc}"}
+                return {
+                    "error": redact(
+                        f"Failed to update field {field_slug!r}: {exc}", value
+                    )
+                }
             return {
                 "result": {
                     "secret_id": secret_id,
@@ -1989,7 +1994,10 @@ def folder_management(
     folder_id:
         Folder identifier required for ``"get"``, ``"update"`` and ``"delete"``.
     data:
-        JSON body used with ``"create"`` and ``"update"``.
+        JSON body used with ``"create"`` and ``"update"``. Create needs
+        ``folderName``, ``parentFolderId`` (``-1`` for the root) and
+        ``folderTypeId`` (``1``); ``inheritPermissions`` and
+        ``inheritSecretPolicy`` are optional booleans.
     params:
         Optional query parameters for ``"list"``.
 

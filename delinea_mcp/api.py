@@ -63,6 +63,17 @@ _DIRECT_API_AUTH_HINT = (
 _SIGN_IN_HINTS = dict.fromkeys((400, 401, 403), _DIRECT_API_AUTH_HINT)
 
 
+def redact(message: str, value: str | None) -> str:
+    """Mask *value* wherever it appears in *message*.
+
+    Error text built from API responses must never carry a secret the caller
+    just submitted, even if a server echoes it in a validation message.
+    """
+    if value and len(value) >= 4:
+        message = message.replace(value, "********")
+    return message
+
+
 class DelineaAPIError(requests.HTTPError):
     """HTTP error whose message carries the API's explanation and a hint."""
 
