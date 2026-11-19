@@ -6,11 +6,12 @@
 # and otherwise leaves Claude a note on how to fix it.
 
 # Claude Code exports each plugin setting as CLAUDE_PLUGIN_OPTION_<KEY>. If
-# the required connection settings were never entered, Claude Code leaves
-# the Delinea server out entirely, so say how to fix it. Only non-sensitive
-# settings are read here.
-if [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_BASE_URL-}" ] || [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_USERNAME-}" ]; then
-    echo "Delinea plugin: the Secret Server URL and username haven't been set, so Claude Code didn't start the Delinea MCP server. Tell the user to open /plugin, choose the Delinea plugin, and enter its settings (the password is stored in the operating system's credential store), then run /mcp to connect."
+# the required connection settings were never entered, the Delinea server
+# is left out or can't sign in, so say how to fix it. The Platform URL is
+# needed unless a standalone Secret Server URL is set instead. Only
+# non-sensitive settings are read here.
+if { [ -z "${CLAUDE_PLUGIN_OPTION_PLATFORM_HOSTNAME-}" ] && [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_BASE_URL-}" ]; } || [ -z "${CLAUDE_PLUGIN_OPTION_DELINEA_USERNAME-}" ]; then
+    echo "Delinea plugin: the required settings (Delinea Platform URL and client ID) haven't been set, so the Delinea MCP server can't connect. Tell the user to open /plugin, choose the Delinea plugin, and fill in the settings marked Required (the client secret is stored in the operating system's credential store), then run /mcp to connect."
 fi
 
 if command -v uvx >/dev/null 2>&1; then

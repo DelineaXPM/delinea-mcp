@@ -111,7 +111,15 @@ modules under their old names in `sys.modules`, so `import server` and
 launches `uvx delinea-mcp==<version>` and maps `userConfig` values to env vars;
 `skills/` holds the no-secret-visibility and building-reports skills. Bump the
 plugin `version` and the pinned `uvx` version together with `pyproject.toml` on
-every release, and run `claude plugin validate ./plugins/delinea`.
+every release, and run `claude plugin validate ./plugins/delinea` (with Claude
+Code 2.1.271 or later: the Tool access picker uses `options`, which older
+versions reject). Settings are listed required first, titled `Required: ...`,
+then optional ones titled `Optional: ...` (`userConfig` has no sections, so the
+order and title prefixes are the grouping; `tests/test_plugin_tool_defaults.py`
+checks it). Keep `userConfig` key names stable: renaming one loses users' saved
+values. The Platform URL is the primary setting; the Secret Server URL
+(`delinea_base_url`) is an override, otherwise found through the Platform's
+vault broker (`DelineaSession.discover_vault_url`).
 `hooks/check-deps.sh` is a check-only `SessionStart` hook (keep it free of
 shell variables and installs so the directory validator doesn't hold it);
 `skills/setup/` installs uv only with per-command user approval. Credential
@@ -159,7 +167,10 @@ The server auto-detects transport mode from configuration and initializes the ap
 Tools are dynamically registered based on:
 
 1. Available configuration (StrongDM tools only register with `strongdm_enabled: true`)
-2. `enabled_tools` configuration (empty list = all tools enabled)
+2. `enabled_tools` configuration (empty list = all tools enabled), then the
+   tool preset (`tool_preset` / `DELINEA_TOOL_PRESET`, the plugin's "Tool
+   access" picker: `read-only`, `all`, `custom` with `DELINEA_ENABLED_TOOLS`);
+   see `_select_tools` in `delinea_mcp/server.py`
 3. Platform tools require platform-specific configuration
 
 ## Key Integration Points

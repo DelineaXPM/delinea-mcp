@@ -28,14 +28,14 @@ manage folders, users, groups, roles and access requests.
 
 <!-- markdownlint-disable MD013 -->
 
-| Requirement                                                   | Why                                                                                                                           | How you get it                                                                                                                                                      |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code                                                   | The MCP server runs on your machine. Claude chat on the web and mobile doesn't load local servers; the skills load everywhere | [Install Claude Code](https://code.claude.com/docs/en/setup)                                                                                                        |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Provides `uvx`, which starts the server                                                                                       | Run `/delinea:setup`, or install it yourself: `brew install uv`, `winget install --id=astral-sh.uv -e`, `pipx install uv`, or uv's official installer               |
-| Python 3.13                                                   | The server's runtime                                                                                                          | uv downloads it automatically. Where downloads are blocked, install Python 3.13 yourself and uv uses it                                                             |
-| Network access to PyPI                                        | First start of each version downloads `delinea-mcp`                                                                           | Allow `pypi.org` and `files.pythonhosted.org`. Behind a TLS-inspecting proxy, set `UV_NATIVE_TLS=1`                                                                 |
-| A Delinea Secret Server account                               | Signing in (Cloud or on-premises)                                                                                             | Use a dedicated **Application Account** with only the permissions you want Claude to have. Secret Server 12.1+ blocks password sign-in for regular users by default |
-| Optional: Delinea Platform tenant                             | Platform user and role tools                                                                                                  | A `<tenant>.delinea.app` tenant and service account                                                                                                                 |
+| Requirement                                                   | Why                                                                                                                           | How you get it                                                                                                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code 2.1.271 or later                                  | The MCP server runs on your machine. Claude chat on the web and mobile doesn't load local servers; the skills load everywhere | [Install Claude Code](https://code.claude.com/docs/en/setup). Earlier versions can't show the plugin's Tool access picker                             |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Provides `uvx`, which starts the server                                                                                       | Run `/delinea:setup`, or install it yourself: `brew install uv`, `winget install --id=astral-sh.uv -e`, `pipx install uv`, or uv's official installer |
+| Python 3.13                                                   | The server's runtime                                                                                                          | uv downloads it automatically. Where downloads are blocked, install Python 3.13 yourself and uv uses it                                               |
+| Network access to PyPI                                        | First start of each version downloads `delinea-mcp`                                                                           | Allow `pypi.org` and `files.pythonhosted.org`. Behind a TLS-inspecting proxy, set `UV_NATIVE_TLS=1`                                                   |
+| A Delinea Platform tenant and service account                 | Signing in. The plugin finds your Secret Server from the Platform                                                             | A `<tenant>.delinea.app` tenant and a service account with only the permissions you want Claude to have                                               |
+| Or: a standalone Secret Server account                        | Only for a Secret Server that isn't on the Delinea Platform (Cloud or on-premises)                                            | A dedicated **Application Account**. Secret Server 12.1+ blocks password sign-in for regular users by default                                         |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -51,22 +51,49 @@ haven't been verified on Windows yet.
 
 ## Configuration
 
-When you enable the plugin, Claude Code asks for:
+When you enable the plugin, Claude Code asks for its settings. The required
+ones come first, titled **Required:**; everything below them is titled
+**Optional:** and can be left as it is.
+
+### Required settings
 
 <!-- markdownlint-disable MD013 -->
 
-| Setting                                        | Required      | Notes                                                                                                                                  |
-| ---------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Secret Server URL                              | Yes           | For example `https://example.secretservercloud.com`                                                                                    |
-| Username or client ID                          | Yes           | On the Delinea Platform (the usual setup): your Platform service account's client ID. Standalone Secret Server: an Application Account |
-| Password                                       | Yes           | Client secret or password, stored in your operating system's credential store                                                          |
-| Delinea Platform hostname                      | Platform only | For example `example.delinea.app`. With it set, the plugin signs in through the Platform                                               |
-| Separate Platform service account and password | No            | Leave empty to use the account above for the Platform user, role and report tools too                                                  |
-| Platform secondary tenant ID                   | No            | Leave empty unless your service account must act inside a specific child tenant                                                        |
-| Allow revealing passwords                      | No            | Off by default. When on, each reveal still needs your approval                                                                         |
-| Enabled tools                                  | No            | Blank = every tool. Enter comma-separated tool names to limit what Claude can do                                                       |
+| Setting              | Notes                                                                                                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delinea Platform URL | For example `https://example.delinea.app`. The plugin signs in through the Platform and looks up your Secret Server from it, so you don't enter a Secret Server URL   |
+| Client ID            | Your Platform service account's client ID                                                                                                                             |
+| Client secret        | Stored in your operating system's credential store                                                                                                                    |
+| Tool access          | **Read-only**, **All tools** (the default) or **Custom**. See below                                                                                                   |
+| Custom tool list     | Only with **Custom** tool access: comma-separated tool names, for example `get_secret,search_secrets,get_secret_environment_variable`. Ignored with the other choices |
+
+### Optional settings
+
+| Setting                                      | Notes                                                                                                                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Secret Server URL override                   | Leave empty. Set it to use a different vault than the one your Platform tenant reports, or for a standalone Secret Server (then leave the Platform URL empty) |
+| Allow revealing passwords                    | Off by default. When on, each reveal still needs your approval                                                                                                |
+| Separate Platform service account and secret | Leave empty to use the client ID above for the Platform user, role and report tools too                                                                       |
+| Platform secondary tenant ID                 | Leave empty unless your service account must act inside a specific child tenant                                                                               |
 
 <!-- markdownlint-enable MD013 -->
+
+### Tool access
+
+- **Read-only**: search and browse secrets, folders, users and roles; view
+  secrets with passwords masked; run Secret Server and Platform reports; and
+  hand credentials to programs without showing them
+  (`get_secret_environment_variable`). Nothing in Secret Server or the
+  Platform is changed. (A Secret Server report runs as a temporary report
+  that's deleted afterwards.)
+- **All tools**: everything in read-only, plus creating, updating, rotating
+  and deleting secrets, folders, users, groups and roles, and answering
+  access requests.
+- **Custom**: only the tools in **Custom tool list**. If the list is empty,
+  the plugin falls back to read-only.
+
+**Allow revealing passwords** is separate: no choice above shows a password
+in plaintext unless that setting is on.
 
 ## How your secrets stay private
 
@@ -84,8 +111,10 @@ When you enable the plugin, Claude Code asks for:
 
 ## Data and network use
 
-The MCP server runs on your machine and connects only to the Secret Server
-and Delinea Platform URLs you configure, using the credentials you provide.
+The MCP server runs on your machine and connects only to the Delinea
+Platform URL you configure and the Secret Server that your Platform tenant
+reports (or the Secret Server URL you set instead), using the credentials
+you provide.
 It sends no data to Delinea or any other third party, and it collects no
 telemetry. Tool results that you or Claude request are shown to Claude and
 become part of your conversation. Credential handoff files are written

@@ -61,9 +61,24 @@
   Servers with internal CAs. Before, `requests` used Python's bundled list
   and failed with `CERTIFICATE_VERIFY_FAILED`. Set `DELINEA_TLS_TRUST=bundled`
   to keep the old behavior.
-- New **Enabled tools** plugin setting (`DELINEA_ENABLED_TOOLS`, a
-  comma-separated list) limits which tools are registered. Blank or `all`
-  enables every tool, which is the default.
+- **Platform first: only the Platform URL is needed.** With a Platform
+  hostname and no Secret Server URL, the server signs in through the
+  Platform and asks its vault broker (`GET /vaultbroker/api/vaults`) for the
+  tenant's default Secret Server vault. The plugin's Secret Server URL is now
+  an optional override (also for a standalone Secret Server). The Platform
+  setting accepts a pasted URL (`https://<tenant>.delinea.app/`), and the
+  plugin never falls back to `https://localhost/SecretServer` with your
+  credentials when both URLs are blank.
+- **Tool access presets.** The plugin's required **Tool access** picker
+  chooses **Read-only** (read-only tools plus `run_report` and
+  `get_secret_environment_variable`; nothing in the vault or Platform is
+  changed), **All tools** (the default) or **Custom** (the **Custom tool
+  list**, `DELINEA_ENABLED_TOOLS`). Outside the plugin: `tool_preset` in
+  `config.json` or `DELINEA_TOOL_PRESET`. Unknown values and an empty custom
+  list fall back to read-only. The picker needs Claude Code 2.1.271 or later.
+- **Settings page reorganized.** Required settings come first, titled
+  **Required:** (Platform URL, client ID, client secret, tool access and the
+  custom tool list); everything else follows, titled **Optional:**.
 - The plugin launches with `uvx --no-config --python 3.13`. It's
   distributed through the official Claude plugin directory.
 - **The plugin never reads config files from your project.** Claude Code
@@ -80,9 +95,9 @@
   check and `/delinea:setup` helper are POSIX shell scripts (they run under
   the Git Bash that Claude Code uses on Windows) and haven't been verified
   on Windows yet; there `setup-uv.sh link` only prints PATH instructions.
-- The startup check also notices when the plugin's settings were never
-  entered (Claude Code then leaves the server out silently) and tells the
-  user to fill them in under `/plugin`.
+- The startup check also notices when the plugin's required settings (a
+  Platform URL, or a standalone Secret Server URL, and a client ID) were
+  never entered and tells the user to fill them in under `/plugin`.
 - A `SessionStart` hook checks for `uvx` and, only when it's missing or off
   PATH, asks Claude to offer `/delinea:setup`. It never installs anything.
 - The `/delinea:setup` skill checks the machine, asks the user once, then

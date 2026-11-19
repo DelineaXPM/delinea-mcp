@@ -67,8 +67,9 @@ For a value that Secret Server can't generate, such as a cloud API key:
 
 If `set_secret_field_environment_variable` or
 `create_secret_with_generated_password` isn't available, the plugin's
-**Enabled tools** setting leaves it out. Tell the user they can add it under
-`/plugin` → Delinea → **Enabled tools**. Don't work around it.
+**Tool access** setting leaves it out (**Read-only**, or a **Custom** list
+without it). Tell the user they can change it under `/plugin` → Delinea →
+**Tool access**. Don't work around it.
 
 1. If the secret doesn't exist yet, create it with
    `create_secret_with_generated_password` (or ask the user to create it),

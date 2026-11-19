@@ -16,7 +16,8 @@ from delinea_mcp import (
     tools,
     user_platform_tools,
 )
-from delinea_mcp.api import DelineaSession
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.api import DelineaSession, platform_host
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
     search_secretserver_local_users,
@@ -104,19 +105,81 @@ def _with_env_fallbacks(cfg: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
+# Tools in the read-only preset besides those annotated read-only. Neither
+# changes vault data: the handoff only reads the secret (with an audited
+# checkout when a comment is required) and a report is a temporary SELECT
+# that is deleted afterwards. The plugin's skills are built around both.
+# reveal_secret_field stays behind its own opt-in (secret_reveal_mode).
+READ_ONLY_EXTRA_TOOLS = frozenset(
+    {"get_secret_environment_variable", "run_report", "reveal_secret_field"}
+)
+
+
+def read_only_tools() -> set[str]:
+    """Return the tool names of the ``read-only`` preset."""
+    names = {name for name, hints in TOOL_ANNOTATIONS.items() if hints.read_only_hint}
+    return names | READ_ONLY_EXTRA_TOOLS
+
+
+_PRESET_PREFIXES = (("readonly", "read-only"), ("all", "all"), ("custom", "custom"))
+
+
+def _tool_preset(raw: str) -> str | None:
+    """Map a preset value to ``read-only``, ``all`` or ``custom``.
+
+    Accepts the plugin picker's labels ("Read-only", "All tools", "Custom")
+    and the short forms, in any case. Blank gives None; anything else gives
+    ``read-only``, so a mistyped preset never widens access.
+    """
+    value = "".join(ch for ch in raw.lower() if ch.isalnum())
+    if not value:
+        return None
+    for prefix, preset in _PRESET_PREFIXES:
+        if value.startswith(prefix):
+            return preset
+    logger.warning("Unknown tool preset %r; using read-only", raw)
+    return "read-only"
+
+
+def _env_tool_list() -> set[str]:
+    raw = os.getenv("DELINEA_ENABLED_TOOLS", "")
+    return {n.strip() for n in raw.split(",") if n.strip()}
+
+
 def _select_tools(cfg: dict[str, Any]) -> set[str]:
     """Return the tool allowlist; an empty set means every tool.
 
-    Precedence: ``enabled_tools`` in config.json, then the comma-separated
-    ``DELINEA_ENABLED_TOOLS`` environment variable (the plugin's "Enabled
-    tools" setting). Blank or ``all`` means every tool, in plugin mode too.
+    Precedence: ``enabled_tools`` in config.json, then the tool preset
+    (``tool_preset`` in config.json, or ``DELINEA_TOOL_PRESET``, the plugin's
+    "Tool access" setting):
+
+    - ``read-only``: :func:`read_only_tools`.
+    - ``all``: every tool.
+    - ``custom``: the comma-separated ``DELINEA_ENABLED_TOOLS`` list (the
+      plugin's "Custom tool list"); an empty list falls back to read-only.
+
+    With no preset, ``DELINEA_ENABLED_TOOLS`` alone narrows the set, and blank
+    or ``all`` means every tool.
     """
     enabled = {str(n) for n in cfg.get("enabled_tools", []) if str(n).strip()}
     if enabled:
         return enabled
-    raw = os.getenv("DELINEA_ENABLED_TOOLS", "")
-    names = {n.strip() for n in raw.split(",") if n.strip()}
-    if "all" in {n.lower() for n in names}:
+    names = _env_tool_list()
+    preset = _tool_preset(
+        str(cfg.get("tool_preset") or os.getenv("DELINEA_TOOL_PRESET", ""))
+    )
+    if preset in ("read-only", "all") and names:
+        logger.warning(
+            "Tool preset is %s; ignoring the custom tool list (choose the "
+            "Custom preset to use it)",
+            preset,
+        )
+    if preset == "read-only":
+        return read_only_tools()
+    if preset == "custom" and not names:
+        logger.warning("Custom tool preset with an empty tool list; using read-only")
+        return read_only_tools()
+    if "all" in {n.lower() for n in names} or preset == "all":
         return set()
     return names
 
@@ -124,6 +187,9 @@ def _select_tools(cfg: dict[str, Any]) -> set[str]:
 def _init_from_config(cfg: dict[str, Any]) -> None:
     """Initialise sessions and tool registration from a config dict."""
     cfg = _with_env_fallbacks(cfg)
+    # Accept a pasted Platform URL; every Platform client wants the bare host.
+    if cfg.get("platform_hostname"):
+        cfg["platform_hostname"] = platform_host(cfg["platform_hostname"])
     tools.configure(cfg)
     tool_guard.configure(cfg.get("max_result_bytes"))
     global _debug
@@ -137,6 +203,13 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     base_url = cfg.get("delinea_base_url")
     platform_hostname = cfg.get("platform_hostname") or ""
     if username and password:
+        if _plugin_mode() and not (base_url or platform_hostname):
+            # The standalone server's https://localhost/SecretServer default
+            # would send the keychain password to whatever listens there.
+            raise ValueError(
+                "Set the Delinea Platform URL in the plugin settings (or, for "
+                "a standalone Secret Server, the Secret Server URL)."
+            )
         session = DelineaSession(
             base_url=base_url or "",
             username=username,

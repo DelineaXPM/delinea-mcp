@@ -140,6 +140,41 @@ def test_plugin_enabled_tools_setting_narrows():
     )
 
 
+def test_plugin_custom_preset_uses_tool_list():
+    async def scenario(call, tools, prompts):
+        assert set(tools) == {"get_secret", "search_secrets"}
+
+    _run(
+        scenario,
+        DELINEA_MCP_PLUGIN="1",
+        DELINEA_TOOL_PRESET="Custom",
+        DELINEA_ENABLED_TOOLS="get_secret,search_secrets",
+    )
+
+
+@pytest.mark.skipif(
+    os.getenv("LIVE_SS_VIA_PLATFORM") != "1",
+    reason="needs a vault on the Delinea Platform (LIVE_SS_VIA_PLATFORM=1)",
+)
+def test_plugin_platform_url_only_read_only_preset():
+    """The default plugin setup: Platform URL only, vault found from it."""
+
+    async def scenario(call, tools, prompts):
+        assert "get_secret" in tools and "run_report" in tools
+        assert not WRITE_TOOLS & set(tools)
+        assert "error" not in await call("health_check")
+        secret = await call("get_secret", {"id": SID})
+        assert secret.get("id") == SID
+
+    _run(
+        scenario,
+        DELINEA_MCP_PLUGIN="1",
+        DELINEA_BASE_URL="",
+        PLATFORM_HOSTNAME=f"https://{os.environ.get('PLATFORM_HOSTNAME', '')}/",
+        DELINEA_TOOL_PRESET="Read-only",
+    )
+
+
 def test_read_paths_reports_and_errors():
     async def scenario(call, tools, prompts):
         assert "error" not in await call("health_check")

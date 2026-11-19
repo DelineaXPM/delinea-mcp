@@ -20,60 +20,68 @@
     "vault"
   ],
   "userConfig": {
-    "delinea_base_url": {
+    "platform_hostname": {
       "type": "string",
-      "title": "Secret Server URL",
-      "description": "Base URL of your Secret Server, e.g. https://example.secretservercloud.com (Secret Server Cloud) or https://ss.example.com/SecretServer (on-premises).",
-      "required": true
+      "title": "Required: Delinea Platform URL",
+      "description": "Your Delinea Platform tenant, e.g. https://example.delinea.app. The Secret Server URL is found from it automatically. Only for a standalone Secret Server that isn't on the Delinea Platform: leave this empty and set the Secret Server URL override under the optional settings.",
+      "default": ""
     },
     "delinea_username": {
       "type": "string",
-      "title": "Username or client ID",
-      "description": "For Secret Server on the Delinea Platform (the usual setup), your Platform service account's client ID, with the Platform hostname below. For a standalone Secret Server, a Secret Server Application Account (Secret Server 12.1+ blocks password sign-in for regular users by default).",
+      "title": "Required: Client ID",
+      "description": "The client ID of your Delinea Platform service account. For a standalone Secret Server: the username of a Secret Server Application Account (Secret Server 12.1+ blocks password sign-in for regular users by default).",
       "required": true
     },
     "delinea_password": {
       "type": "string",
-      "title": "Password",
-      "description": "Password or client secret for the account above. Stored in your operating system's secure credential store.",
+      "title": "Required: Client secret",
+      "description": "The client secret of the service account above (for a standalone Secret Server, the account's password). Stored in your operating system's secure credential store.",
       "sensitive": true,
       "required": true
     },
-    "platform_hostname": {
+    "tool_preset": {
       "type": "string",
-      "title": "Delinea Platform hostname",
-      "description": "Your Platform tenant, e.g. example.delinea.app. Set it when Secret Server runs on the Delinea Platform; leave empty for a standalone Secret Server.",
+      "title": "Required: Tool access",
+      "description": "What Claude can do. Read-only: search, view secrets with passwords masked, run reports, and hand credentials to programs without showing them; nothing in Secret Server or the Platform is changed. All tools: also create, update, rotate and delete. Custom: only the tools in the custom tool list below.",
+      "options": ["Read-only", "All tools", "Custom"],
+      "default": "All tools",
+      "required": true
+    },
+    "enabled_tools": {
+      "type": "string",
+      "title": "Required for Custom tool access: Custom tool list",
+      "description": "Only used when Tool access is Custom; leave blank otherwise. Comma-separated tool names, for example get_secret,search_secrets,get_secret_environment_variable.",
       "default": ""
+    },
+    "delinea_base_url": {
+      "type": "string",
+      "title": "Optional: Secret Server URL override",
+      "description": "Leave empty to use the Secret Server vault your Delinea Platform tenant reports. Set it only to use a different vault, or for a standalone Secret Server, e.g. https://example.secretservercloud.com or https://ss.example.com/SecretServer.",
+      "default": ""
+    },
+    "allow_plaintext_reveal": {
+      "type": "boolean",
+      "title": "Optional: Allow revealing passwords",
+      "description": "Off by default. When on, Claude can show a masked password or key in plaintext, but only after you approve a prompt each time. Credentials can always be used without being shown.",
+      "default": false
     },
     "platform_service_account": {
       "type": "string",
-      "title": "Separate Platform service account (optional)",
-      "description": "Leave empty to use the account above for the Platform user, role and report tools too. Only set it to use a different account for them.",
+      "title": "Optional: Separate Platform service account",
+      "description": "Leave empty to use the client ID above for the Platform user, role and report tools too. Only set it to use a different account for them.",
       "default": ""
     },
     "platform_service_password": {
       "type": "string",
-      "title": "Separate Platform service account password (optional)",
+      "title": "Optional: Separate Platform service account secret",
       "description": "Only with a separate Platform service account above. Stored in your operating system's secure credential store.",
       "sensitive": true,
       "default": ""
     },
     "platform_tenant_id": {
       "type": "string",
-      "title": "Platform secondary tenant ID (rarely needed)",
+      "title": "Optional: Platform secondary tenant ID (rarely needed)",
       "description": "Leave empty. Only for multi-tenant Platform setups where the service account must act inside a specific child tenant.",
-      "default": ""
-    },
-    "allow_plaintext_reveal": {
-      "type": "boolean",
-      "title": "Allow revealing passwords",
-      "description": "Off by default. When on, Claude can show a masked password or key in plaintext, but only after you approve a prompt each time. Credentials can always be used without being shown.",
-      "default": false
-    },
-    "enabled_tools": {
-      "type": "string",
-      "title": "Enabled tools (optional)",
-      "description": "Leave blank to enable every tool. To limit what Claude can do, enter comma-separated tool names, for example get_secret,search_secrets,get_secret_environment_variable.",
       "default": ""
     }
   },
@@ -91,6 +99,7 @@
         "PLATFORM_SERVICE_PASSWORD": "${user_config.platform_service_password}",
         "PLATFORM_TENANT_ID": "${user_config.platform_tenant_id}",
         "DELINEA_SECRET_REVEAL_MODE": "${user_config.allow_plaintext_reveal}",
+        "DELINEA_TOOL_PRESET": "${user_config.tool_preset}",
         "DELINEA_ENABLED_TOOLS": "${user_config.enabled_tools}"
       }
     }

@@ -2,6 +2,8 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
+from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 
@@ -10,6 +12,65 @@ if os.getenv("DELINEA_DEBUG") and not logging.getLogger().handlers:
     logging.basicConfig(level=logging.DEBUG)  # pragma: no cover - config
 
 DEFAULT_TIMEOUT = 10
+
+# Lists the vaults connected to a Platform tenant, each with its URL. Readable
+# with the same xpmheadless token the Platform sign-in returns.
+VAULT_BROKER_PATH = "/vaultbroker/api/vaults"
+
+
+def platform_host(value: str | None) -> str:
+    """Return the bare hostname (and port) of a Platform hostname or URL.
+
+    The setting may be pasted from a browser's address bar, so
+    ``https://example.delinea.app/`` and ``example.delinea.app`` both give
+    ``example.delinea.app``. Callers always connect with ``https://``.
+    """
+    value = (value or "").strip()
+    if not value:
+        return ""
+    parts = urlsplit(value if "://" in value else f"https://{value}")
+    return parts.netloc.rpartition("@")[2]
+
+
+def select_vault_url(vaults: list[Any], platform: str) -> str:
+    """Pick the Secret Server URL from a vault broker ``vaults`` list.
+
+    Uses the active Secret Server vault marked as the tenant's default (then
+    the global default), or the only active one. Only ``https`` URLs are
+    accepted, since the Platform token is sent there.
+    """
+    candidates = []
+    for vault in vaults:
+        if not isinstance(vault, dict) or vault.get("isActive") is False:
+            continue
+        kind = str(vault.get("type") or "")
+        if kind and "secretserver" not in kind.lower():
+            continue
+        url = str((vault.get("connection") or {}).get("url") or "").strip()
+        if url.lower().startswith("https://"):
+            candidates.append((vault, url.rstrip("/")))
+    for flag in ("isDefault", "isGlobalDefault"):
+        for vault, url in candidates:
+            if vault.get(flag):
+                return url
+    if len(candidates) == 1:
+        return candidates[0][1]
+    override = (
+        "Set the Secret Server URL override in the plugin settings "
+        "(DELINEA_BASE_URL or delinea_base_url for the standalone server)"
+    )
+    if not candidates:
+        raise ValueError(
+            f"The Delinea Platform tenant {platform} has no active Secret "
+            f"Server vault. {override}."
+        )
+    listed = ", ".join(url for _, url in candidates)
+    raise ValueError(
+        f"The Delinea Platform tenant {platform} has several Secret Server "
+        f"vaults and none is marked as the default ({listed}). {override} to "
+        "the one to use."
+    )
+
 
 # What the caller can do about each failure class. Tool errors are read by
 # the model, so a status code alone ("400 Client Error") is not enough to
@@ -156,19 +217,26 @@ class DelineaSession:
     )
 
     def __post_init__(self) -> None:
-        self.base_url = self.base_url or os.getenv(
-            "DELINEA_BASE_URL", "https://localhost/SecretServer"
+        self.base_url = (self.base_url or os.getenv("DELINEA_BASE_URL") or "").strip()
+        self.platform_hostname = platform_host(
+            self.platform_hostname or os.getenv("PLATFORM_HOSTNAME", "")
         )
-        self.platform_hostname = self.platform_hostname or os.getenv(
-            "PLATFORM_HOSTNAME", ""
+        if not self.base_url and not self.platform_hostname:
+            self.base_url = "https://localhost/SecretServer"
+        logger.debug(
+            "Initialising session for %s",
+            self.base_url or f"the vault of {self.platform_hostname}",
         )
-        logger.debug("Initialising session for %s", self.base_url)
         self.session = requests.Session()
         self.token: str | None = None
         # Automatically authenticate using the provided username or environment
         # variables so that requests may be sent immediately.
         if self.platform_hostname:
             self.authenticate_platform()
+            # The Secret Server URL is optional with a Platform tenant: an
+            # explicit one overrides the vault the Platform reports.
+            if not self.base_url:
+                self.base_url = self.discover_vault_url()
         else:
             self.authenticate(username=self.username or None)
 
@@ -238,10 +306,7 @@ class DelineaSession:
         client_secret = client_secret or os.getenv("DELINEA_PASSWORD")
         if not client_id or not client_secret:
             raise ValueError("client_id and client_secret required")
-        hostname = self.platform_hostname.rstrip("/")
-        if not hostname.startswith("http"):
-            hostname = f"https://{hostname}"
-        url = f"{hostname}/identity/api/oauth2/token/xpmplatform"
+        url = f"https://{self.platform_hostname}/identity/api/oauth2/token/xpmplatform"
         data = {
             "grant_type": "client_credentials",
             "client_id": client_id,
@@ -263,6 +328,35 @@ class DelineaSession:
         self.session.headers.update({"Authorization": f"Bearer {token}"})
         logger.debug("Platform authentication succeeded, token stored")
         return token
+
+    def discover_vault_url(self) -> str:
+        """Return the Secret Server URL the Platform tenant reports.
+
+        Asks the Platform's vault broker (``GET /vaultbroker/api/vaults``)
+        for the vaults connected to the tenant and picks the default one, so
+        only the Platform URL needs configuring. Requires a Platform token.
+        """
+        url = f"https://{self.platform_hostname}{VAULT_BROKER_PATH}"
+        logger.debug("Looking up the Secret Server vault at %s", url)
+        response = self.session.get(
+            url, timeout=float(os.getenv("DELINEA_TIMEOUT", DEFAULT_TIMEOUT))
+        )
+        raise_for_status(
+            response,
+            f"Secret Server vault lookup on {self.platform_hostname}",
+            dict.fromkeys(
+                (403, 404),
+                "Set the Secret Server URL override in the plugin settings to "
+                "skip the lookup.",
+            ),
+        )
+        try:
+            vaults = response.json().get("vaults") or []
+        except (ValueError, AttributeError):
+            vaults = []
+        vault_url = select_vault_url(vaults, self.platform_hostname)
+        logger.info("Using Secret Server %s from the Delinea Platform", vault_url)
+        return vault_url
 
     def request(
         self, method: str, path: str, timeout: float | None = None, **kwargs
