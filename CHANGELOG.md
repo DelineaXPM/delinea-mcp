@@ -98,6 +98,9 @@
   Secret Server versions don't have (reports using it failed). A live test
   now checks every documented table and column against the tenant.
 - Every tool has a `title` (also set in its annotations).
+- The deprecated `platform_user_management` alias takes the same parameters
+  as `user_management` again. Its MCP schema asked for required `args` and
+  `kwargs` strings, so calls with `action`/`user_id` failed validation.
 - API failures return the Secret Server or Platform error message, its
   `errorCode`, and a hint on what to do, instead of a bare HTTP status.
 - `run_report` links the Secret Server REST API docs, points at

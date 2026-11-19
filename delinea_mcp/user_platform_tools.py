@@ -409,13 +409,25 @@ def user_management(
 
 
 # Deprecated alias: keeps existing callers working but discouraged in v1+.
-def platform_user_management(*args, **kwargs):
+# The signature is spelled out (not ``*args, **kwargs``) because the MCP SDK
+# derives the tool's input schema from it; a variadic signature advertised
+# required ``args``/``kwargs`` string fields that no caller could satisfy.
+# ``functools.wraps`` is no substitute: it would copy ``__name__`` and the
+# tool would register as ``user_management``. tests/test_tool_guard.py checks
+# that both tools publish the same input schema.
+def platform_user_management(
+    action: str,
+    user_id: str | None = None,
+    data: dict | str | None = None,
+    username: str | None = None,
+) -> dict:
     """Deprecated alias for :func:`user_management`. Use ``user_management``.
 
-    Retained for backwards compatibility with v0.x clients.  Will be
-    removed in a future major release.
+    Takes the same parameters as ``user_management``.  Retained for
+    backwards compatibility with v0.x clients.  Will be removed in a future
+    major release.
     """
-    return user_management(*args, **kwargs)
+    return user_management(action, user_id=user_id, data=data, username=username)
 
 
 # --------------------------------------------------------------------------- #

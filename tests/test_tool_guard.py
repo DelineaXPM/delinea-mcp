@@ -328,6 +328,60 @@ async def test_every_registered_tool_schema_accepts_guard_error_payload():
     assert not offenders, "\n".join(offenders)
 
 
+# --- SDK input-schema interplay --------------------------------------------
+#
+# The SDK builds a tool's ``inputSchema`` from its signature. A variadic
+# signature becomes required ``args``/``kwargs`` fields, which is how the
+# deprecated ``platform_user_management`` alias shipped a schema that
+# rejected every real call (2.0.0rc1).
+
+
+async def _input_schemas() -> dict[str, dict]:
+    async with Client(_server_with_all_tools()) as client:
+        listed = (await client.list_tools()).tools
+    return {tool.name: tool.input_schema for tool in listed}
+
+
+@pytest.mark.asyncio
+async def test_platform_user_management_schema_matches_user_management():
+    schemas = await _input_schemas()
+    alias = schemas["platform_user_management"]
+    canonical = schemas["user_management"]
+    assert alias["properties"] == canonical["properties"]
+    assert alias.get("required") == canonical.get("required") == ["action"]
+
+
+@pytest.mark.asyncio
+async def test_no_registered_tool_advertises_variadic_parameters():
+    schemas = await _input_schemas()
+    offenders = sorted(
+        name
+        for name, schema in schemas.items()
+        if {"args", "kwargs"} & set(schema.get("properties", {}))
+    )
+    assert not offenders, offenders
+
+
+@pytest.mark.asyncio
+async def test_platform_user_management_alias_accepts_named_arguments(monkeypatch):
+    calls = []
+
+    def fake_user_management(action, user_id=None, data=None, username=None):
+        calls.append((action, user_id, data, username))
+        return {"ok": True}
+
+    monkeypatch.setattr(user_platform_tools, "user_management", fake_user_management)
+    mcp = MCPServer("delinea-test")
+    user_platform_tools.register(mcp, {"platform_user_management"})
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "platform_user_management", {"action": "get", "user_id": "u-1"}
+        )
+    assert result.is_error is False
+    assert json.loads(result.content[0].text) == {"ok": True}
+    assert calls == [("get", "u-1", None, None)]
+
+
 @pytest.mark.asyncio
 async def test_search_error_detail_survives_output_validation(monkeypatch):
     # A malformed backend payload makes ``search`` raise inside the loop.
