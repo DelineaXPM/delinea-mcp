@@ -55,9 +55,11 @@ find_uvx() {
     return 1
 }
 
+# Every Python call below uses -I (isolated mode): this script runs in the
+# user's project, and a venv.py, ensurepip.py or pip/ there must not run.
 python_with_venv() {
     for py in python3 python py; do
-        if have "${py}" && "${py}" -c "import venv, ensurepip" >/dev/null 2>&1; then
+        if have "${py}" && "${py}" -I -c "import venv, ensurepip" >/dev/null 2>&1; then
             echo "${py}"
             return 0
         fi
@@ -140,11 +142,11 @@ cmd_install() {
             echo "No Python with the venv module found." >&2
             return 1
         }
-        "${py}" -m venv "${VENV_DIR}" || return 1
+        "${py}" -I -m venv "${VENV_DIR}" || return 1
         if [ -x "${VENV_DIR}/bin/python" ]; then
-            "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check --quiet uv
+            "${VENV_DIR}/bin/python" -I -m pip install --disable-pip-version-check --quiet uv
         else
-            "${VENV_DIR}/Scripts/python.exe" -m pip install --disable-pip-version-check --quiet uv
+            "${VENV_DIR}/Scripts/python.exe" -I -m pip install --disable-pip-version-check --quiet uv
         fi
         ;;
     official)

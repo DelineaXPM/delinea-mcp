@@ -116,7 +116,7 @@ disable it in `/mcp`.
 1. Install the package into a virtual environment:
 
    ```bash
-   python3 -m venv ~/.delinea-mcp
+   python3 -I -m venv ~/.delinea-mcp
    ~/.delinea-mcp/bin/pip install delinea-mcp==2.0.0
    ```
 

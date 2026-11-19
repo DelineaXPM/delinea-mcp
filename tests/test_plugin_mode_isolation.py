@@ -98,3 +98,28 @@ def test_manifest_sets_plugin_mode_and_ignores_uv_project_config():
     assert server_cfg["env"]["DELINEA_MCP_PLUGIN"] == "1"
     assert server_cfg["args"][0] == "--no-config"
     assert server_cfg["args"][-1].startswith("delinea-mcp==")
+
+
+def test_setup_script_python_probe_ignores_project_modules(tmp_path):
+    """`setup-uv.sh check` runs in the user's project before any approval."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if not shutil.which("bash") or not shutil.which("python3"):
+        pytest.skip("bash and python3 required")
+    script = Path(__file__).resolve().parents[1] / "plugins/delinea/scripts/setup-uv.sh"
+    marker = tmp_path / "shadow-ran"
+    shadow = f"open({str(marker)!r}, 'w').write('x')\n"
+    for name in ("venv.py", "ensurepip.py"):
+        (tmp_path / name).write_text(shadow)
+    out = subprocess.run(
+        ["bash", str(script), "check"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(tmp_path)},
+    )
+    assert out.returncode == 0, out.stderr
+    assert "methods=" in out.stdout
+    assert not marker.exists()
