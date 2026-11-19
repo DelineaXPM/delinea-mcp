@@ -18,8 +18,12 @@ Security fixes land on the latest release line (currently 2.x).
   **disabled by default**: `reveal_secret_field` isn't registered unless the
   user or an administrator enables it (`secret_reveal_mode` in
   `config.json`, `DELINEA_SECRET_REVEAL_MODE`, or the plugin's "Allow
-  revealing passwords" setting). When enabled, a value is released only after
-  the user approves an MCP elicitation prompt sent by the server.
+  revealing passwords" setting). In `elicit` mode (what the plugin setting
+  turns on), a value is released only after the user approves an MCP
+  elicitation prompt sent by the server, and the server refuses clients that
+  can't show one. `client_approval` mode, set only in `config.json` or the
+  environment, skips that prompt and relies on the client's own
+  tool-approval prompt, which the server can't enforce.
 - With the local stdio transport, `get_secret_environment_variable` fetches
   the secret server-side and writes the username/password as shell
   assignments to a `0600` file in a `0700` directory; the file deletes itself

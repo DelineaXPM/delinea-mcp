@@ -24,11 +24,13 @@
 - Plaintext reveal is **disabled by default**. When the user or an
   administrator enables it (new `secret_reveal_mode` config key,
   `DELINEA_SECRET_REVEAL_MODE`, or the plugin's "Allow revealing passwords"
-  setting), a new `reveal_secret_field` tool returns one plaintext value
-  only after the user approves an MCP elicitation prompt ("Reveal secret
-  value") sent by the server, on both the 2026-07-28 input-required flow and
-  older protocol versions. Modes: `disabled` (default), `elicit`,
-  `client_approval`.
+  setting), a new `reveal_secret_field` tool returns one plaintext value.
+  In `elicit` mode (the plugin setting's) that happens only after the user
+  approves an MCP elicitation prompt ("Reveal secret value") sent by the
+  server, on both the 2026-07-28 input-required flow and older protocol
+  versions. Modes: `disabled` (default), `elicit`, and `client_approval`,
+  which skips the server's prompt and relies on the client's own
+  tool-approval prompt instead.
 - Over stdio, `get_secret_environment_variable` fetches the secret itself
   and writes a private (`0600`), self-deleting env file that expires after
   15 minutes, returning only its path. It no longer needs curl or jq, and
