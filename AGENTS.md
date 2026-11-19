@@ -123,9 +123,12 @@ modules under their old names in `sys.modules`, so `import server` and
 launches `uvx delinea-mcp==<version>` and maps `userConfig` values to env vars;
 `skills/` holds the no-secret-visibility and building-reports skills. Bump the
 plugin `version` and the pinned `uvx` version together with `pyproject.toml` on
-every release, and run `claude plugin validate ./plugins/delinea` (with Claude
-Code 2.1.271 or later: the Tool access picker uses `options`, which older
-versions reject). Settings are listed required first, titled `Required: ...`,
+every release. The Claude plugin directory tracks the `release/current`
+branch, which `publish-pypi.yml` moves to the release commit only after PyPI
+publishes it; never push to `release/current` by hand. Run
+`claude plugin validate ./plugins/delinea` (with Claude Code 2.1.271 or later:
+the Tool access picker uses `options`, which older versions reject). Settings
+are listed required first, titled `Required: ...`,
 then optional ones titled `Optional: ...` (`userConfig` has no sections, so the
 order and title prefixes are the grouping; `tests/test_plugin_tool_defaults.py`
 checks it). Keep `userConfig` key names stable: renaming one loses users' saved

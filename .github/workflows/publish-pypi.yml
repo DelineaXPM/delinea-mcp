@@ -87,3 +87,18 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           repository-url: ${{ (github.event_name == 'release' || inputs.repository == 'pypi') && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+  update-release-branch:
+    # The Claude plugin directory tracks the `release/current` branch, so it
+    # only sees plugin versions whose pinned delinea-mcp is already on PyPI.
+    # Pre-releases stay off it. A plain (non-force) push refuses to move the
+    # branch anywhere but forward.
+    name: update-release-branch
+    needs: publish
+    if: (github.event_name == 'release' && !github.event.release.prerelease) || inputs.repository == 'pypi'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: git push origin "${GITHUB_SHA}:refs/heads/release/current"
