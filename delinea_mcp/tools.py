@@ -2423,7 +2423,9 @@ def update_secret_fields(
             kwargs: dict[str, Any] = {"json": {"value": value}}
             if common_params:
                 kwargs["params"] = common_params
-            if str(slug).lower() in password_slugs:
+            if allow_password_fields:
+                # The override skips the template lookup, so any value may be
+                # a password: mask it in errors the API returns.
                 kwargs["sensitive"] = [str(value)]
             session.request("PUT", f"/v1/secrets/{secret_id}/fields/{slug}", **kwargs)
             per_field.append({"slug": slug, "updated": True})
