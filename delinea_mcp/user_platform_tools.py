@@ -40,7 +40,7 @@ from urllib.parse import quote
 import requests
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import raise_for_status, redact
+from delinea_mcp.api import platform_host, raise_for_status, redact
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,8 @@ def _endpoint_not_available(response: requests.Response) -> bool:
     return response.status_code == 404
 
 
-platform_hostname = os.getenv("PLATFORM_HOSTNAME")
+# Bare host; a pasted URL (https://tenant.delinea.app/) is accepted.
+platform_hostname = platform_host(os.getenv("PLATFORM_HOSTNAME")) or None
 platform_service_account = os.getenv("PLATFORM_SERVICE_ACCOUNT")
 platform_service_password = os.getenv("PLATFORM_SERVICE_PASSWORD")
 platform_tenant_id = os.getenv("PLATFORM_TENANT_ID")
@@ -110,7 +111,7 @@ def configure(
     """Override platform connection settings."""
     global platform_hostname, platform_service_account, platform_service_password, platform_tenant_id
     if hostname is not None:
-        platform_hostname = hostname
+        platform_hostname = platform_host(hostname)
     if service_account is not None:
         platform_service_account = service_account
     if service_password is not None:

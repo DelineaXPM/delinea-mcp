@@ -256,3 +256,11 @@ def test_seed_script_signs_in_where_asked(monkeypatch, via_platform):
         assert seen["platform_hostname"] == "acme.delinea.app"
     else:
         assert seen["platform_hostname"] == "" and seen["env_platform"] is None
+
+
+def test_platform_tools_configure_accepts_a_pasted_url(monkeypatch):
+    from delinea_mcp import user_platform_tools
+
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", None)
+    user_platform_tools.configure(hostname="https://acme.delinea.app/")
+    assert user_platform_tools.platform_hostname == "acme.delinea.app"

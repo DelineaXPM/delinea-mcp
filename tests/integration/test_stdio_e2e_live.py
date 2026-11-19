@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from delinea_mcp.api import platform_host
+
 REPO = Path(__file__).resolve().parents[2]
 NEEDED = ("DELINEA_BASE_URL", "DELINEA_USERNAME", "DELINEA_PASSWORD", "LIVE_SECRET_ID")
 
@@ -170,7 +172,9 @@ def test_plugin_platform_url_only_read_only_preset():
         scenario,
         DELINEA_MCP_PLUGIN="1",
         DELINEA_BASE_URL="",
-        PLATFORM_HOSTNAME=f"https://{os.environ.get('PLATFORM_HOSTNAME', '')}/",
+        # Pasted as a full URL, as users do; works whether the env holds a
+        # bare host or a URL.
+        PLATFORM_HOSTNAME=f"https://{platform_host(os.getenv('PLATFORM_HOSTNAME'))}/",
         DELINEA_TOOL_PRESET="Read-only",
     )
 
