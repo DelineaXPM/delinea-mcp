@@ -296,9 +296,13 @@ def _plugin_mode() -> bool:
 CURRENT_CONFIG = {} if _plugin_mode() else load_config()
 
 
-def run_report(sql_query: str, report_name: str | None = None) -> dict:
+def run_report(
+    sql_query: str,
+    report_name: str | None = None,
+    max_rows: int = tools.DEFAULT_REPORT_ROWS,
+) -> dict:
     logger.debug("run_report(%s)", sql_query)
-    return tools.run_report(sql_query, report_name)
+    return tools.run_report(sql_query, report_name, max_rows)
 
 
 def list_example_reports() -> str:

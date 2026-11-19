@@ -201,7 +201,9 @@ The configuration file supports the following keys:
 - **tool_preset** - `read-only`, `all` or `custom` (environment variable
   `DELINEA_TOOL_PRESET`; the plugin's **Tool access** setting). `read-only`
   registers the read-only tools plus `run_report` and
-  `get_secret_environment_variable`, which don't change vault data. `custom`
+  `get_secret_environment_variable`, which don't change vault data (except
+  that handing over a secret that requires check-out checks it out and back
+  in, which changes its password if it's set to change on check-in). `custom`
   registers the `DELINEA_ENABLED_TOOLS` list (read-only if it's empty). An
   unknown value counts as `read-only`. Unset: every tool, or the
   `DELINEA_ENABLED_TOOLS` list if one is given.

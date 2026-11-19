@@ -420,13 +420,11 @@ def test_env_file_is_private_and_holds_no_token(file_mode, shell):
 
 def test_env_file_passes_audit_comment(file_mode):
     tools.get_secret_environment_variable(7, "bash", comment="CHG-9")
-    reads = file_mode.calls[-2:]  # after the approval check
-    assert [(m, p) for m, p, _ in reads] == [
-        ("GET", "/v2/secrets/7"),
-        ("GET", "/v1/secrets/7/fields/password"),
-    ]
-    for _, _, kwargs in reads:
-        assert kwargs["params"]["autoComment"] == "CHG-9"
+    # One read (one check-out and check-in) when the GET includes the value.
+    method, path, kwargs = file_mode.calls[-1]
+    assert (method, path) == ("GET", "/v2/secrets/7")
+    assert kwargs["params"]["autoComment"] == "CHG-9"
+    assert not any("/fields/" in p for _, p, _ in file_mode.calls)
 
 
 def test_field_text_handles_json_plain_text_and_null():
@@ -450,10 +448,13 @@ def test_env_file_password_comes_from_field_endpoint(file_mode, monkeypatch, omi
         return Resp("from-field-endpoint")
 
     monkeypatch.setattr(FakeSession, "request", request)
-    body = Path(tools.get_secret_environment_variable(7, "bash")["script_path"])
-    text = body.read_text()
+    result = tools.get_secret_environment_variable(7, "bash", comment="CHG-9")
+    text = Path(result["script_path"]).read_text()
     assert "SECRET_PASSWORD_7='from-field-endpoint'" in text
     assert "SECRET_USERNAME_7='sa'" in text
+    method, path, kwargs = file_mode.calls[-1]
+    assert path == "/v1/secrets/7/fields/password"
+    assert kwargs["params"]["autoComment"] == "CHG-9"
 
 
 def test_bash_env_file_exports_exact_values(file_mode, monkeypatch):

@@ -33,9 +33,9 @@
   and writes a private (`0600`), self-deleting env file that expires after
   15 minutes, returning only its path. It no longer needs curl or jq, and
   works the same in bash, PowerShell and cmd (the old cmd script needed
-  `head` and `sed`, which Windows doesn't have). Passwords come from the
-  field endpoint (`/secrets/{id}/fields/{slug}`), since a secret GET may
-  leave them out; the HTTP-transport scripts do the same.
+  `head` and `sed`, which Windows doesn't have). When a secret GET leaves the
+  password out (the API allows it), it comes from the field endpoint
+  (`/secrets/{id}/fields/{slug}`); the HTTP-transport scripts do the same.
 - Over stdio, `set_secret_field_environment_variable` uploads `file:`
   sources directly, and for `env:`/`stdin` returns a one-line command that
   runs the server's own Python in isolated mode (`python -I -m
@@ -82,10 +82,12 @@ delinea_mcp.field_push`, hidden prompt for `stdin`), so a package in the
 - **Tool access presets.** The plugin's required **Tool access** picker
   chooses **Read-only** (read-only tools plus `run_report` and
   `get_secret_environment_variable`; nothing in the vault or Platform is
-  changed), **All tools** (the default) or **Custom** (the **Custom tool
-  list**, `DELINEA_ENABLED_TOOLS`). Outside the plugin: `tool_preset` in
-  `config.json` or `DELINEA_TOOL_PRESET`. Unknown values and an empty custom
-  list fall back to read-only. The picker needs Claude Code 2.1.271 or later.
+  changed, except that a check-out secret set to change its password on
+  check-in gets a new one), **All tools** (the default) or **Custom** (the
+  **Custom tool list**, `DELINEA_ENABLED_TOOLS`). Outside the plugin:
+  `tool_preset` in `config.json` or `DELINEA_TOOL_PRESET`. Unknown values and
+  an empty custom list fall back to read-only. The picker needs Claude Code
+  2.1.271 or later.
 - **Settings page reorganized.** Required settings come first, titled
   **Required:** (Platform URL, client ID, client secret, tool access and the
   custom tool list); everything else follows, titled **Optional:**.

@@ -135,3 +135,19 @@ def test_run_report_surfaces_execute_failure_body(monkeypatch):
     result = tools.run_report("SELECT 1", report_name="t")
     assert "POST /v1/reports/execute failed" in result["error"]
     assert "timed out" in result["error"]
+
+
+def test_compat_run_report_accepts_every_tool_parameter(monkeypatch):
+    """``import server; server.run_report(..., max_rows=...)`` must work."""
+    import inspect
+
+    from delinea_mcp import tools
+
+    tool_params = inspect.signature(tools.run_report).parameters
+    assert list(inspect.signature(server.run_report).parameters) == list(tool_params)
+    seen = {}
+    monkeypatch.setattr(
+        tools, "run_report", lambda sql, name=None, rows=0: seen.update(rows=rows)
+    )
+    server.run_report("SELECT 1", max_rows=7)
+    assert seen == {"rows": 7}

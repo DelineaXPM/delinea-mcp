@@ -85,7 +85,9 @@ ones come first, titled **Required:**; everything below them is titled
   hand credentials to programs without showing them
   (`get_secret_environment_variable`). Nothing in Secret Server or the
   Platform is changed. (A Secret Server report runs as a temporary report
-  that's deleted afterwards.)
+  that's deleted afterwards. A secret that requires check-out is checked out
+  and back in when its credential is handed over, so a secret set to change
+  its password on check-in gets a new password.)
 - **All tools**: everything in read-only, plus creating, updating, rotating
   and deleting secrets, folders, users, groups and roles, and answering
   access requests.

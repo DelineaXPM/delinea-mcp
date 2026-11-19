@@ -480,8 +480,10 @@ def _handoff_values(
     """Read the username and password for an environment-variable handoff.
 
     A secret GET doesn't have to include password values (the API documents
-    that it leaves them out), so password fields always come from the field
-    endpoint, the same call ``reveal_secret_field`` makes.
+    that it leaves them out); when it doesn't, the password comes from the
+    field endpoint, the same call ``reveal_secret_field`` makes. Using the
+    GET's value when it's there keeps a secret that needs check-out to one
+    check-out and check-in.
     """
     secret = session.request("GET", f"/v2/secrets/{secret_id}", params=params).json()
     values: dict[str, str] = {}
@@ -489,14 +491,14 @@ def _handoff_values(
         item = _find_item(secret, slug)
         if item is None:
             continue
-        if item.get("isPassword") or slug == "password":
+        value = item.get("itemValue")
+        if value in (None, "") and (item.get("isPassword") or slug == "password"):
             field = item.get("slug") or slug
             response = session.request(
                 "GET", f"/v1/secrets/{secret_id}/fields/{field}", params=params
             )
             values[var] = _field_text(response)
         else:
-            value = item.get("itemValue")
             values[var] = "" if value is None else str(value)
     if not values:
         slugs = [i.get("slug") for i in secret.get("items", []) if isinstance(i, dict)]
@@ -603,7 +605,7 @@ def get_secret_environment_variable(
 
         query = f"?autoCheckout=true&autoCheckIn=true&autoComment={quote(comment)}"
     url = f"{session.base_url}/api/v2/secrets/{secret_id}{query}"
-    # Secret GETs may leave password values out; the field endpoint has it.
+    # Secret GETs may leave password values out; the field endpoint has them.
     password_url = (
         f"{session.base_url}/api/v1/secrets/{secret_id}/fields/password{query}"
     )
@@ -614,24 +616,32 @@ def get_secret_environment_variable(
             f"|| {{ echo 'Failed to read secret {secret_id}' >&2; "
             "return 1 2>/dev/null || exit 1; }\n"
         )
+        pick = "'.items[] | select(.slug == \"%s\") | .itemValue // empty'"
         return (
             "# Requires: curl, jq\n"
             f"_dmcp_resp=\"$(curl -fsS {auth} '{url}')\" {fail}"
-            f"_dmcp_pw=\"$(curl -fsS {auth} '{password_url}')\" {fail}"
+            f'_dmcp_pw="$(printf \'%s\' "$_dmcp_resp" | jq -r {pick % "password"})"\n'
+            'if [ -z "$_dmcp_pw" ]; then\n'
+            f"  _dmcp_pw=\"$(curl -fsS {auth} '{password_url}' "
+            f"| jq -sRr 'fromjson? // .')\" {fail}"
+            "fi\n"
             f'export {names["username"]}="$(printf \'%s\' "$_dmcp_resp" '
-            '| jq -r \'.items[] | select(.slug == "username") | .itemValue\')"\n'
-            f'export {names["password"]}="$(printf \'%s\' "$_dmcp_pw" '
-            "| jq -sRr 'fromjson? // .')\"\n"
+            f'| jq -r {pick % "username"})"\n'
+            f'export {names["password"]}="$_dmcp_pw"\n'
             "unset _dmcp_resp _dmcp_pw"
         )
     return (
         f'$headers = @{{"Authorization" = "Bearer {access_token}"}}\n'
         f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
         '$usernameItem = $response.items | Where-Object { $_.slug -eq "username" }\n'
-        f"$env:{names['password']} = "
-        f'Invoke-RestMethod -Uri "{password_url}" -Headers $headers\n'
+        '$passwordItem = $response.items | Where-Object { $_.slug -eq "password" }\n'
+        "$password = $passwordItem.itemValue\n"
+        "if (-not $password) {\n"
+        f'  $password = Invoke-RestMethod -Uri "{password_url}" -Headers $headers\n'
+        "}\n"
+        f"$env:{names['password']} = $password\n"
         f"$env:{names['username']} = $usernameItem.itemValue\n"
-        "Remove-Variable headers, response, usernameItem"
+        "Remove-Variable headers, response, usernameItem, passwordItem, password"
     )
 
 
