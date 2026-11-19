@@ -29,6 +29,11 @@ TEMPLATE_NAMES = ("Web Password", "Password")
 
 def session() -> DelineaSession:
     via_platform = os.getenv("LIVE_SS_VIA_PLATFORM") == "1"
+    if not via_platform:
+        # DelineaSession treats platform_hostname="" as unset and falls back
+        # to $PLATFORM_HOSTNAME, which would send the Secret Server password
+        # to the Platform's sign-in endpoint.
+        os.environ.pop("PLATFORM_HOSTNAME", None)
     return DelineaSession(
         base_url=os.environ["DELINEA_BASE_URL"],
         username=os.environ["DELINEA_USERNAME"],

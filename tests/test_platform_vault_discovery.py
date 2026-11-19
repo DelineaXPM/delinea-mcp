@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from mcp.server.mcpserver import MCPServer
 
@@ -227,3 +229,30 @@ def test_pasted_platform_url_reaches_platform_tools_as_host(init, monkeypatch):
     assert seen["hostname"] == "acme.delinea.app"
     assert created["platform_hostname"] == "acme.delinea.app"
     assert created["base_url"] == ""  # found from the Platform at sign-in
+
+
+@pytest.mark.parametrize("via_platform", ["", "1"])
+def test_seed_script_signs_in_where_asked(monkeypatch, via_platform):
+    """Without LIVE_SS_VIA_PLATFORM the vault password must not go to the Platform."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "seed_test_tenant.py"
+    spec = importlib.util.spec_from_file_location("seed_test_tenant", path)
+    seed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed)
+    monkeypatch.setenv("DELINEA_BASE_URL", "https://ss.example")
+    monkeypatch.setenv("DELINEA_USERNAME", "svc")
+    monkeypatch.setenv("PLATFORM_HOSTNAME", "acme.delinea.app")
+    monkeypatch.setenv("LIVE_SS_VIA_PLATFORM", via_platform)
+    seen = {}
+
+    def fake_session(**kwargs):
+        seen.update(kwargs, env_platform=os.getenv("PLATFORM_HOSTNAME"))
+
+    monkeypatch.setattr(seed, "DelineaSession", fake_session)
+    seed.session()
+    if via_platform:
+        assert seen["platform_hostname"] == "acme.delinea.app"
+    else:
+        assert seen["platform_hostname"] == "" and seen["env_platform"] is None
