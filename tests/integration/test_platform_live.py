@@ -1,6 +1,11 @@
 """Live integration tests against a real Delinea Platform tenant.
 
-Run with:
+Run with (the plugin test tenant; see "Live test targets" in AGENTS.md):
+
+    set -a; . ./.env.test-tenant.local; set +a
+    uv run pytest tests/integration/test_platform_live.py -v
+
+or against the secondary Platform tenant:
 
     source .creds && source .env.live && uv run pytest tests/integration/test_platform_live.py -v
 

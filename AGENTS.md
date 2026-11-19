@@ -48,11 +48,23 @@ uv run coverage report --omit="tests/*" --show-missing
 # Run specific test file
 uv run pytest tests/test_tools.py
 
-# Integration tests (requires credentials)
-export DELINEA_PASSWORD=<password>
-export LIVE_SECRET_ID=<id>
+# Integration tests (need a live tenant; settings come from a local env file)
+set -a; . ./.env.test-tenant.local; set +a
 uv run pytest tests/integration/
 ```
+
+Live test targets, in order of preference. Their env files are gitignored and
+never committed:
+
+1. **Plugin test tenant** (`.env.test-tenant.local`). A Delinea Platform tenant
+   with its Secret Server vault, and one Platform service account for both.
+   `LIVE_SS_VIA_PLATFORM=1` makes the vault sign in through the Platform, the
+   way the plugin does. Seed the test folder, secret and role with
+   `scripts/seed_test_tenant.py`, which prints the `LIVE_*` IDs.
+2. **Secondary:** a separate Platform tenant (`.creds`, `PLATFORM_*`) plus a
+   Secret Server that you sign in to directly (`.env.live`, `DELINEA_*` and
+   `LIVE_*`). Use it to check sign-in or Platform changes against a second
+   tenant.
 
 ### Build Commands
 
