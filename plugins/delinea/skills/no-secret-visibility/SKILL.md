@@ -43,8 +43,12 @@ is installed, they may appear with a prefix such as `mcp__delinea__`.
    don't share variables:
 
    ```bash
-   source '/path/from/script_path' && PGPASSWORD="$SECRET_PASSWORD_42" psql -h db -U "$SECRET_USERNAME_42"
+   source '/path/from/script_path' && ./deploy.sh
    ```
+
+   Here `deploy.sh` reads `SECRET_USERNAME_42` and `SECRET_PASSWORD_42`
+   from its environment. If the program expects other names (psql reads
+   `PGPASSWORD`), set them from these variables in the same command.
 
 5. When the server runs remotely, the tool returns a script instead, which
    calls the Secret Server API itself (its first line lists what it needs,
