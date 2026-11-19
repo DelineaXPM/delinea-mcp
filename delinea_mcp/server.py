@@ -7,8 +7,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from mcp.server.mcpserver import MCPServer
-
 from delinea_mcp import (
     secretserver_users,
     strongdm_tools,
@@ -16,6 +14,7 @@ from delinea_mcp import (
     tools,
     user_platform_tools,
 )
+from delinea_mcp.annotations import TOOL_ANNOTATIONS
 from delinea_mcp.api import DelineaSession
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
@@ -35,6 +34,7 @@ from delinea_mcp.strongdm_tools import (
     sdm_search,
     sdm_user_management,
 )
+from delinea_mcp.tls import use_system_trust_store
 from delinea_mcp.tools import (
     bulk_user_response,
     check_secret_template,
@@ -65,6 +65,7 @@ from delinea_mcp.user_platform_tools import (
     search_users,
     user_management,
 )
+from mcp.server.mcpserver import MCPServer
 
 logger = logging.getLogger(__name__)
 _debug = False
@@ -103,6 +104,45 @@ def _with_env_fallbacks(cfg: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
+# Tools in the plugin's default set besides the read-only ones. Neither changes
+# vault data: the handoff only reads the secret (with an audited checkout when
+# a comment is required) and a report is a temporary SELECT that is deleted
+# afterwards. The plugin's skills are built around both.
+PLUGIN_DEFAULT_EXTRA_TOOLS = frozenset(
+    {"get_secret_environment_variable", "run_report"}
+)
+
+
+def _select_tools(cfg: dict[str, Any]) -> set[str]:
+    """Return the tool allowlist; an empty set means every tool.
+
+    Precedence: ``enabled_tools`` in config.json, then the comma-separated
+    ``DELINEA_ENABLED_TOOLS`` environment variable (``all`` = every tool),
+    then, in plugin mode, the read-only tools plus
+    :data:`PLUGIN_DEFAULT_EXTRA_TOOLS`. Outside plugin mode the default stays
+    every tool.
+    """
+    enabled = {str(n) for n in cfg.get("enabled_tools", []) if str(n).strip()}
+    if enabled:
+        return enabled
+    raw = os.getenv("DELINEA_ENABLED_TOOLS", "")
+    names = {n.strip() for n in raw.split(",") if n.strip()}
+    if "all" in {n.lower() for n in names}:
+        return set()
+    if names:
+        return names
+    if _plugin_mode():
+        selected = {
+            name for name, hints in TOOL_ANNOTATIONS.items() if hints.read_only_hint
+        }
+        selected |= PLUGIN_DEFAULT_EXTRA_TOOLS
+        # Plaintext reveal is its own explicit opt-in; tools.register still
+        # drops it unless secret_reveal_mode enables it.
+        selected.add("reveal_secret_field")
+        return selected
+    return set()
+
+
 def _init_from_config(cfg: dict[str, Any]) -> None:
     """Initialise sessions and tool registration from a config dict."""
     cfg = _with_env_fallbacks(cfg)
@@ -125,7 +165,7 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
             platform_hostname=platform_hostname,
         )
         SessionManager.init(session)
-    enabled = set(cfg.get("enabled_tools", []))
+    enabled = _select_tools(cfg)
     tools.register(mcp, enabled)
 
     # Register the legacy SS-local user tools under the same enabled_tools
@@ -201,6 +241,9 @@ def list_example_reports() -> str:
 
 
 def run_server(argv: list[str] | None = None) -> None:
+    # Before any session signs in: verify TLS against the OS store so
+    # TLS-inspecting networks and internal CAs work (see delinea_mcp.tls).
+    use_system_trust_store()
     plugin_mode = _plugin_mode()
     # Plugin mode rejects abbreviated options (e.g. ``--conf``) so only the
     # exact flags the manifest passes are accepted.
@@ -287,8 +330,6 @@ def run_server(argv: list[str] | None = None) -> None:
             mcp.run(transport="stdio")
         case ("none", "sse"):
             import uvicorn
-            from fastapi import FastAPI, Request
-
             from delinea_mcp.transports.origin import (
                 allowed_origins_for,
                 install_origin_guard,
@@ -299,6 +340,7 @@ def run_server(argv: list[str] | None = None) -> None:
                 make_lifespan,
                 mount_streamable_http_routes,
             )
+            from fastapi import FastAPI, Request
 
             stateless = bool(cfg.get("streamable_http_stateless", True))
             manager = build_session_manager(
@@ -330,8 +372,6 @@ def run_server(argv: list[str] | None = None) -> None:
             uvicorn.run(app, host="0.0.0.0", port=port, **uvicorn_kwargs)  # nosec B104
         case ("oauth", "sse"):
             import uvicorn
-            from fastapi import FastAPI, Request
-
             from delinea_mcp.auth.routes import mount_oauth_routes
             from delinea_mcp.auth.validators import require_scopes
             from delinea_mcp.transports.origin import (
@@ -344,6 +384,7 @@ def run_server(argv: list[str] | None = None) -> None:
                 make_lifespan,
                 mount_streamable_http_routes,
             )
+            from fastapi import FastAPI, Request
 
             stateless = bool(cfg.get("streamable_http_stateless", True))
             manager = build_session_manager(

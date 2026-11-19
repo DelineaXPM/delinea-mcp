@@ -45,6 +45,22 @@
 
 ### Plugin setup
 
+- Outbound TLS is verified against the **operating system's certificate
+  store** (`truststore`), so the server signs in on networks that inspect
+  TLS (Cloudflare Gateway, Zscaler, Netskope) and to on-premises Secret
+  Servers with internal CAs. Before, `requests` used Python's bundled list
+  and failed with `CERTIFICATE_VERIFY_FAILED`. Set `DELINEA_TLS_TRUST=bundled`
+  to keep the old behavior.
+- The plugin registers a **safe default tool set**: every read-only tool
+  plus `get_secret_environment_variable` and `run_report` (neither changes
+  vault data). Tools that change Secret Server are off until the user lists
+  them, or `all`, in the new **Enabled tools** setting
+  (`DELINEA_ENABLED_TOOLS`). Standalone servers keep the old default of
+  every tool.
+- The plugin launches with `uvx --no-config --python 3.13`, and the repo
+  root has a `.claude-plugin/marketplace.json`, so the plugin can be
+  installed straight from GitHub with
+  `/plugin marketplace add DelineaXPM/delinea-mcp`.
 - **The plugin never reads config files from your project.** Claude Code
   starts the server in the open project's folder, so a `config.json` in a
   cloned repository could have redirected `delinea_base_url` and received your

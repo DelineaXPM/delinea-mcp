@@ -273,6 +273,7 @@ dependencies = [
     { name = "joserfc" },
     { name = "mcp" },
     { name = "requests" },
+    { name = "truststore" },
     { name = "uvicorn" },
 ]
 
@@ -296,6 +297,7 @@ test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "requests" },
+    { name = "truststore" },
 ]
 
 [package.metadata]
@@ -307,6 +309,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.2.0,<3" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "strongdm", marker = "extra == 'strongdm'", specifier = ">=17.8.0" },
+    { name = "truststore", specifier = ">=0.10.5" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 provides-extras = ["strongdm"]
@@ -326,6 +329,7 @@ test = [
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "requests", specifier = ">=2.32.4" },
+    { name = "truststore", specifier = ">=0.10.5" },
 ]
 
 [[package]]

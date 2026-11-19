@@ -22,8 +22,8 @@ import time
 from pathlib import Path
 
 import requests
-
 from delinea_mcp.api import DelineaAPIError, raise_for_status
+from delinea_mcp.tls import use_system_trust_store
 
 
 def _fail(message: str, code: int = 1) -> int:
@@ -33,6 +33,7 @@ def _fail(message: str, code: int = 1) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    use_system_trust_store()
     if len(args) != 1:
         return _fail("usage: python -m delinea_mcp.field_push <job.json>", 2)
     job_path = Path(args[0])

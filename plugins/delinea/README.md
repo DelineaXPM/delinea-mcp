@@ -60,6 +60,7 @@ When you enable the plugin, Claude Code asks for:
 | Password                                                | Yes      | Stored in your operating system's secure credential store                                     |
 | Platform hostname, service account, password, tenant ID | No       | Only for Platform-integrated tenants                                                          |
 | Allow revealing passwords                               | No       | Off by default. When on, each reveal still needs your approval                                |
+| Enabled tools                                           | No       | Blank = read-only tools plus credential handoff and reports. Tool names, or `all` for writes  |
 
 ## How your secrets stay private
 

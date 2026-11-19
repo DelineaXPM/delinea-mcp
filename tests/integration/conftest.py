@@ -19,6 +19,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 @pytest.fixture(scope="session", autouse=True)
 def _init_live_session():
     """Initialise the global SessionManager from env vars if available."""
+    # Sign in the way the server does: OS certificate store, so live tests
+    # also work behind TLS-inspecting networks.
+    from delinea_mcp.tls import use_system_trust_store  # noqa: WPS433
+
+    use_system_trust_store()
     if not os.getenv("DELINEA_USERNAME") or not os.getenv("DELINEA_PASSWORD"):
         # Tests will skip individually via require_credentials() / pytest.skip.
         yield

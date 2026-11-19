@@ -133,8 +133,10 @@ starlette==1.6.0
     # via
     #   fastapi
     #   mcp
-truststore==0.10.5 ; sys_platform != 'emscripten'
+truststore==0.10.5
     # via
+    #   delinea-mcp (pyproject.toml)
+    #   delinea-mcp (pyproject.toml:test)
     #   httpcore2
     #   httpx2
 typing-extensions==4.16.0

@@ -226,9 +226,9 @@ cmd_prewarm() {
     # could otherwise point the download at a different package index (the
     # manifest launches the server with the same flag).
     if [ -n "${wheel}" ]; then
-        "${uvx_bin}" --quiet --no-config --from "${wheel}" delinea-mcp --help >/dev/null
+        "${uvx_bin}" --quiet --no-config --python 3.13 --from "${wheel}" delinea-mcp --help >/dev/null
     else
-        "${uvx_bin}" --quiet --no-config "${spec}" --help >/dev/null
+        "${uvx_bin}" --quiet --no-config --python 3.13 "${spec}" --help >/dev/null
     fi
     status=$?
     if [ "${status}" -eq 0 ]; then
