@@ -85,6 +85,19 @@ def test_secretserver_local_user_management(monkeypatch):
         "reset_password", user_id=6, data={"p": 1}
     ) == {"ok": True}
 
+    new = {"password": "N3w-Pass!"}
+    patch_request(
+        monkeypatch,
+        (
+            "POST",
+            "/v1/users/6/password-reset",
+            {"json": new, "sensitive": ["N3w-Pass!"]},
+        ),
+    )
+    assert server.secretserver_local_user_management(
+        "reset_password", user_id=6, data=new
+    ) == {"ok": True}
+
     patch_request(monkeypatch, ("POST", "/v1/users/7/lock-out", {"json": {}}))
     assert server.secretserver_local_user_management("lock_out", user_id=7) == {
         "ok": True
@@ -250,6 +263,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["G3n3rated!"],
                     "json": {
                         "name": "db-prod",
                         "secretTemplateId": 6003,
@@ -258,7 +272,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                             {"fieldId": 108, "itemValue": "G3n3rated!"},
                         ],
                         "folderId": 5,
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/42/summary", {}),
@@ -301,13 +315,14 @@ def test_create_secret_generated_password_injects_existing_field(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["NewPwd!"],
                     "json": {
                         "name": "test",
                         "secretTemplateId": 6003,
                         "items": [
                             {"fieldId": 108, "itemValue": "NewPwd!"},
                         ],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/99/summary", {}),
@@ -338,6 +353,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["Gen!"],
                     "json": {
                         "name": "json-test",
                         "secretTemplateId": 6003,
@@ -345,7 +361,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "Gen!"},
                         ],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/50/summary", {}),
@@ -390,11 +406,12 @@ def test_create_secret_no_items_leak(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["Pwd!"],
                     "json": {
                         "name": "safe",
                         "secretTemplateId": 1,
                         "items": [{"fieldId": 1, "itemValue": "Pwd!"}],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/10/summary", {}),

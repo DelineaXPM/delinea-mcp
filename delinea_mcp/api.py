@@ -290,7 +290,10 @@ class DelineaSession:
         logger.debug("Authenticating against %s", url)
         response = self.session.post(url, data=data)
         raise_for_status(
-            response, f"Secret Server sign-in as {username!r}", _SIGN_IN_HINTS
+            response,
+            f"Secret Server sign-in as {username!r}",
+            _SIGN_IN_HINTS,
+            sensitive=[password],
         )
         payload = response.json()
         token = payload.get("access_token") or payload.get("generatedToken")
@@ -343,7 +346,9 @@ class DelineaSession:
             data=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        raise_for_status(response, f"Platform sign-in as {client_id!r}")
+        raise_for_status(
+            response, f"Platform sign-in as {client_id!r}", sensitive=[client_secret]
+        )
         payload = response.json()
         token = payload.get("access_token")
         if not token:

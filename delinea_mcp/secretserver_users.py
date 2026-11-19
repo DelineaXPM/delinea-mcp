@@ -169,8 +169,13 @@ def secretserver_local_user_management(
         if action == "reset_password":
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for reset_password")
+            fields = data.items() if isinstance(data, dict) else ()
+            reset: dict[str, Any] = {"json": data}
+            secrets = [str(v) for k, v in fields if "password" in str(k).lower()]
+            if secrets:  # masked in any error the API returns
+                reset["sensitive"] = secrets
             return session.request(
-                "POST", f"/v1/users/{user_id}/password-reset", json=data
+                "POST", f"/v1/users/{user_id}/password-reset", **reset
             ).json()
         if action == "lock_out":
             if user_id is None:

@@ -40,7 +40,7 @@ from urllib.parse import quote
 import requests
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import raise_for_status
+from delinea_mcp.api import raise_for_status, redact
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -180,8 +180,10 @@ def _fetch_headers() -> dict[str, str]:
         raise RuntimeError(f"Failed to get token: {exc}")
 
     if response.status_code >= 400:
-        logger.error("Failed to get token: %s", response.text)
-        raise RuntimeError(f"Failed to get token: {response.text}")
+        # Mask the client secret before shortening, in case it's echoed.
+        detail = redact(response.text or "", platform_service_password)[:500]
+        logger.error("Failed to get token: %s", detail)
+        raise RuntimeError(f"Failed to get token: {detail}")
 
     token_data = response.json()
     access_token = token_data["access_token"]

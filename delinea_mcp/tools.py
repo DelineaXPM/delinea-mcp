@@ -748,7 +748,10 @@ def create_secret_with_generated_password(
             create_payload["siteId"] = site_id
 
         create_result = session.request(
-            "POST", "/v1/secrets", json=create_payload
+            "POST",
+            "/v1/secrets",
+            json=create_payload,
+            sensitive=[str(generated_password)],
         ).json()
 
         # 4. Sanitize — only safe metadata, never items/field values
@@ -1143,8 +1146,11 @@ def _mask_secret(data: Any) -> Any:
         return data
     masked: list[str] = []
     for item in data["items"]:
-        if isinstance(item, dict) and item.get("isPassword") and item.get("itemValue"):
-            item["itemValue"] = MASK
+        if isinstance(item, dict) and item.get("isPassword"):
+            # Listed even when the API left the value out (its documented
+            # behavior), so reveal_secret_field and the handoff still apply.
+            if item.get("itemValue"):
+                item["itemValue"] = MASK
             masked.append(item.get("slug") or item.get("fieldName") or "?")
     if masked:
         data["maskedFields"] = masked
@@ -2417,6 +2423,8 @@ def update_secret_fields(
             kwargs: dict[str, Any] = {"json": {"value": value}}
             if common_params:
                 kwargs["params"] = common_params
+            if str(slug).lower() in password_slugs:
+                kwargs["sensitive"] = [str(value)]
             session.request("PUT", f"/v1/secrets/{secret_id}/fields/{slug}", **kwargs)
             per_field.append({"slug": slug, "updated": True})
         except Exception as exc:  # pragma: no cover - network failures

@@ -241,6 +241,41 @@ def test_get_secret_masks_password_fields(fake_session, monkeypatch):
     assert "disabled" in result["maskedNote"]
 
 
+@pytest.mark.parametrize("omitted", [{"itemValue": ""}, {"itemValue": None}, {}])
+def test_password_fields_listed_even_when_value_omitted(
+    fake_session, monkeypatch, omitted
+):
+    """The API may leave password values out; they must still be listed."""
+    secret = json.loads(json.dumps(SECRET))
+    del secret["items"][1]["itemValue"]
+    secret["items"][1].update(omitted)
+    monkeypatch.setattr(
+        FakeSession,
+        "request",
+        lambda self, m, p, **kw: Resp(json.loads(json.dumps(secret))),
+    )
+    result = tools.get_secret(7)
+    assert result["maskedFields"] == ["password"] and "maskedNote" in result
+    assert result["items"][1].get("itemValue") == omitted.get("itemValue")
+
+
+def test_platform_token_error_masks_client_secret(monkeypatch):
+    from delinea_mcp import user_platform_tools as upt
+
+    monkeypatch.setattr(upt, "_headers", None)
+    monkeypatch.setattr(upt, "platform_hostname", "acme.delinea.app")
+    monkeypatch.setattr(upt, "platform_service_account", "svc")
+    monkeypatch.setattr(upt, "platform_service_password", "Cl1ent-S3cret")
+    echo = Resp(
+        {"error": "x"}, 400, "Bad Request", text="bad secret Cl1ent-S3cret" + "y" * 600
+    )
+    monkeypatch.setattr(upt.requests, "post", lambda *a, **k: echo)
+    with pytest.raises(RuntimeError) as info:
+        upt._fetch_headers()
+    assert "Cl1ent" not in str(info.value) and "********" in str(info.value)
+    assert len(str(info.value)) < 600
+
+
 def test_masked_note_offers_reveal_only_when_enabled(fake_session, reveal_on):
     assert "reveal_secret_field" in tools.get_secret(7)["maskedNote"]
 
