@@ -18,7 +18,7 @@ import logging
 from typing import Any, Iterable
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import mask_fields
+from delinea_mcp.api import mask_fields, sensitive_values
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
@@ -118,6 +118,10 @@ def secretserver_local_user_management(
     session = SessionManager.get()
 
     data = _parse_json_data(data)
+    # Passwords in create/update/reset_password data are masked in API errors.
+    masked: dict[str, Any] = {}
+    if secrets := sensitive_values(data):
+        masked["sensitive"] = secrets
 
     try:
         if action == "get":
@@ -125,7 +129,9 @@ def secretserver_local_user_management(
                 raise ValueError("user_id required for get")
             return session.request("GET", f"/v1/users/{user_id}").json()
         if action == "create":
-            result = session.request("POST", "/v1/users", json=data or {}).json()
+            result = session.request(
+                "POST", "/v1/users", json=data or {}, **masked
+            ).json()
             user_id = result.get("id") or result.get("userId")
             verify: dict[str, Any] = {}
             if user_id is not None:
@@ -138,7 +144,9 @@ def secretserver_local_user_management(
         if action == "update":
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for update")
-            result = session.request("PUT", f"/v1/users/{user_id}", json=data).json()
+            result = session.request(
+                "PUT", f"/v1/users/{user_id}", json=data, **masked
+            ).json()
             verify = {}
             try:
                 verify = session.request("GET", f"/v1/users/{user_id}").json()
@@ -170,13 +178,8 @@ def secretserver_local_user_management(
         if action == "reset_password":
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for reset_password")
-            fields = data.items() if isinstance(data, dict) else ()
-            reset: dict[str, Any] = {"json": data}
-            secrets = [str(v) for k, v in fields if "password" in str(k).lower()]
-            if secrets:  # masked in any error the API returns
-                reset["sensitive"] = secrets
             return session.request(
-                "POST", f"/v1/users/{user_id}/password-reset", **reset
+                "POST", f"/v1/users/{user_id}/password-reset", json=data, **masked
             ).json()
         if action == "lock_out":
             if user_id is None:

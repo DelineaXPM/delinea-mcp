@@ -966,3 +966,48 @@ def test_user_management_debug_log_masks_passwords(monkeypatch, caplog, data):
         )
     assert "Pw-Logged-9" not in caplog.text
     assert "secretserver_local_user_management(action=reset_password" in caplog.text
+
+
+def test_sensitive_values_collects_password_like_strings():
+    data = {
+        "Name": "ann",
+        "Password": "Pw-123456",
+        "PasswordNeverExpire": True,
+        "nested": [{"clientSecret": "cs-abcdef"}],
+    }
+    assert api.sensitive_values(data) == ["Pw-123456", "cs-abcdef"]
+    assert api.sensitive_values("text") == []
+    assert api.redact_values({"m": ["x Pw-123456 y"]}, ["Pw-123456"]) == {
+        "m": ["x ******** y"]
+    }
+
+
+def test_ss_user_create_masks_password_in_api_errors(monkeypatch):
+    from delinea_mcp import secretserver_users
+
+    sent = {}
+
+    class S:
+        def request(self, method, path, **kwargs):
+            sent.update(kwargs)
+            return Resp({"id": None})
+
+    monkeypatch.setattr(SessionManager, "_session", S())
+    secretserver_users.secretserver_local_user_management(
+        "create", data={"userName": "ann", "password": "Pw-123456"}
+    )
+    assert sent["sensitive"] == ["Pw-123456"]
+
+
+@pytest.mark.parametrize("status", [200, 400])
+def test_platform_user_create_masks_echoed_password(monkeypatch, status):
+    from delinea_mcp import user_platform_tools as upt
+
+    body = {"success": False, "Message": "Password 'Pw-123456' is too weak"}
+    monkeypatch.setattr(upt, "_build_headers", lambda: {})
+    monkeypatch.setattr(upt, "search_users", lambda q: {})
+    monkeypatch.setattr(
+        upt.requests, "post", lambda *a, **k: Resp(body, status, "Bad Request")
+    )
+    out = upt.user_management("create", data={"Name": "ann@x", "Password": "Pw-123456"})
+    assert "Pw-123456" not in json.dumps(out) and "********" in json.dumps(out)

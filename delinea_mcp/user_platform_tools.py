@@ -40,7 +40,14 @@ from urllib.parse import quote
 import requests
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import mask_fields, platform_host, raise_for_status, redact
+from delinea_mcp.api import (
+    mask_fields,
+    platform_host,
+    raise_for_status,
+    redact,
+    redact_values,
+    sensitive_values,
+)
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -56,17 +63,21 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
     return data
 
 
-def _json_or_error(response: requests.Response) -> dict:
-    """Decode a Platform response, turning HTTP failures into actionable errors."""
+def _json_or_error(response: requests.Response, sensitive: Iterable[str] = ()) -> dict:
+    """Decode a Platform response, turning HTTP failures into actionable errors.
+
+    *sensitive* values (a password the request sent) are masked in the error
+    and in the body, since the Platform also reports failures with HTTP 200.
+    """
     status = getattr(response, "status_code", 200)
     if isinstance(status, int) and status >= 400:
         try:
-            raise_for_status(response, "Delinea Platform request")
+            raise_for_status(response, "Delinea Platform request", sensitive=sensitive)
         # requests.HTTPError, not DelineaAPIError: the base class stays the
         # same object even if a test reloads delinea_mcp.api.
         except requests.HTTPError as exc:
             return {"error": str(exc)}
-    return _raw_json(response)
+    return redact_values(_raw_json(response), sensitive)
 
 
 def _raw_json(response: requests.Response) -> dict:
@@ -367,7 +378,7 @@ def user_management(
             response = requests.post(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
             )
-            result = _json_or_error(response)
+            result = _json_or_error(response, sensitive_values(payload))
             verify = search_users(payload.get("Name") or payload.get("Username") or "")
             return {"result": result, "verification": verify}
 
@@ -393,7 +404,7 @@ def user_management(
             response = requests.post(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
             )
-            result = _json_or_error(response)
+            result = _json_or_error(response, sensitive_values(payload))
             verify = search_users(
                 payload.get("Name") or payload.get("Username") or user_id
             )

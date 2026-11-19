@@ -161,6 +161,36 @@ def mask_fields(data: Any) -> Any:
     return data
 
 
+def sensitive_values(data: Any) -> list[str]:
+    """Values under password/secret/token/key fields in *data*, for masking."""
+    found: list[str] = []
+    if isinstance(data, dict):
+        for k, v in data.items():
+            # Strings only: flags like PasswordNeverExpire aren't secrets.
+            if _SENSITIVE_KEY.search(str(k)) and isinstance(v, str) and v:
+                found.append(v)
+            else:
+                found.extend(sensitive_values(v))
+    elif isinstance(data, list):
+        for v in data:
+            found.extend(sensitive_values(v))
+    return found
+
+
+def redact_values(obj: Any, sensitive: Iterable[str | None]) -> Any:
+    """*obj* with every string inside it passed through :func:`redact`."""
+    sensitive = list(sensitive)
+    if not sensitive:
+        return obj
+    if isinstance(obj, str):
+        return _redact_all(obj, sensitive)
+    if isinstance(obj, dict):
+        return {k: redact_values(v, sensitive) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [redact_values(v, sensitive) for v in obj]
+    return obj
+
+
 class DelineaAPIError(requests.HTTPError):
     """HTTP error whose message carries the API's explanation and a hint."""
 
