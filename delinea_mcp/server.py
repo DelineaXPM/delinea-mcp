@@ -121,24 +121,31 @@ def read_only_tools() -> set[str]:
     return names | READ_ONLY_EXTRA_TOOLS
 
 
-_PRESET_PREFIXES = (("readonly", "read-only"), ("all", "all"), ("custom", "custom"))
+# Normalized (lowercase, letters and digits only) preset spellings.
+_PRESETS = {
+    "readonly": "read-only",
+    "all": "all",
+    "alltools": "all",
+    "custom": "custom",
+}
 
 
 def _tool_preset(raw: str) -> str | None:
     """Map a preset value to ``read-only``, ``all`` or ``custom``.
 
     Accepts the plugin picker's labels ("Read-only", "All tools", "Custom")
-    and the short forms, in any case. Blank gives None; anything else gives
-    ``read-only``, so a mistyped preset never widens access.
+    and the short forms (``read-only``, ``read_only``, ``all``, ``custom``),
+    in any case. Blank gives None; anything else, even a near miss such as
+    ``all-disabled``, gives ``read-only``, so a mistyped preset never widens
+    access.
     """
-    value = "".join(ch for ch in raw.lower() if ch.isalnum())
-    if not value:
+    if not raw.strip():
         return None
-    for prefix, preset in _PRESET_PREFIXES:
-        if value.startswith(prefix):
-            return preset
-    logger.warning("Unknown tool preset %r; using read-only", raw)
-    return "read-only"
+    preset = _PRESETS.get("".join(ch for ch in raw.lower() if ch.isalnum()))
+    if preset is None:
+        logger.warning("Unknown tool preset %r; using read-only", raw)
+        return "read-only"
+    return preset
 
 
 def _env_tool_list() -> set[str]:

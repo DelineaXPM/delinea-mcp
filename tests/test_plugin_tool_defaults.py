@@ -188,7 +188,26 @@ def test_custom_preset_uses_list(fresh, monkeypatch):
     assert fresh() == {"get_secret", "folder_management"}
 
 
-@pytest.mark.parametrize("preset", ["Custom", "something-else"])
+@pytest.mark.parametrize(
+    "raw, preset",
+    [
+        ("All tools", "all"),
+        ("ALL", "all"),
+        ("read_only", "read-only"),
+        (" Custom ", "custom"),
+        ("all-disabled", "read-only"),
+        ("allow-writes", "read-only"),
+        ("customize", "read-only"),
+        ("---", "read-only"),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_tool_preset_matches_labels_exactly(raw, preset):
+    assert server._tool_preset(raw) == preset
+
+
+@pytest.mark.parametrize("preset", ["Custom", "something-else", "all-disabled"])
 def test_empty_custom_or_unknown_preset_falls_back_to_read_only(
     fresh, monkeypatch, preset
 ):

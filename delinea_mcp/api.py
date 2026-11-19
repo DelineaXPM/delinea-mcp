@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -129,10 +130,15 @@ def redact(message: str, value: str | None) -> str:
 
     Error text built from API responses must never carry a secret the caller
     just submitted, even if a server echoes it in a validation message.
+    Every non-empty value is masked: four characters or more wherever it
+    appears, shorter ones (a PIN, a short code) wherever they stand on their
+    own, so ``'ab' is invalid`` is masked but the "ab" in "about" isn't.
     """
-    if value and len(value) >= 4:
-        message = message.replace(value, "********")
-    return message
+    if not value:
+        return message
+    if len(value) >= 4:
+        return message.replace(value, "********")
+    return re.sub(rf"(?<!\w){re.escape(value)}(?!\w)", "********", message)
 
 
 class DelineaAPIError(requests.HTTPError):

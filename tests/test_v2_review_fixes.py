@@ -654,6 +654,35 @@ def test_field_push_rejects_expired_and_unset(tmp_path, monkeypatch):
     )
     monkeypatch.delenv("NOT_SET_X", raising=False)
     assert field_push.main([str(job)]) == 1
+    job.write_text("{not json")
+    assert field_push.main([str(job)]) == 1 and not job.exists()
+
+
+def test_field_push_only_the_run_that_claims_the_job_uploads(
+    tmp_path, monkeypatch, capsys
+):
+    """A second run that read the job before the first deleted it must stop."""
+    from delinea_mcp import field_push
+
+    job = tmp_path / "job.json"
+    job.write_text(
+        json.dumps(
+            {"expires": 9e12, "source": "env:DMCP_V", "field": "f", "secret_id": 1}
+        )
+    )
+    monkeypatch.setenv("DMCP_V", "value")
+    monkeypatch.setattr(field_push, "use_system_trust_store", lambda: False)
+    puts = []
+    monkeypatch.setattr(field_push.requests, "put", lambda *a, **k: puts.append(a))
+    real_unlink = Path.unlink
+
+    def claimed_elsewhere(self, missing_ok=False):
+        real_unlink(self)  # the other run removed it first
+        raise FileNotFoundError(str(self))
+
+    monkeypatch.setattr(Path, "unlink", claimed_elsewhere)
+    assert field_push.main([str(job)]) == 1
+    assert puts == [] and "already used" in capsys.readouterr().err
 
 
 def test_delivery_defaults_follow_transport(monkeypatch):
@@ -813,7 +842,12 @@ def test_redact_masks_submitted_value():
         == "bad value '********' given"
     )
     assert api.redact("nothing here", "hunter22") == "nothing here"
-    assert api.redact("a b c", "a") == "a b c"  # too short to mask safely
+    # Short values are masked where they stand alone, not inside words.
+    assert api.redact("Value 'ab' is invalid", "ab") == "Value '********' is invalid"
+    assert api.redact("pin=123.", "123") == "pin=********."
+    assert api.redact("a b c", "a") == "******** b c"
+    assert api.redact("about tab", "ab") == "about tab"
+    assert api.redact("bad (+) value", "(+)") == "bad ******** value"
     assert api.redact("x", None) == "x"
 
 

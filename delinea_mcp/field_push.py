@@ -38,15 +38,21 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) != 1:
         return _fail("usage: python -I -m delinea_mcp.field_push <job.json>", 2)
     job_path = Path(args[0])
+    used = (
+        "this command was already used or has expired; ask the assistant "
+        "to prepare it again"
+    )
     try:
-        job = json.loads(job_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return _fail(
-            "this command was already used or has expired; ask the assistant "
-            "to prepare it again"
-        )
-    finally:
-        job_path.unlink(missing_ok=True)
+        text = job_path.read_text(encoding="utf-8")
+        # Claim the job: only the run that removes the file may use it, so
+        # two runs started at once can't both upload.
+        job_path.unlink()
+    except OSError:
+        return _fail(used)
+    try:
+        job = json.loads(text)
+    except ValueError:
+        return _fail(used)
 
     if time.time() > float(job.get("expires", 0)):
         return _fail("this command has expired; ask the assistant to prepare it again")
