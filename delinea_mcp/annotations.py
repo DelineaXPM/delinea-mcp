@@ -136,6 +136,7 @@ TOOL_TITLES: dict[str, str] = {
     # ---- Delinea Platform
     "user_management": "Manage Platform Users",
     "search_users": "Search Platform Users",
+    "platform_reports": "Browse and Run Platform Reports",
     "platform_user_management": "Manage Platform Users (Deprecated Alias)",
     "platform_role_management": "Manage Platform Roles",
     "platform_user_role_management": "Manage Platform User Roles",

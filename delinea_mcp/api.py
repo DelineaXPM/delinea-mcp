@@ -105,7 +105,7 @@ def raise_for_status(
     """
     if response.status_code < 400:
         return
-    reason = response.reason or ""
+    reason = getattr(response, "reason", "") or ""
     message = f"{action} failed: HTTP {response.status_code} {reason}".rstrip()
     detail = _api_error_detail(response)
     if detail:

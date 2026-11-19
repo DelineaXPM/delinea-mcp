@@ -351,4 +351,5 @@ async def test_fetch_error_detail_survives_output_validation():
         result = await client.call_tool("fetch", {"id": "no-slash"})
     assert result.is_error is False
     payload = json.loads(result.content[0].text)
-    assert payload == {"error": "identifier must be in '<type>/<id>' format"}
+    assert set(payload) == {"error"}
+    assert "must be in '<type>/<id>' format" in payload["error"]

@@ -40,7 +40,7 @@ from urllib.parse import quote
 import requests
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import DelineaAPIError, raise_for_status
+from delinea_mcp.api import raise_for_status
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -62,8 +62,15 @@ def _json_or_error(response: requests.Response) -> dict:
     if isinstance(status, int) and status >= 400:
         try:
             raise_for_status(response, "Delinea Platform request")
-        except DelineaAPIError as exc:
+        # requests.HTTPError, not DelineaAPIError: the base class stays the
+        # same object even if a test reloads delinea_mcp.api.
+        except requests.HTTPError as exc:
             return {"error": str(exc)}
+    return _raw_json(response)
+
+
+def _raw_json(response: requests.Response) -> dict:
+    """Return the decoded body, or ``{"error": <text>}`` when it isn't JSON."""
     try:
         return response.json()
     except Exception:
@@ -727,7 +734,9 @@ def _report_url(path: str) -> str:
 
 def _report_response(response: requests.Response, hint: str | None = None) -> dict:
     """Return the JSON body, or ``{"error": ...}`` for non-2xx responses."""
-    body = _json_or_error(response)
+    # Keep the Platform's own error body as ``detail``; the status line and
+    # hint below already explain the failure.
+    body = _raw_json(response)
     if response.status_code < 400:
         return body
     result: dict = {
