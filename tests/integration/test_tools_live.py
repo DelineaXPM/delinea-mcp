@@ -240,3 +240,32 @@ def test_role_management_live():
     require_credentials()
     result = server.role_management("list")
     assert isinstance(result, dict)
+
+
+def test_report_reference_columns_exist_live():
+    """Every table and column list_example_reports documents exists.
+
+    run_report's schema reference is hand-maintained; this catches drift
+    (e.g. tbUser.Active, which Secret Server no longer has).
+    """
+    import re
+
+    from delinea_mcp import constants
+
+    require_credentials()
+    tables, current = {}, None
+    for line in constants.TABLES_AND_COLUMNS.splitlines():
+        if m := re.match(r"\s*\d+\.\s+(\w+)", line):
+            current = m.group(1)
+            tables[current] = []
+        elif (m := re.match(r"\s*-\s+(\w+)", line)) and current:
+            tables[current].append(m.group(1))
+    missing = []
+    for table, columns in tables.items():
+        result = server.run_report(f"SELECT TOP 0 * FROM {table}")
+        if "error" in result:
+            missing.append(f"{table} (table)")
+            continue
+        have = {c.lower() for c in result.get("columns") or []}
+        missing += [f"{table}.{c}" for c in columns if have and c.lower() not in have]
+    assert not missing, f"documented but missing: {missing}"

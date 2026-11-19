@@ -94,6 +94,9 @@
 
 ### Tool quality
 
+- `list_example_reports` no longer documents `tbUser.Active`, which current
+  Secret Server versions don't have (reports using it failed). A live test
+  now checks every documented table and column against the tenant.
 - Every tool has a `title` (also set in its annotations).
 - API failures return the Secret Server or Platform error message, its
   `errorCode`, and a hint on what to do, instead of a bare HTTP status.

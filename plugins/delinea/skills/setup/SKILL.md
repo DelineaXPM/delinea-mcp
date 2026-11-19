@@ -21,7 +21,9 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/setup-uv.sh" check
 ```
 
 It prints `uvx=`, `uvx_on_path=`, `uv_version=`, `methods=` (the install
-methods this machine supports, most recommended first) and `recommended=`.
+methods this machine supports, most recommended first) and `recommended=`:
+`none` when uv is ready, `link` when it's installed but not on PATH, otherwise
+the install method to offer first.
 
 - `uvx_on_path=yes`: uv is fine. Skip to [step 4](#4-download-the-server).
 - `uvx` is set but `uvx_on_path=no`: ask the user whether to make it

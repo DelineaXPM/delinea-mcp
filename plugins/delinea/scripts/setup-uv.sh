@@ -99,7 +99,15 @@ cmd_check() {
     fi
     methods=$(available_methods)
     echo "methods=${methods}"
-    echo "recommended=${methods%% *}"
+    # What to do next: nothing, link the existing uvx, or install with the
+    # first available method.
+    if have uvx; then
+        echo "recommended=none"
+    elif find_uvx >/dev/null; then
+        echo "recommended=link"
+    else
+        echo "recommended=${methods%% *}"
+    fi
 }
 
 cmd_install() {
