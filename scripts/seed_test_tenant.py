@@ -21,7 +21,9 @@ from delinea_mcp.api import DelineaSession
 from delinea_mcp.tls import use_system_trust_store
 
 FOLDER_NAME = "delinea-mcp tests"
-SECRET_NAME = "delinea-mcp test web password"
+SECRET_NAME = (
+    "delinea-mcp test web password"  # nosec B105 - display name, not a credential
+)
 TEMPLATE_NAMES = ("Web Password", "Password")
 
 
