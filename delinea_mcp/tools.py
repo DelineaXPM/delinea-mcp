@@ -874,7 +874,7 @@ def set_secret_field_environment_variable(
             if params:
                 kwargs["params"] = params
             try:
-                session.request("PUT", field_path, **kwargs)
+                session.request("PUT", field_path, sensitive=[value], **kwargs)
             except Exception as exc:  # pragma: no cover - network failures
                 logger.exception("Failed to update field %s", field_slug)
                 return {
@@ -1074,6 +1074,7 @@ def update_secret_generated_password(
         session.request(
             "PUT",
             f"/v1/secrets/{secret_id}/fields/{field_slug}",
+            sensitive=[str(generated_password)],
             **put_kwargs,
         )
 

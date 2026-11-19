@@ -534,6 +534,7 @@ def test_set_field_from_file_uploads_directly(file_mode, tmp_path):
     method, path, kwargs = put[-1]
     assert (method, path) == ("PUT", "/v1/secrets/7/fields/api-key")
     assert kwargs["json"] == {"value": "AKIA-SECRET"}
+    assert kwargs["sensitive"] == ["AKIA-SECRET"]  # masked in any API error
     assert kwargs["params"]["autoComment"] == "CHG-9"
 
 
@@ -849,6 +850,21 @@ def test_redact_masks_submitted_value():
     assert api.redact("about tab", "ab") == "about tab"
     assert api.redact("bad (+) value", "(+)") == "bad ******** value"
     assert api.redact("x", None) == "x"
+
+
+@pytest.mark.parametrize("pad", [470, 490, 495])
+@pytest.mark.parametrize("shape", ["json", "text"])
+def test_api_errors_mask_submitted_values_before_truncating(pad, shape):
+    """A value cut by the length limit must not leave a prefix behind."""
+    value = "Sup3rS3cretValue-1234567890"
+    echoed = "x" * pad + f" value {value} rejected"
+    if shape == "json":
+        resp = Resp({"message": echoed}, 400, "Bad Request")
+    else:
+        resp = Resp(ValueError("no json"), 400, "Bad Request", text=echoed[-290:])
+    with pytest.raises(api.DelineaAPIError) as info:
+        api.raise_for_status(resp, "PUT /v1/secrets/7/fields/f", sensitive=[value])
+    assert value[:4] not in str(info.value)
 
 
 def test_field_push_error_never_echoes_value(tmp_path, monkeypatch, capsys):

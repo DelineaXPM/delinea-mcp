@@ -509,7 +509,7 @@ def test_update_secret_generated_password_success(monkeypatch):
             (
                 "PUT",
                 "/v1/secrets/42/fields/password",
-                {"json": {"value": "R0tated!"}},
+                {"json": {"value": "R0tated!"}, "sensitive": ["R0tated!"]},
             ),
             ("GET", "/v1/secrets/42/summary", {}),
         ],
@@ -589,6 +589,7 @@ def test_update_secret_with_comment_passes_params(monkeypatch):
                 "/v1/secrets/42/fields/password",
                 {
                     "json": {"value": "NewPwd!"},
+                    "sensitive": ["NewPwd!"],
                     "params": {
                         "autoCheckout": "true",
                         "autoCheckIn": "true",

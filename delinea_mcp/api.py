@@ -3,7 +3,7 @@ import os
 import re
 import threading
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 import requests
@@ -149,14 +149,26 @@ class DelineaAPIError(requests.HTTPError):
         self.status_code = response.status_code
 
 
-def _api_error_detail(response: requests.Response) -> str:
-    """Extract the human-readable reason from a Delinea error body."""
+def _redact_all(message: str, sensitive: Iterable[str | None]) -> str:
+    for value in sensitive:
+        message = redact(message, value)
+    return message
+
+
+def _api_error_detail(
+    response: requests.Response, sensitive: Iterable[str | None] = ()
+) -> str:
+    """Extract the human-readable reason from a Delinea error body.
+
+    *sensitive* values (ones the caller just submitted) are masked before the
+    text is shortened, so a cut can't leave part of one behind.
+    """
     try:
         body = response.json()
     except ValueError:
-        return (response.text or "").strip()[:300]
+        return _redact_all((response.text or "").strip(), sensitive)[:300]
     if not isinstance(body, dict):
-        return str(body)[:300]
+        return _redact_all(str(body), sensitive)[:300]
     parts = [
         str(body[k])
         for k in ("message", "Message", "messageDetail", "error_description", "error")
@@ -171,21 +183,27 @@ def _api_error_detail(response: requests.Response) -> str:
     if body.get("errorCode"):
         parts.append(f"(errorCode {body['errorCode']})")
     # De-duplicate while keeping order (message and messageDetail often match).
-    return " ".join(dict.fromkeys(parts))[:500]
+    return _redact_all(" ".join(dict.fromkeys(parts)), sensitive)[:500]
 
 
 def raise_for_status(
-    response: requests.Response, action: str, hints: dict[int, str] | None = None
+    response: requests.Response,
+    action: str,
+    hints: dict[int, str] | None = None,
+    sensitive: Iterable[str | None] = (),
 ) -> None:
     """Raise :class:`DelineaAPIError` with an actionable message on failure.
 
     *hints* overrides the next-step hint for specific status codes.
+    *sensitive* lists values the request submitted (a password, an uploaded
+    field value); they're masked in the message even if the server echoes
+    them, so the exception is safe to log or return.
     """
     if response.status_code < 400:
         return
     reason = getattr(response, "reason", "") or ""
     message = f"{action} failed: HTTP {response.status_code} {reason}".rstrip()
-    detail = _api_error_detail(response)
+    detail = _api_error_detail(response, sensitive)
     if detail:
         message += f" - {detail}"
     code_hint = next((h for c, h in _ERROR_CODE_HINTS.items() if c in detail), None)
@@ -365,9 +383,17 @@ class DelineaSession:
         return vault_url
 
     def request(
-        self, method: str, path: str, timeout: float | None = None, **kwargs
+        self,
+        method: str,
+        path: str,
+        timeout: float | None = None,
+        sensitive: Iterable[str | None] = (),
+        **kwargs,
     ) -> requests.Response:
-        """Perform an authenticated request with a default timeout."""
+        """Perform an authenticated request with a default timeout.
+
+        *sensitive*: values in the request body to mask in error messages.
+        """
         url = self.base_url.rstrip("/") + "/api" + path
         if timeout is None:
             timeout = float(os.getenv("DELINEA_TIMEOUT", DEFAULT_TIMEOUT))
@@ -381,5 +407,5 @@ class DelineaSession:
                 else:
                     self.authenticate()
             response = self.session.request(method, url, timeout=timeout, **kwargs)
-        raise_for_status(response, f"{method} {path}")
+        raise_for_status(response, f"{method} {path}", sensitive=sensitive)
         return response

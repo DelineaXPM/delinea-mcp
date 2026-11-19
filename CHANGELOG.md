@@ -54,8 +54,10 @@ delinea_mcp.field_push`, hidden prompt for `stdin`), so a package in the
   role and report tools now reuse that account unless a separate
   `PLATFORM_SERVICE_*` pair is given. The plugin settings say so.
 - Error text built from API responses masks any value the user just
-  submitted (`set_secret_field_environment_variable` and `field_push`), even
-  if a server echoes it in a validation message.
+  submitted (`set_secret_field_environment_variable` and `field_push`) and
+  the generated password in `update_secret_generated_password`, even if a
+  server echoes it in a validation message. Masking happens before the text
+  is shortened, so logs and tool results never hold part of the value.
 - `scripts/seed_test_tenant.py` creates the folder, secret and IDs the live
   tests expect; the live tests can sign in through the Platform
   (`LIVE_SS_VIA_PLATFORM=1`).

@@ -79,7 +79,11 @@ def main(argv: list[str] | None = None) -> int:
             headers={"Authorization": f"Bearer {job['token']}"},
             timeout=30,
         )
-        raise_for_status(response, f"Updating field '{field}' on secret {secret_id}")
+        raise_for_status(
+            response,
+            f"Updating field '{field}' on secret {secret_id}",
+            sensitive=[value],
+        )
     except DelineaAPIError as exc:
         hint = ""
         if exc.status_code == 401:
