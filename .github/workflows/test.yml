@@ -118,4 +118,8 @@ jobs:
         run: |
           # Basic container validation - server help command
           timeout 30s docker run --rm delinea-mcp:test python server.py --help || true
+          # The credential-upload helper runs isolated (-I) from the user's
+          # directory, so the package must be installed, not just in /app.
+          docker run --rm --workdir /tmp --entrypoint python delinea-mcp:test \
+            -I -c "import delinea_mcp.field_push"
           echo "✅ Docker container basic validation completed"

@@ -85,6 +85,19 @@ def test_secretserver_local_user_management(monkeypatch):
         "reset_password", user_id=6, data={"p": 1}
     ) == {"ok": True}
 
+    new = {"password": "N3w-Pass!"}
+    patch_request(
+        monkeypatch,
+        (
+            "POST",
+            "/v1/users/6/password-reset",
+            {"json": new, "sensitive": ["N3w-Pass!"]},
+        ),
+    )
+    assert server.secretserver_local_user_management(
+        "reset_password", user_id=6, data=new
+    ) == {"ok": True}
+
     patch_request(monkeypatch, ("POST", "/v1/users/7/lock-out", {"json": {}}))
     assert server.secretserver_local_user_management("lock_out", user_id=7) == {
         "ok": True
@@ -92,7 +105,9 @@ def test_secretserver_local_user_management(monkeypatch):
 
 
 def test_role_management(monkeypatch):
-    patch_request(monkeypatch, [("GET", "/v1/roles", {"params": {}})])
+    patch_request(
+        monkeypatch, [("GET", "/v1/roles", {"params": {"take": 50, "skip": 0}})]
+    )
     assert server.role_management("list") == {"ok": True}
 
     patch_request(monkeypatch, [("GET", "/v1/roles/1", {})])
@@ -137,7 +152,9 @@ def test_group_management(monkeypatch):
     patch_request(monkeypatch, ("GET", "/v1/groups/9", {}))
     assert server.group_management("get", group_id=9) == {"ok": True}
 
-    patch_request(monkeypatch, ("GET", "/v1/groups", {"params": {}}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/groups", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.group_management("list") == {"ok": True}
 
     patch_request(
@@ -219,11 +236,13 @@ def test_folder_management(monkeypatch):
     }
 
     patch_request(
-        monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "true"}})]
+        monkeypatch, [("GET", "/v1/folders/9", {"params": {"getAllChildren": "false"}})]
     )
     assert server.folder_management("get", folder_id=9) == {"ok": True}
 
-    patch_request(monkeypatch, [("GET", "/v1/folders", {"params": {}})])
+    patch_request(
+        monkeypatch, [("GET", "/v1/folders", {"params": {"take": 50, "skip": 0}})]
+    )
     assert server.folder_management("list") == {"ok": True}
 
 
@@ -244,6 +263,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["G3n3rated!"],
                     "json": {
                         "name": "db-prod",
                         "secretTemplateId": 6003,
@@ -252,7 +272,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                             {"fieldId": 108, "itemValue": "G3n3rated!"},
                         ],
                         "folderId": 5,
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/42/summary", {}),
@@ -295,13 +315,14 @@ def test_create_secret_generated_password_injects_existing_field(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["NewPwd!"],
                     "json": {
                         "name": "test",
                         "secretTemplateId": 6003,
                         "items": [
                             {"fieldId": 108, "itemValue": "NewPwd!"},
                         ],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/99/summary", {}),
@@ -332,6 +353,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["Gen!"],
                     "json": {
                         "name": "json-test",
                         "secretTemplateId": 6003,
@@ -339,7 +361,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "Gen!"},
                         ],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/50/summary", {}),
@@ -384,11 +406,12 @@ def test_create_secret_no_items_leak(monkeypatch):
                 "POST",
                 "/v1/secrets",
                 {
+                    "sensitive": ["Pwd!"],
                     "json": {
                         "name": "safe",
                         "secretTemplateId": 1,
                         "items": [{"fieldId": 1, "itemValue": "Pwd!"}],
-                    }
+                    },
                 },
             ),
             ("GET", "/v1/secrets/10/summary", {}),
@@ -415,9 +438,14 @@ def test_create_secret_no_items_leak(monkeypatch):
 
 
 def _patch_session_attrs(monkeypatch, token="tok", base_url="https://ss.example.com"):
-    """Replace SessionManager session with a stub that has token and base_url."""
+    """Replace SessionManager session with a stub that has token and base_url.
+
+    These tests assert on script text, so pin inline delivery; file delivery
+    is covered in tests/test_script_handoff.py.
+    """
     stub = SimpleNamespace(token=token, base_url=base_url)
     monkeypatch.setattr(SessionManager, "_session", stub)
+    monkeypatch.setitem(server.tools._CFG, "script_delivery", "inline")
 
 
 def test_set_secret_field_env_bash_stdin(monkeypatch):
@@ -498,7 +526,7 @@ def test_update_secret_generated_password_success(monkeypatch):
             (
                 "PUT",
                 "/v1/secrets/42/fields/password",
-                {"json": {"value": "R0tated!"}},
+                {"json": {"value": "R0tated!"}, "sensitive": ["R0tated!"]},
             ),
             ("GET", "/v1/secrets/42/summary", {}),
         ],
@@ -578,6 +606,7 @@ def test_update_secret_with_comment_passes_params(monkeypatch):
                 "/v1/secrets/42/fields/password",
                 {
                     "json": {"value": "NewPwd!"},
+                    "sensitive": ["NewPwd!"],
                     "params": {
                         "autoCheckout": "true",
                         "autoCheckIn": "true",

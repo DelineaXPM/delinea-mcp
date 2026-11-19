@@ -8,6 +8,10 @@
 
 ## News
 
+- **2.0.0** — Claude Code plugin, `uvx delinea-mcp` from PyPI, masked
+  passwords (plaintext reveal off by default), private credential-script handoff,
+  and paging on every list tool. Breaking changes are listed in the
+  [release notes](CHANGELOG.md).
 - **11 Aug 2026** — MCP Protocol v2 (spec revision 2026-07-28, streamable HTTP)
   and experimental StrongDM API support are here — see the
   [release notes](CHANGELOG.md).
@@ -23,43 +27,74 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
-- Optional **experimental** StrongDM (SDM) tools — access grants, entitlement
-  audits, user/role lifecycle, health and activity reports (see
-  [docs/strongdm.md](docs/strongdm.md); install with
-  `pip install "delinea-mcp[strongdm]"`)
+- Password fields masked in every result; plaintext only after the user
+  approves a server-sent confirmation prompt
+- StrongDM, a Delinea company, will be supported in a future release. An
+  experimental preview is available behind `strongdm_enabled` (see
+  [docs/strongdm.md](docs/strongdm.md))
 - Streamable HTTP (`/mcp`), legacy Server-Sent Events (`/mcp/sse`) and STDIO transports
 - OAuth 2.0 with dynamic client registration per the MCP specification
 - TLS support for secure connections
 - Ready-to-run Docker image and development server entry point
-- Tested with ChatGPT, Claude Desktop, remote Claude connector, VSCode Copilot and openwebui
+- Tested with Claude Code, ChatGPT, Claude Desktop, remote Claude connector, VSCode Copilot and openwebui
 
 ## Installation
 
-> [!NOTE]
->
-> This project uses `uv` (https://github.com/astral-sh/uv), but if you prefer to run commands without this, you can do `pip` and `venv` commands as usual if desired.
+### Claude Code plugin
 
-- [Install Uv](https://docs.astral.sh/uv/getting-started/installation/)
-- Initialize project: `uv pip sync requirements.txt`
+The [`plugins/delinea`](plugins/delinea) plugin bundles this server with two
+skills, **no-secret-visibility** and **building-reports**. When you enable
+it, Claude Code asks for your Delinea Platform URL and service account (the
+plugin finds your Secret Server from the Platform) and how much Claude may
+do: read-only, all tools, or a custom list. The client secret is stored in
+your operating system's credential store. See the
+[plugin README](plugins/delinea/README.md).
+
+### From PyPI
+
+With [uv](https://docs.astral.sh/uv/getting-started/installation/)
+installed, run the server without cloning anything:
+
+```bash
+DELINEA_BASE_URL=https://example.secretservercloud.com \
+DELINEA_USERNAME=<username> DELINEA_PASSWORD=<password> \
+uvx delinea-mcp
+```
+
+Or install it with `pip install delinea-mcp` and run `delinea-mcp`.
+
+### From source
+
+- [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Initialize project: `uv sync --frozen`
 - Use `uv run server.py --config config.json`
+
+### Reusable skills
+
+The skills in [`plugins/delinea/skills`](plugins/delinea/skills) also work
+on their own with any Delinea MCP connection: copy a skill folder into
+`~/.claude/skills/`, or zip it and upload it under **Customize > Skills** in
+Claude.
 
 ## Configuration
 
-Secrets such as passwords continue to come from environment variables.
-Provide `DELINEA_PASSWORD` in your shell environment.
-Optional features rely on additional variables such as `AZURE_OPENAI_KEY` or `PLATFORM_SERVICE_PASSWORD`.
+Secrets such as passwords always come from environment variables:
+`DELINEA_PASSWORD`, plus `PLATFORM_SERVICE_PASSWORD` for the Platform tools.
 
-Non-secret parameters belong in `config.json`:
+Non-secret parameters belong in `config.json`, found through `--config`, the
+`DELINEA_MCP_CONFIG` environment variable, or `./config.json`. Connection
+settings missing from the file fall back to the environment variables
+`DELINEA_USERNAME`, `DELINEA_BASE_URL`, `PLATFORM_HOSTNAME`,
+`PLATFORM_SERVICE_ACCOUNT` and `PLATFORM_TENANT_ID`, so the server also runs
+with no config file at all.
 
 ```json
 {
   "delinea_username": "<username>",
   "delinea_base_url": "https://your-secret-server/SecretServer",
-  "platform_hostname": "<tenant>.secureplatform.io",
+  "platform_hostname": "<tenant>.delinea.app",
   "platform_service_account": "<service_account>",
   "platform_tenant_id": "<tenant_id>",
-  "azure_openai_endpoint": "https://example.openai.azure.com/",
-  "azure_openai_deployment": "<deployment_name>",
   "auth_mode": "none",
   "transport_mode": "stdio",
   "chatgpt_disable_scope_checks": false,
@@ -73,7 +108,9 @@ Non-secret parameters belong in `config.json`:
   "registration_psk": null,
   "jwt_key_path": ".cache/jwt.json",
   "oauth_db_path": ".cache/oauth.db",
-  "enabled_tools": []
+  "enabled_tools": [],
+  "secret_reveal_mode": "disabled",
+  "script_delivery": "auto"
 }
 ```
 
@@ -85,15 +122,43 @@ The configuration file supports the following keys:
 
 - **delinea_username** - Secret Server username. Use a dedicated **Application Account**
   with permission to do the tasks you want; see [Secret Server account](#secret-server-account).
-- **delinea_base_url** - Base URL of your Secret Server instance.
-- **platform_hostname** - Platform tenant hostname (enables Platform tools).
+- **delinea_base_url** - Base URL of your Secret Server instance. Optional
+  when `platform_hostname` is set: the server then uses the default Secret
+  Server vault that the Platform's vault broker reports
+  (`/vaultbroker/api/vaults`), and this key only overrides it.
+- **platform_hostname** - Platform tenant hostname, e.g. `<tenant>.delinea.app`
+  (a URL such as `https://<tenant>.delinea.app/` works too; enables Platform
+  tools). When set, the Secret Server session also signs in through the
+  Platform, with `delinea_username` as the client ID.
 - **platform_service_account** - Service account used with the Platform API.
 - **platform_tenant_id** - Tenant ID for Platform API requests.
+- **secret_reveal_mode** - Whether plaintext passwords can be shown, and how
+  that's approved. `disabled` (default) never reveals plaintext and doesn't
+  register `reveal_secret_field`. Enable it only on the user's explicit
+  request: `elicit` asks the user through an MCP elicitation prompt for each
+  reveal and refuses when the client can't show one; `client_approval`
+  relies on the client's own tool-approval prompt. The
+  `DELINEA_SECRET_REVEAL_MODE` environment variable sets the same value
+  (`true`/`false` mean `elicit`/`disabled`) when the key isn't in
+  `config.json`.
+- **TLS trust** - Outbound HTTPS is verified against the operating system's
+  certificate store, so TLS-inspecting networks and internal CAs work. Set
+  the `DELINEA_TLS_TRUST=bundled` environment variable to use Python's
+  bundled CA list instead.
+- **script_delivery** - How the environment-variable tools hand over
+  credentials: `auto` (default) uses local handoff files for `stdio` and
+  returns scripts for `sse`; `file` or `inline` force one mode. With local
+  handoff files, `set_secret_field_environment_variable` returns a command
+  that runs `python -I -m delinea_mcp.field_push` with the server's Python.
+  Isolated mode (`-I`) ignores the current directory, so the package must be
+  installed in that Python (`uvx`, `pip install`, `uv sync` or the Docker
+  image), not only present as source in the working directory.
+- **strongdm_enabled** - default `false`. Registers the experimental
+  StrongDM preview tools. StrongDM, a Delinea company, will be fully
+  supported in a future release.
 - **strongdm_api_host** - StrongDM control plane (default `app.strongdm.com:443`;
   UK/EU variants available). Credentials come from `SDM_API_ACCESS_KEY` /
   `SDM_API_SECRET_KEY` env vars; see [docs/strongdm.md](docs/strongdm.md).
-- **azure_openai_endpoint** - Azure OpenAI endpoint. Only if you want the automatic report generation (most agents can generate their own report SQL so don't enable unless you need it).
-- **azure_openai_deployment** - Deployment name for Azure OpenAI.
 - **auth_mode** - Authentication mode (`none` or `oauth`). OAuth obviously doesn't work with stdio transport.
 - **transport_mode** - `stdio` for command line or `sse` for HTTP. In `sse`
   mode the server exposes both the streamable HTTP endpoint at `/mcp`
@@ -128,7 +193,20 @@ The configuration file supports the following keys:
 - **registration_psk** - Pre-shared key required to register OAuth clients. You will need to type in this secret in your browser to approve OAuth connections.
 - **jwt_key_path** - Location of the RSA key pair used for OAuth tokens. Defaults to `.cache/jwt.json`. autogenerated if doesn't exist.
 - **oauth_db_path** - Path to the OAuth database file. Defaults to `.cache/oauth.db`. autogenerated if doesn't exist.
-- **enabled_tools** - List of tool names to register. An empty list enables all tools. It is highly recommended to enable tools selectively per use case or task. See `docs/` folder for some examples.
+- **enabled_tools** - List of tool names to register. An empty list enables
+  all tools. When the key isn't set, the tool preset below decides, then the
+  comma-separated `DELINEA_ENABLED_TOOLS` environment variable (`all` = every
+  tool). It is highly recommended to enable tools selectively per use case or
+  task. See `docs/` folder for some examples.
+- **tool_preset** - `read-only`, `all` or `custom` (environment variable
+  `DELINEA_TOOL_PRESET`; the plugin's **Tool access** setting). `read-only`
+  registers the read-only tools plus `run_report` and
+  `get_secret_environment_variable`, which don't change vault data (except
+  that handing over a secret that requires check-out checks it out and back
+  in, which changes its password if it's set to change on check-in). `custom`
+  registers the `DELINEA_ENABLED_TOOLS` list (read-only if it's empty). An
+  unknown value counts as `read-only`. Unset: every tool, or the
+  `DELINEA_ENABLED_TOOLS` list if one is given.
 - **search_objects** - Allowed object types for the `search` tool.
   Defaults to `["secret"]` but can include `user`, `folder`, `group` and `role`.
 - **fetch_objects** - Allowed object types for the `fetch` tool.
@@ -143,13 +221,13 @@ Account flag) rather than reusing a person's login:
 
 - Secret Server 12.1 and later turn on **Prevent direct API authentication** by
   default for new installations, on-premises and Cloud. With it on, the
-  password grant is rejected for interactive user accounts, so the MCP server
-  cannot obtain a token and exits with a `Secret Server authentication failed`
-  error that names this setting. Application Accounts are exempt; alternatively
+  password grant is rejected for interactive user accounts, so the server
+  can't get a token and reports a `Secret Server sign-in ... failed` error
+  that names this setting. Application Accounts are exempt; alternatively,
   grant the user the **Bypass Direct API Authentication Restriction** role
   permission.
-- Application Accounts cannot log in to the UI and do not consume a user
-  licence, which is what you want for an unattended server.
+- Application Accounts can't sign in to the UI and don't use a user licence,
+  which suits an unattended server.
 - Upgraded installations keep their previous value of the setting, but the
   12.2.000007 release notes ask you to review it after upgrading.
 
@@ -161,8 +239,10 @@ See Delinea's documentation on
 Start the server locally in development mode:
 
 ```bash
-python server.py
+uv run server.py
 ```
+
+After `pip install delinea-mcp`, run `delinea-mcp` instead.
 
 On startup the server requests a bearer token and stores it for subsequent API requests.
 This project will be expanded to integrate further with the Secret Server API.
@@ -182,18 +262,29 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 
 ### Secret Server
 
-- `run_report(sql_query, report_name=None)` - create and execute a temporary report.
-  Secret Server accepts only a single read-only SELECT statement as custom report SQL
-  (no IF, WHILE, BEGIN/END, TRY/CATCH, PRINT, temporary tables or database-qualified
-  names); rejected SQL comes back with the Secret Server message in `error`.
-- `ai_generate_and_run_report(description)` - generate SQL using Azure OpenAI and run it.
-  Requires the Azure OpenAI variables.
-- `list_example_reports()` - list sample queries, table information and the report SQL rules.
-- `get_secret(id, summary=False)` - retrieve a secret or summary details.
-- `get_folder(id)` - fetch folder metadata and children.
-- `search_secrets(query, lookup=False)` - search or look up secrets.
-- `search_folders(query, lookup=False)` - search or look up folders.
-- `get_secret_environment_variable(secret_id, environment)` - output a script for fetching secret credentials in the specified shell.
+- `run_report(sql_query, report_name=None, max_rows=200)` - run a `SELECT`
+  as a temporary report through the Secret Server REST API; returns
+  `total_rows` and `truncated` alongside the rows. Secret Server accepts only a
+  single read-only SELECT statement as custom report SQL (no IF, WHILE,
+  BEGIN/END, TRY/CATCH, PRINT, temporary tables or database-qualified names);
+  rejected SQL comes back with the Secret Server message in the error.
+- `list_example_reports()` - the reference for `run_report`: example queries,
+  tables, columns, special fields and the report SQL rules.
+- `get_secret(id, summary=False)` - retrieve a secret with password fields
+  masked, or its summary.
+- `reveal_secret_field(secret_id, field_slug, comment=None)` - only when
+  plaintext reveal is enabled (see `secret_reveal_mode`; off by default):
+  return one plaintext value after the user approves a confirmation prompt.
+- `get_folder(id, all_children=False)` - fetch folder metadata, optionally
+  with the full descendant tree.
+- `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.
+- `search_folders(query, lookup=False, take=50, skip=0)` - search or look up folders.
+- `get_secret_environment_variable(secret_id, environment, comment=None)` -
+  load a secret's username and password into environment variables. Over
+  `stdio` the server reads the secret and writes a private, self-deleting
+  file of shell assignments, returning only its path; nothing else needs to
+  be installed. Over HTTP transports it returns a script that calls the API
+  (bash needs curl and jq).
 - `check_secret_template(template_id)` - fetch secret template details.
 - `check_secret_template_field(template_id, field_id)` - check if a template contains a field.
 - `get_secret_template_field(field_id)` - retrieve details about a specific secret template field by ID.
@@ -210,15 +301,19 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   read-template → mutate non-password fields → verify flow; refuses
   password-marked fields unless explicitly allowed.
 - `set_secret_field_environment_variable(secret_id, field_slug, environment, source="stdin", comment=None)` -
-  emit a shell script (bash/powershell/cmd) that reads a value locally and
-  pushes it into the secret field, so the value bypasses the model entirely.
+  store a value from the user's machine in a secret field, bypassing the
+  model. Over `stdio`, `file:` sources are uploaded by the server directly
+  and `env:`/`stdin` sources return a one-line command that runs the
+  server's own Python (`delinea_mcp.field_push`); over HTTP transports a
+  script is returned.
 - `bulk_user_response(user_ids, scenario, comment, confirm=False)` - opinionated
   incident combinator over the bulk-user operations API. Scenarios:
   `compromise`, `offboard`, `unlock`, `reenable`, `force_logout`; requires
   `confirm=True` plus a non-empty audit comment, and previews when unconfirmed.
 - `role_management(action, role_id=None, data=None, params=None)` - manage roles.
   `action` may be `list`, `get`, `create` or `update`.
-  Pass optional query parameters with `params` when listing roles.
+  Pass optional query parameters with `params` when listing roles. Every
+  `list` action pages with `take` (default 50, max 500) and `skip`.
   Example: `role_management("update", role_id=3, data={"name": "New Role"})`.
 - `user_role_management(action, user_id, role_ids=None)` - assign or remove roles from a user.
   `action` is `get`, `add` or `remove` and `role_ids` is a list of role identifiers for add/remove operations.
@@ -278,11 +373,13 @@ For SS-only deployments without Platform configured:
   Example: `secretserver_local_user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
 - `search_secretserver_local_users(query)` - search Secret Server's local user store.
 
-### StrongDM tools (optional, experimental)
+### StrongDM tools (preview)
 
-**Experimental**: the StrongDM backend has not yet been verified against a
-live SDM organization (unit-tested against the SDK surface only). Expect
-rough edges and report issues. Installed via the `strongdm` extra; see
+StrongDM, a Delinea company, will be fully supported in a future release.
+The preview tools below aren't part of the 2.0 release surface: they
+register only with `strongdm_enabled: true`, haven't been verified against
+a live SDM organization, and are excluded from the Claude Code plugin.
+Installed via the `strongdm` extra; see
 [docs/strongdm.md](docs/strongdm.md) for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
 (time-boxed just-in-time or standing grants), `sdm_revoke_access`,
 `sdm_user_management` (onboard/offboard flows), `sdm_role_management`,
@@ -291,7 +388,6 @@ rough edges and report issues. Installed via the `strongdm` extra; see
 comments; ambiguous name matches return candidates without mutating.
 
 Use the server configuration variables described above to authenticate.
-The AI tool is automatically disabled if the Azure OpenAI variables are missing.
 Only the tool names listed in `config.json` will be registered.
 An empty list enables every tool.
 
@@ -322,7 +418,6 @@ docker run --rm -p 8000:8000 \
   -e DELINEA_PASSWORD=<password> \
   -e PLATFORM_SERVICE_PASSWORD=<password> \
   -e DELINEA_DEBUG=1 \
-  -e AZURE_OPENAI_KEY=<your-key-or-appropriate-token> \
   -v $(pwd)/config.json:/app/config.json:ro \
   -v mcp-data:/app/data \
   dev.local/delinea-mcp:latest
@@ -382,8 +477,7 @@ Build the Docker image from a tagged commit and deploy it to your production env
 Optional features rely on additional variables:
 
 - `PLATFORM_SERVICE_PASSWORD` along with `PLATFORM_HOSTNAME`, `PLATFORM_SERVICE_ACCOUNT`, and `PLATFORM_TENANT_ID` enables the user management tools.
-- `AZURE_OPENAI_KEY` together with `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` enables the AI report generation helper.
-- `SDM_API_ACCESS_KEY` and `SDM_API_SECRET_KEY` enable the experimental StrongDM tools (requires the `strongdm` extra; see [docs/strongdm.md](docs/strongdm.md)).
+- `SDM_API_ACCESS_KEY` and `SDM_API_SECRET_KEY`, with `strongdm_enabled: true`, enable the StrongDM preview tools (requires the `strongdm` extra; see [docs/strongdm.md](docs/strongdm.md)).
 
 When running with OAuth or SSE transport you may need to provide `registration_psk` and configure an `external_hostname` or HTTPS certificate files.
 
@@ -394,7 +488,10 @@ When running with OAuth or SSE transport you may need to provide `registration_p
   `secretserver_users.py` (SS-local users), `strongdm_tools.py` (StrongDM,
   optional), plus `transports/` (SSE + streamable HTTP) and `auth/` (the
   embedded OAuth authorization server).
-- `server.py` - thin entry point that registers everything with the MCP server.
+- `delinea_mcp/server.py` - entry point (`delinea-mcp` console script) that
+  registers everything with the MCP server; the root `server.py` and
+  `delinea_api.py` are backwards-compatible aliases.
+- `plugins/delinea/` - the Claude Code plugin and its skills.
 - `docs/` - project documentation and the generated `delinea-secret-server-openapi-spec.json`.
 - `scripts/` - helper examples including `manual_secret_request.py`.
 
@@ -415,7 +512,16 @@ with their organisation's identity provider. Current safeguards:
   proxy) — bearer tokens and secrets transit every request.
 - Scope tool exposure per use case with `enabled_tools`; secret _values_
   are kept out of model context by design (server-side password
-  generation, env-var script indirection, password-field guards).
+  generation, masked password fields, private env-var script handoff,
+  password-field guards, and user-approved reveals).
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## Privacy
+
+The server connects only to the Delinea endpoints you configure and sends
+no telemetry. Delinea's privacy policy is at
+<https://delinea.com/privacy-policy>.
 
 ## Release Notes
 

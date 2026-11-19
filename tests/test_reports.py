@@ -50,26 +50,15 @@ def test_run_report(monkeypatch):
     mock_session = type("MockSession", (), {"request": fake_request})()
     monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = server.run_report("SELECT 1", report_name="t")
-    assert result == {"columns": ["c"], "rows": [[1]]}
+    assert result == {
+        "columns": ["c"],
+        "rows": [[1]],
+        "total_rows": 1,
+        "truncated": False,
+    }
     assert calls[0][1] == "/v1/reports"
     assert calls[1][1] == "/v1/reports/execute"
     assert calls[2][1] == "/v1/reports/42"
-
-
-def test_ai_generate_and_run_report(monkeypatch):
-    def fake_generate(desc):
-        assert desc == "foo"
-        return "SELECT 2"
-
-    def fake_run(sql, report_name=None):
-        assert sql == "SELECT 2"
-        return {"columns": ["c"], "rows": [[2]]}
-
-    monkeypatch.setattr(server, "generate_sql_query", fake_generate)
-    monkeypatch.setattr(server, "run_report", fake_run)
-    result = server.ai_generate_and_run_report("foo")
-    assert result["generated_sql"] == "SELECT 2"
-    assert result["rows"] == [[2]]
 
 
 def test_run_report_error(monkeypatch):
@@ -83,26 +72,7 @@ def test_run_report_error(monkeypatch):
 
     monkeypatch.setattr(tools, "create_report", fail_create)
     result = tools.run_report("SELECT 1")
-    assert result["error"].startswith("Failed to run report")
-
-
-def test_ai_generate_and_run_report_error(monkeypatch):
-    from delinea_mcp import tools
-
-    monkeypatch.setattr(tools, "generate_sql_query", lambda d: "Error: bad")
-    result = tools.ai_generate_and_run_report("x")
-    assert result == {"error": "Error: bad"}
-
-
-def test_ai_generate_and_run_report_run_error(monkeypatch):
-    from delinea_mcp import tools
-
-    monkeypatch.setattr(tools, "generate_sql_query", lambda d: "SQL")
-    monkeypatch.setattr(
-        tools, "run_report", lambda sql, report_name=None: {"error": "fail"}
-    )
-    result = tools.ai_generate_and_run_report("x")
-    assert result == {"error": "fail"}
+    assert result["error"] == "Report 'MCP Generated Report' failed: boom"
 
 
 def test_list_example_reports():
@@ -117,12 +87,22 @@ def test_list_example_reports_includes_sql_rules():
     assert "temporary tables" in text
 
 
-def _rejected(message: str) -> Exception:
-    """Mimic ``requests.HTTPError``: a bare status in ``str()`` and the
-    Secret Server validation message only in ``response.text``."""
-    exc = RuntimeError("400 Client Error: Bad Request for url: /api/v1/reports")
-    exc.response = SimpleNamespace(text=message)  # type: ignore[attr-defined]
-    return exc
+def _rejected(message: str, action: str = "POST /v1/reports") -> Exception:
+    """Raise the way ``DelineaSession.request`` does on a 400: through
+    :func:`delinea_mcp.api.raise_for_status`, with the Secret Server
+    validation message only in the response body."""
+    from delinea_mcp import api
+
+    def _json():
+        raise ValueError("not JSON")
+
+    resp = SimpleNamespace(status_code=400, reason="Bad Request", text=message)
+    resp.json = _json
+    try:
+        api.raise_for_status(resp, action)
+    except api.DelineaAPIError as exc:
+        return exc
+    raise AssertionError("raise_for_status did not raise")
 
 
 def test_run_report_surfaces_rejected_sql_message(monkeypatch):
@@ -137,7 +117,7 @@ def test_run_report_surfaces_rejected_sql_message(monkeypatch):
     mock_session = SimpleNamespace(request=fake_request)
     monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.run_report("IF 1 = 1 SELECT 1", report_name="t")
-    assert "400 Client Error" in result["error"]
+    assert "HTTP 400" in result["error"]
     assert "read-only query" in result["error"]
 
 
@@ -148,32 +128,26 @@ def test_run_report_surfaces_execute_failure_body(monkeypatch):
         if path == "/v1/reports":
             return DummyResponse({"id": 7})
         assert path == "/v1/reports/execute"
-        raise _rejected("report 7 timed out")
+        raise _rejected("report 7 timed out", "POST /v1/reports/execute")
 
     mock_session = SimpleNamespace(request=fake_request)
     monkeypatch.setattr(SessionManager, "_session", mock_session)
     result = tools.run_report("SELECT 1", report_name="t")
-    assert "Failed to execute report 7" in result["error"]
+    assert "POST /v1/reports/execute failed" in result["error"]
     assert "timed out" in result["error"]
 
 
-def test_generate_sql_query_prompt_includes_sql_rules(monkeypatch):
+def test_compat_run_report_accepts_every_tool_parameter(monkeypatch):
+    """``import server; server.run_report(..., max_rows=...)`` must work."""
+    import inspect
+
     from delinea_mcp import tools
 
-    captured = {}
-
-    class DummyChat:
-        @staticmethod
-        def create(model, messages, temperature, max_tokens, n):
-            captured["messages"] = messages
-            message = SimpleNamespace(content="SELECT 1")
-            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-    fake_openai = SimpleNamespace(ChatCompletion=DummyChat)
-    monkeypatch.setitem(sys.modules, "openai", fake_openai)
-    monkeypatch.setattr(tools, "_CFG", {})
-    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "e")
-    monkeypatch.setenv("AZURE_OPENAI_KEY", "k")
-    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "dep")
-    assert tools.generate_sql_query("desc") == "SELECT 1"
-    assert "Report SQL Rules" in captured["messages"][0]["content"]
+    tool_params = inspect.signature(tools.run_report).parameters
+    assert list(inspect.signature(server.run_report).parameters) == list(tool_params)
+    seen = {}
+    monkeypatch.setattr(
+        tools, "run_report", lambda sql, name=None, rows=0: seen.update(rows=rows)
+    )
+    server.run_report("SELECT 1", max_rows=7)
+    assert seen == {"rows": 7}

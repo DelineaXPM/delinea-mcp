@@ -79,10 +79,5 @@
 # Text files where line endings should be preserved
 *.patch    -text
 
-#
-# Exclude files from exporting
-#
-
-.gitattributes export-ignore
-.gitignore     export-ignore
-.gitkeep       export-ignore
+# Keep archive-export and content-filter attributes out of this file: the
+# Claude plugin directory validator refuses repositories that use them.

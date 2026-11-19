@@ -113,8 +113,8 @@ jobs:
           DOCKER_ORG: ${{ env.DELINEA_DOCKER_REGISTRY }}
           QUAY_USERNAME: ${{ secrets.QUAY_DELINEA_USERNAME }}
           QUAY_TOKEN: ${{ secrets.QUAY_DELINEA_TOKEN }}
-          # TODO: Configure PyPI publishing
-          # PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          # PyPI: publish-pypi.yml (trusted publishing). A release created
+          # with GITHUB_TOKEN doesn't trigger it; run it manually from the tag.
       - name: release-artifact-validation
         run: |
           # TODO: Add post-release artifact validation

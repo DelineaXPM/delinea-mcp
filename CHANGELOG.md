@@ -1,5 +1,177 @@
 # Release Notes
 
+## v2.0.0 — Claude Code plugin, PyPI package, secret-visibility hardening
+
+### Distribution
+
+- Published on PyPI as `delinea-mcp`, with a `delinea-mcp` console script
+  (`uvx delinea-mcp`). The implementation moved into the package
+  (`delinea_mcp/server.py`, `delinea_mcp/api.py`); the root `server.py` and
+  `delinea_api.py` stay as aliases, so `uv run server.py` still works.
+- New Claude Code plugin in `plugins/delinea`, with the
+  **no-secret-visibility** and **building-reports** skills. The skills also
+  work on their own with any Delinea MCP connection.
+- Runs without a config file: connection settings fall back to
+  `DELINEA_USERNAME`, `DELINEA_BASE_URL`, `PLATFORM_HOSTNAME`,
+  `PLATFORM_SERVICE_ACCOUNT` and `PLATFORM_TENANT_ID`, and
+  `DELINEA_MCP_CONFIG` can point at a config file. Fixes a bug where no
+  tools were registered when `config.json` wasn't in the working directory.
+
+### Secret visibility
+
+- `get_secret` and `fetch` mask password-type fields (`********`) and list
+  them under `maskedFields`.
+- Plaintext reveal is **disabled by default**. When the user or an
+  administrator enables it (new `secret_reveal_mode` config key,
+  `DELINEA_SECRET_REVEAL_MODE`, or the plugin's "Allow revealing passwords"
+  setting), a new `reveal_secret_field` tool returns one plaintext value.
+  In `elicit` mode (the plugin setting's) that happens only after the user
+  approves an MCP elicitation prompt ("Reveal secret value") sent by the
+  server, on both the 2026-07-28 input-required flow and older protocol
+  versions. Modes: `disabled` (default), `elicit`, and `client_approval`,
+  which skips the server's prompt and relies on the client's own
+  tool-approval prompt instead.
+- Over stdio, `get_secret_environment_variable` fetches the secret itself
+  and writes a private (`0600`), self-deleting env file that expires after
+  15 minutes, returning only its path. It no longer needs curl or jq, and
+  works the same in bash, PowerShell and cmd (the old cmd script needed
+  `head` and `sed`, which Windows doesn't have). When a secret GET leaves the
+  password out (the API allows it), it comes from the field endpoint
+  (`/secrets/{id}/fields/{slug}`); the HTTP-transport scripts do the same.
+- Over stdio, `set_secret_field_environment_variable` uploads `file:`
+  sources directly, and for `env:`/`stdin` returns a one-line command that
+  runs the server's own Python in isolated mode (`python -I -m
+delinea_mcp.field_push`, hidden prompt for `stdin`), so a package in the
+  user's project can't stand in for it and read the job's access token. No
+  curl, jq or PowerShell 7 needed.
+- New `script_delivery` config key (`auto`, `file`, `inline`). Scripts
+  returned over HTTP transports state their requirements; the broken bash
+  script (both `export` lines on one line, mis-quoted `jq`, two API calls)
+  is fixed, and cmd is refused there in favor of PowerShell.
+
+### Plugin setup
+
+- **One Platform service account is enough.** With a Platform hostname set,
+  the vault session signs in through the Platform, and the Platform user,
+  role and report tools now reuse that account unless a separate
+  `PLATFORM_SERVICE_*` pair is given. The plugin settings say so.
+- Error text built from API responses masks any value the user just
+  submitted (`set_secret_field_environment_variable` and `field_push`) and
+  the generated password in `update_secret_generated_password`, even if a
+  server echoes it in a validation message. Masking happens before the text
+  is shortened, so logs and tool results never hold part of the value.
+- `scripts/seed_test_tenant.py` creates the folder, secret and IDs the live
+  tests expect; the live tests can sign in through the Platform
+  (`LIVE_SS_VIA_PLATFORM=1`).
+- Outbound TLS is verified against the **operating system's certificate
+  store** (`truststore`), so the server signs in on networks that inspect
+  TLS (Cloudflare Gateway, Zscaler, Netskope) and to on-premises Secret
+  Servers with internal CAs. Before, `requests` used Python's bundled list
+  and failed with `CERTIFICATE_VERIFY_FAILED`. Set `DELINEA_TLS_TRUST=bundled`
+  to keep the old behavior.
+- **Platform first: only the Platform URL is needed.** With a Platform
+  hostname and no Secret Server URL, the server signs in through the
+  Platform and asks its vault broker (`GET /vaultbroker/api/vaults`) for the
+  tenant's default Secret Server vault. The plugin's Secret Server URL is now
+  an optional override (also for a standalone Secret Server). The Platform
+  setting accepts a pasted URL (`https://<tenant>.delinea.app/`), and the
+  plugin never falls back to `https://localhost/SecretServer` with your
+  credentials when both URLs are blank.
+- `max_result_bytes` now also caps async tools (`reveal_secret_field`), and
+  an `enabled_tools` key in `config.json`, even an empty list (every tool),
+  is no longer overridden by `DELINEA_TOOL_PRESET` or
+  `DELINEA_ENABLED_TOOLS` from the environment.
+- **Tool access presets.** The plugin's required **Tool access** picker
+  chooses **Read-only** (read-only tools plus `run_report` and
+  `get_secret_environment_variable`; nothing in the vault or Platform is
+  changed, except that a check-out secret set to change its password on
+  check-in gets a new one), **All tools** (the default) or **Custom** (the
+  **Custom tool list**, `DELINEA_ENABLED_TOOLS`). Outside the plugin:
+  `tool_preset` in `config.json` or `DELINEA_TOOL_PRESET`. Unknown values and
+  an empty custom list fall back to read-only. The picker needs Claude Code
+  2.1.271 or later.
+- **Settings page reorganized.** Required settings come first, titled
+  **Required:** (Platform URL, client ID, client secret, tool access and the
+  custom tool list); everything else follows, titled **Optional:**.
+- The plugin launches with `uvx --no-config --python 3.13`. It's
+  distributed through the official Claude plugin directory.
+- **The plugin never reads config files from your project.** Claude Code
+  starts the server in the open project's folder, so a `config.json` in a
+  cloned repository could have redirected `delinea_base_url` and received your
+  keychain password. With `DELINEA_MCP_PLUGIN=1` (set by the plugin) the
+  server ignores `./config.json` and `$DELINEA_MCP_CONFIG` and takes settings
+  only from the plugin configuration. `uvx` runs with `--no-config` so a
+  project's `uv.toml` / `[tool.uv]` can't point the download at another
+  package index.
+
+- **Windows support in the plugin is experimental.** The server, skills
+  and credential handoff are platform-neutral, but the plugin's startup
+  check and `/delinea:setup` helper are POSIX shell scripts (they run under
+  the Git Bash that Claude Code uses on Windows) and haven't been verified
+  on Windows yet; there `setup-uv.sh link` only prints PATH instructions.
+- The startup check also notices when the plugin's required settings (a
+  Platform URL, or a standalone Secret Server URL, and a client ID) were
+  never entered and tells the user to fill them in under `/plugin`.
+- A `SessionStart` hook checks for `uvx` and, only when it's missing or off
+  PATH, asks Claude to offer `/delinea:setup`. It never installs anything.
+- The `/delinea:setup` skill checks the machine, asks the user once, then
+  installs uv (Homebrew, WinGet, Scoop, pipx, a private PyPI virtual
+  environment, or uv's official installer), links `uvx` onto PATH so no
+  restart is needed where possible, and pre-downloads the server. The logic
+  lives in `plugins/delinea/scripts/setup-uv.sh` (no `sudo`); it covers
+  proxies, blocked Python downloads, and a no-uv fallback.
+
+### Tool quality
+
+- `list_example_reports` no longer documents `tbUser.Active`, which current
+  Secret Server versions don't have (reports using it failed). A live test
+  now checks every documented table and column against the tenant.
+- Every tool has a `title` (also set in its annotations).
+- The deprecated `platform_user_management` alias takes the same parameters
+  as `user_management` again. Its MCP schema asked for required `args` and
+  `kwargs` strings, so calls with `action`/`user_id` failed validation.
+- API failures return the Secret Server or Platform error message, its
+  `errorCode`, and a hint on what to do, instead of a bare HTTP status.
+- `run_report` links the Secret Server REST API docs, points at
+  `list_example_reports` as its schema reference, and caps rows with
+  `max_rows` (default 200), reporting `total_rows` and `truncated`.
+- `search_secrets`, `search_folders` and every `list` action page with
+  `take` (default 50, max 500) and `skip`. `get_folder` returns the
+  descendant tree only with `all_children=True`.
+
+### Breaking changes
+
+- Removed `ai_generate_and_run_report`, the Azure OpenAI dependency and the
+  `azure_openai_*` config keys. Build SQL from `list_example_reports` and
+  run it with `run_report`.
+- `get_secret` and `fetch` no longer return plaintext passwords; use
+  `get_secret_environment_variable`, or enable `secret_reveal_mode` and use
+  `reveal_secret_field`.
+- Over stdio, `get_secret_environment_variable` returns
+  `{"script_path", "run", ...}` and `set_secret_field_environment_variable`
+  returns `{"result": ...}` or `{"command": ...}` instead of script text.
+  Over HTTP transports, `get_secret_environment_variable` no longer
+  supports `cmd`.
+- `get_folder` and `folder_management("get")` no longer include all
+  children by default.
+- `run_report` errors start with `Report '<name>' failed:`.
+- StrongDM tools register only with `strongdm_enabled: true`. StrongDM, a
+  Delinea company, will be fully supported in a future release.
+
+### Other
+
+- License copyright: Delinea, 2026 (originally written by Gal Diskin, 2025).
+- New `SECURITY.md` with private vulnerability reporting.
+- Secret Server sign-in rejections (400/401/403) explain the Secret Server
+  12.1+ **Prevent direct API authentication** default and how to fix it
+  (use an Application Account, or grant **Bypass Direct API Authentication
+  Restriction**); the README has a new "Secret Server account" section.
+- Security work released since 1.1.0 (#60, #61, #63, #64, #65): `authlib`
+  dropped in favor of `joserfc` (now `>=1.7.5`, for GHSA-jpxq-7h8p-2q76 and
+  GHSA-9pg5-8c7x-5hfx) for JWT handling; mcp 2.2.0, pyjwt 2.15.1,
+  urllib3 2.8.0 and anyio 4.14.2 in the lockfile; refreshed container base
+  image and pinned CI actions; tool error text preserved on MCP SDK 2.1+.
+
 ## v1.1.0 — MCP protocol 2026-07-28, StrongDM backend, security batch
 
 ### MCP protocol / SDK

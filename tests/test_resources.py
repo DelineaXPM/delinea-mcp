@@ -53,7 +53,7 @@ def test_get_secret_summary(monkeypatch):
 def test_get_folder_children(monkeypatch):
     def fake_request(self, method, path, **kwargs):
         assert path == "/v1/folders/5"
-        assert kwargs.get("params") == {"getAllChildren": "true"}
+        assert kwargs.get("params") == {"getAllChildren": "false"}
         return DummyResponse({"id": 5, "children": []})
 
     mock_session = type("MockSession", (), {"request": fake_request})()
@@ -91,10 +91,18 @@ def test_secret_search_and_lookup(monkeypatch):
     def fake_request(self, method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v2/secrets":
-            assert kwargs.get("params") == {"filter.searchText": "foo"}
+            assert kwargs.get("params") == {
+                "filter.searchText": "foo",
+                "take": 50,
+                "skip": 0,
+            }
             return DummyResponse({"records": ["full"]})
         elif path == "/v1/secrets/lookup":
-            assert kwargs.get("params") == {"filter.searchText": "foo"}
+            assert kwargs.get("params") == {
+                "filter.searchText": "foo",
+                "take": 50,
+                "skip": 0,
+            }
             return DummyResponse({"records": ["meta"]})
         else:
             raise AssertionError("unexpected path")
@@ -115,10 +123,18 @@ def test_folder_search_and_lookup(monkeypatch):
     def fake_request(self, method, path, **kwargs):
         calls.append((path, kwargs))
         if path == "/v1/folders":
-            assert kwargs.get("params") == {"filter.searchText": "bar"}
+            assert kwargs.get("params") == {
+                "filter.searchText": "bar",
+                "take": 50,
+                "skip": 0,
+            }
             return DummyResponse({"records": ["folder"]})
         elif path == "/v1/folders/lookup":
-            assert kwargs.get("params") == {"filter.searchText": "bar"}
+            assert kwargs.get("params") == {
+                "filter.searchText": "bar",
+                "take": 50,
+                "skip": 0,
+            }
             return DummyResponse({"records": ["lookup"]})
         else:
             raise AssertionError("unexpected path")

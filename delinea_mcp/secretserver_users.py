@@ -17,7 +17,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.annotations import tool_metadata
+from delinea_mcp.api import mask_fields, sensitive_values
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
@@ -112,11 +113,15 @@ def secretserver_local_user_management(
         "secretserver_local_user_management(action=%s, user_id=%s, data=%s)",
         action,
         user_id,
-        data,
+        mask_fields(data),  # create and reset_password carry passwords
     )
     session = SessionManager.get()
 
     data = _parse_json_data(data)
+    # Passwords in create/update/reset_password data are masked in API errors.
+    masked: dict[str, Any] = {}
+    if secrets := sensitive_values(data):
+        masked["sensitive"] = secrets
 
     try:
         if action == "get":
@@ -124,7 +129,9 @@ def secretserver_local_user_management(
                 raise ValueError("user_id required for get")
             return session.request("GET", f"/v1/users/{user_id}").json()
         if action == "create":
-            result = session.request("POST", "/v1/users", json=data or {}).json()
+            result = session.request(
+                "POST", "/v1/users", json=data or {}, **masked
+            ).json()
             user_id = result.get("id") or result.get("userId")
             verify: dict[str, Any] = {}
             if user_id is not None:
@@ -137,7 +144,9 @@ def secretserver_local_user_management(
         if action == "update":
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for update")
-            result = session.request("PUT", f"/v1/users/{user_id}", json=data).json()
+            result = session.request(
+                "PUT", f"/v1/users/{user_id}", json=data, **masked
+            ).json()
             verify = {}
             try:
                 verify = session.request("GET", f"/v1/users/{user_id}").json()
@@ -170,7 +179,7 @@ def secretserver_local_user_management(
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for reset_password")
             return session.request(
-                "POST", f"/v1/users/{user_id}/password-reset", json=data
+                "POST", f"/v1/users/{user_id}/password-reset", json=data, **masked
             ).json()
         if action == "lock_out":
             if user_id is None:
@@ -202,4 +211,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))
+            mcp.tool(**tool_metadata(name))(guard_tool(func))

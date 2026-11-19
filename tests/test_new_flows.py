@@ -139,7 +139,8 @@ def test_update_secret_fields_password_override_emits_value(monkeypatch):
             (
                 "PUT",
                 "/v1/secrets/42/fields/password",
-                {"json": {"value": "new-pwd"}},
+                # Masked in any API error, since the override sends passwords.
+                {"json": {"value": "new-pwd"}, "sensitive": ["new-pwd"]},
             ),
             ("GET", "/v1/secrets/42/summary", {}),
         ],

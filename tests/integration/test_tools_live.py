@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -71,12 +72,23 @@ def test_secret_and_folder_live():
 def test_folder_crud_live():
     require_credentials()
     name = unique_name("mcp-folder")
-    res = server.folder_management("create", data={"name": name})
+    parent = int(os.getenv("LIVE_FOLDER_ID") or -1)
+    res = server.folder_management(
+        "create",
+        data={
+            "folderName": name,
+            "parentFolderId": parent,
+            "folderTypeId": 1,
+            "inheritPermissions": True,
+            "inheritSecretPolicy": True,
+        },
+    )
     fid = res.get("result", {}).get("id") or res.get("result", {}).get("folderId")
     if not fid:
-        pytest.skip("folder create failed")
+        pytest.skip(f"folder create failed: {res.get('error', '')[:120]}")
+    current = server.folder_management("get", folder_id=fid)
     updated = server.folder_management(
-        "update", folder_id=fid, data={"name": name + "-u"}
+        "update", folder_id=fid, data={**current, "folderName": name + "-u"}
     )
     assert "error" not in updated
     deleted = server.folder_management("delete", folder_id=fid)
@@ -190,15 +202,16 @@ def test_get_secret_env_var_live():
     require_credentials()
     sid = env_var("LIVE_SECRET_ID")
     out = server.get_secret_environment_variable(int(sid), "bash")
-    assert str(sid) in out
-
-
-def test_ai_report_live():
-    if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-        pytest.skip("AI env not set")
-    require_credentials()
-    result = server.ai_generate_and_run_report("select one user")
-    assert "error" not in result
+    # stdio (the default) hands the script over as a private file so the
+    # access token never reaches the model.
+    assert isinstance(out, dict), out
+    assert "Bearer" not in str(out)
+    script = Path(out["script_path"])
+    try:
+        assert oct(script.stat().st_mode & 0o777) == "0o600"
+        assert f"SECRET_PASSWORD_{sid}" in script.read_text()
+    finally:
+        script.unlink(missing_ok=True)
 
 
 def test_list_example_reports_live():
@@ -227,3 +240,32 @@ def test_role_management_live():
     require_credentials()
     result = server.role_management("list")
     assert isinstance(result, dict)
+
+
+def test_report_reference_columns_exist_live():
+    """Every table and column list_example_reports documents exists.
+
+    run_report's schema reference is hand-maintained; this catches drift
+    (e.g. tbUser.Active, which Secret Server no longer has).
+    """
+    import re
+
+    from delinea_mcp import constants
+
+    require_credentials()
+    tables, current = {}, None
+    for line in constants.TABLES_AND_COLUMNS.splitlines():
+        if m := re.match(r"\s*\d+\.\s+(\w+)", line):
+            current = m.group(1)
+            tables[current] = []
+        elif (m := re.match(r"\s*-\s+(\w+)", line)) and current:
+            tables[current].append(m.group(1))
+    missing = []
+    for table, columns in tables.items():
+        result = server.run_report(f"SELECT TOP 0 * FROM {table}")
+        if "error" in result:
+            missing.append(f"{table} (table)")
+            continue
+        have = {c.lower() for c in result.get("columns") or []}
+        missing += [f"{table}.{c}" for c in columns if have and c.lower() not in have]
+    assert not missing, f"documented but missing: {missing}"

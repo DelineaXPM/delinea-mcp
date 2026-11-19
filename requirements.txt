@@ -9,7 +9,6 @@ anyio==4.14.2
     #   httpx
     #   httpx2
     #   mcp
-    #   openai
     #   sse-starlette
     #   starlette
 attrs==25.3.0
@@ -31,15 +30,12 @@ colorama==0.4.6 ; sys_platform == 'win32'
     # via
     #   click
     #   pytest
-    #   tqdm
 coverage==7.10.7
     # via delinea-mcp (pyproject.toml:dev)
 cryptography==50.0.0
     # via
     #   joserfc
     #   pyjwt
-distro==1.9.0
-    # via openai
 fastapi==0.136.1
     # via
     #   delinea-mcp (pyproject.toml)
@@ -57,14 +53,13 @@ httpx==0.28.1
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
-    #   openai
 httpx-sse==0.4.1
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
 httpx2==2.12.0
     # via mcp
-httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
+httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
     # via httpx2
 idna==3.18
     # via
@@ -74,8 +69,6 @@ idna==3.18
     #   requests
 iniconfig==2.1.0
     # via pytest
-jiter==0.11.0
-    # via openai
 joserfc==1.7.7
     # via
     #   delinea-mcp (pyproject.toml)
@@ -90,10 +83,6 @@ mcp==2.2.0
     #   delinea-mcp (pyproject.toml:test)
 mcp-types==2.2.0
     # via mcp
-openai==1.109.0
-    # via
-    #   delinea-mcp (pyproject.toml)
-    #   delinea-mcp (pyproject.toml:test)
 opentelemetry-api==1.45.2
     # via mcp
 packaging==25.0
@@ -107,7 +96,6 @@ pydantic==2.14.2
     #   fastapi
     #   mcp
     #   mcp-types
-    #   openai
 pydantic-core==2.50.2
     # via pydantic
 pygments==2.20.0
@@ -139,29 +127,31 @@ rpds-py==0.27.1
     # via
     #   jsonschema
     #   referencing
-sniffio==1.3.1
-    # via openai
 sse-starlette==3.0.2
     # via mcp
 starlette==1.6.0
     # via
     #   fastapi
     #   mcp
-tqdm==4.67.1
-    # via openai
-truststore==0.10.5 ; sys_platform != 'emscripten'
+truststore==0.10.5
     # via
+    #   delinea-mcp (pyproject.toml)
+    #   delinea-mcp (pyproject.toml:test)
     #   httpcore2
     #   httpx2
 typing-extensions==4.16.0
     # via
+    #   anyio
     #   fastapi
+    #   httpx2
     #   mcp
     #   mcp-types
-    #   openai
     #   opentelemetry-api
     #   pydantic
     #   pydantic-core
+    #   pytest-asyncio
+    #   referencing
+    #   starlette
     #   typing-inspection
 typing-inspection==0.4.4
     # via

@@ -1,12 +1,11 @@
 {
   "delinea_username": "<username>",
   "delinea_base_url": "https://your-secret-server/SecretServer",
-  "platform_hostname": "<tenant>.secureplatform.io",
+  "platform_hostname": "<tenant>.delinea.app",
   "platform_service_account": "<service_account>",
   "platform_tenant_id": "<tenant_id>",
+  "strongdm_enabled": false,
   "strongdm_api_host": "app.strongdm.com:443",
-  "azure_openai_endpoint": "https://example.openai.azure.com/",
-  "azure_openai_deployment": "<deployment_name>",
   "auth_mode": "none",
   "transport_mode": "stdio",
   "streamable_http_stateless": true,
@@ -20,5 +19,7 @@
   "registration_psk": null,
   "jwt_key_path": ".cache/jwt.json",
   "oauth_db_path": ".cache/oauth.db",
-  "enabled_tools": []
+  "enabled_tools": [],
+  "secret_reveal_mode": "disabled",
+  "script_delivery": "auto"
 }

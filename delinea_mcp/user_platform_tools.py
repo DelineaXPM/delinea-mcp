@@ -39,7 +39,15 @@ from urllib.parse import quote
 
 import requests
 
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.annotations import tool_metadata
+from delinea_mcp.api import (
+    mask_fields,
+    platform_host,
+    raise_for_status,
+    redact,
+    redact_values,
+    sensitive_values,
+)
 from delinea_mcp.tool_guard import guard_tool
 
 logger = logging.getLogger(__name__)
@@ -55,7 +63,25 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
     return data
 
 
-def _json_or_error(response: requests.Response) -> dict:
+def _json_or_error(response: requests.Response, sensitive: Iterable[str] = ()) -> dict:
+    """Decode a Platform response, turning HTTP failures into actionable errors.
+
+    *sensitive* values (a password the request sent) are masked in the error
+    and in the body, since the Platform also reports failures with HTTP 200.
+    """
+    status = getattr(response, "status_code", 200)
+    if isinstance(status, int) and status >= 400:
+        try:
+            raise_for_status(response, "Delinea Platform request", sensitive=sensitive)
+        # requests.HTTPError, not DelineaAPIError: the base class stays the
+        # same object even if a test reloads delinea_mcp.api.
+        except requests.HTTPError as exc:
+            return {"error": str(exc)}
+    return redact_values(_raw_json(response), sensitive)
+
+
+def _raw_json(response: requests.Response) -> dict:
+    """Return the decoded body, or ``{"error": <text>}`` when it isn't JSON."""
     try:
         return response.json()
     except Exception:
@@ -74,7 +100,8 @@ def _endpoint_not_available(response: requests.Response) -> bool:
     return response.status_code == 404
 
 
-platform_hostname = os.getenv("PLATFORM_HOSTNAME")
+# Bare host; a pasted URL (https://tenant.delinea.app/) is accepted.
+platform_hostname = platform_host(os.getenv("PLATFORM_HOSTNAME")) or None
 platform_service_account = os.getenv("PLATFORM_SERVICE_ACCOUNT")
 platform_service_password = os.getenv("PLATFORM_SERVICE_PASSWORD")
 platform_tenant_id = os.getenv("PLATFORM_TENANT_ID")
@@ -95,7 +122,7 @@ def configure(
     """Override platform connection settings."""
     global platform_hostname, platform_service_account, platform_service_password, platform_tenant_id
     if hostname is not None:
-        platform_hostname = hostname
+        platform_hostname = platform_host(hostname)
     if service_account is not None:
         platform_service_account = service_account
     if service_password is not None:
@@ -165,8 +192,10 @@ def _fetch_headers() -> dict[str, str]:
         raise RuntimeError(f"Failed to get token: {exc}")
 
     if response.status_code >= 400:
-        logger.error("Failed to get token: %s", response.text)
-        raise RuntimeError(f"Failed to get token: {response.text}")
+        # Mask the client secret before shortening, in case it's echoed.
+        detail = redact(response.text or "", platform_service_password)[:500]
+        logger.error("Failed to get token: %s", detail)
+        raise RuntimeError(f"Failed to get token: {detail}")
 
     token_data = response.json()
     access_token = token_data["access_token"]
@@ -316,7 +345,7 @@ def user_management(
         action,
         user_id,
         username,
-        data,
+        mask_fields(data),  # a new user's data can carry a password
     )
 
     try:
@@ -349,7 +378,7 @@ def user_management(
             response = requests.post(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
             )
-            result = _json_or_error(response)
+            result = _json_or_error(response, sensitive_values(payload))
             verify = search_users(payload.get("Name") or payload.get("Username") or "")
             return {"result": result, "verification": verify}
 
@@ -375,7 +404,7 @@ def user_management(
             response = requests.post(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
             )
-            result = _json_or_error(response)
+            result = _json_or_error(response, sensitive_values(payload))
             verify = search_users(
                 payload.get("Name") or payload.get("Username") or user_id
             )
@@ -394,13 +423,25 @@ def user_management(
 
 
 # Deprecated alias: keeps existing callers working but discouraged in v1+.
-def platform_user_management(*args, **kwargs):
+# The signature is spelled out (not ``*args, **kwargs``) because the MCP SDK
+# derives the tool's input schema from it; a variadic signature advertised
+# required ``args``/``kwargs`` string fields that no caller could satisfy.
+# ``functools.wraps`` is no substitute: it would copy ``__name__`` and the
+# tool would register as ``user_management``. tests/test_tool_guard.py checks
+# that both tools publish the same input schema.
+def platform_user_management(
+    action: str,
+    user_id: str | None = None,
+    data: dict | str | None = None,
+    username: str | None = None,
+) -> dict:
     """Deprecated alias for :func:`user_management`. Use ``user_management``.
 
-    Retained for backwards compatibility with v0.x clients.  Will be
-    removed in a future major release.
+    Takes the same parameters as ``user_management``.  Retained for
+    backwards compatibility with v0.x clients.  Will be removed in a future
+    major release.
     """
-    return user_management(*args, **kwargs)
+    return user_management(action, user_id=user_id, data=data, username=username)
 
 
 # --------------------------------------------------------------------------- #
@@ -719,7 +760,9 @@ def _report_url(path: str) -> str:
 
 def _report_response(response: requests.Response, hint: str | None = None) -> dict:
     """Return the JSON body, or ``{"error": ...}`` for non-2xx responses."""
-    body = _json_or_error(response)
+    # Keep the Platform's own error body as ``detail``; the status line and
+    # hint below already explain the failure.
+    body = _raw_json(response)
     if response.status_code < 400:
         return body
     result: dict = {
@@ -1048,4 +1091,4 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
         enabled_set = {name for name, _ in TOOLS}
     for name, func in TOOLS:
         if name in enabled_set:
-            mcp.tool(annotations=TOOL_ANNOTATIONS.get(name))(guard_tool(func))
+            mcp.tool(**tool_metadata(name))(guard_tool(func))

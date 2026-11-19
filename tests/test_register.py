@@ -16,23 +16,10 @@ class DummyMCP:
         pass
 
 
-def test_register_skips_ai_when_env_missing(monkeypatch):
-    dummy = DummyMCP()
-    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
-    monkeypatch.delenv("AZURE_OPENAI_KEY", raising=False)
-    monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT", raising=False)
-    tools.register(dummy)
-    assert "ai_generate_and_run_report" not in dummy.registered
-
-
 def test_register_respects_enabled_list(monkeypatch):
     dummy = DummyMCP()
-    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "e")
-    monkeypatch.setenv("AZURE_OPENAI_KEY", "k")
-    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "d")
     tools.register(dummy, {"get_secret", "run_report"})
     assert set(dummy.registered) == {"get_secret", "run_report"}
-    assert "ai_generate_and_run_report" not in dummy.registered
 
 
 def test_secretserver_users_register_respects_enabled_list():

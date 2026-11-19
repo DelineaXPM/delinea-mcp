@@ -1,9 +1,12 @@
 # StrongDM (SDM) Tools
 
-> **Experimental.** This backend is unit-tested against the strongdm SDK
-> surface but has not yet been verified against a live SDM organization
-> (the gated live suite lights up once `SDM_API_ACCESS_KEY` /
-> `SDM_API_SECRET_KEY` are available). Expect rough edges.
+> **Preview.** StrongDM, a Delinea company, will be fully supported in a
+> future release. In 2.0 these tools register only when `config.json` sets
+> `"strongdm_enabled": true`, and they aren't part of the Claude Code
+> plugin. The backend is unit-tested against the strongdm SDK surface but
+> hasn't yet been verified against a live SDM organization (the gated live
+> suite lights up once `SDM_API_ACCESS_KEY` / `SDM_API_SECRET_KEY` are
+> available). Expect rough edges.
 
 Delinea completed the StrongDM acquisition in March 2026. delinea-mcp can
 expose the SDM admin API as a third backend next to Secret Server and the

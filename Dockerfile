@@ -29,8 +29,13 @@ COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install -r requirements.txt
 
-# Copy application source
+# Copy application source and install it into the runtime Python (no
+# dependencies: requirements.txt pinned them above). The credential-upload
+# helper runs as `python -I -m delinea_mcp.field_push`, and isolated mode
+# only finds installed packages, not the source in /app.
 COPY . .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-deps .
 
 # Create data directory and add non-root user for runtime
 RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app \

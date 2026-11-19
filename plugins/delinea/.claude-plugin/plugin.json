@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "delinea",
+  "displayName": "Delinea Secret Server",
+  "version": "2.0.0",
+  "description": "Work with Delinea Secret Server and the Delinea Platform from Claude: find and use secrets without exposing passwords, run SQL reports, and manage folders, users, groups, roles and access requests.",
+  "author": {
+    "name": "Delinea",
+    "url": "https://delinea.com"
+  },
+  "homepage": "https://github.com/DelineaXPM/delinea-mcp/tree/main/plugins/delinea#readme",
+  "repository": "https://github.com/DelineaXPM/delinea-mcp",
+  "license": "MIT",
+  "keywords": [
+    "delinea",
+    "secret-server",
+    "pam",
+    "privileged-access",
+    "secrets",
+    "vault"
+  ],
+  "userConfig": {
+    "platform_hostname": {
+      "type": "string",
+      "title": "Required: Delinea Platform URL",
+      "description": "Your Delinea Platform tenant, e.g. https://example.delinea.app. The Secret Server URL is found from it automatically. Only for a standalone Secret Server that isn't on the Delinea Platform: leave this empty and set the Secret Server URL override under the optional settings.",
+      "default": ""
+    },
+    "delinea_username": {
+      "type": "string",
+      "title": "Required: Client ID",
+      "description": "The client ID of your Delinea Platform service account. For a standalone Secret Server: the username of a Secret Server Application Account (Secret Server 12.1+ blocks password sign-in for regular users by default).",
+      "required": true
+    },
+    "delinea_password": {
+      "type": "string",
+      "title": "Required: Client secret",
+      "description": "The client secret of the service account above (for a standalone Secret Server, the account's password). Stored in your operating system's secure credential store.",
+      "sensitive": true,
+      "required": true
+    },
+    "tool_preset": {
+      "type": "string",
+      "title": "Required: Tool access",
+      "description": "What Claude can do. Read-only: search, view secrets with passwords masked, run reports, and hand credentials to programs without showing them; nothing in Secret Server or the Platform is changed. All tools: also create, update, rotate and delete. Custom: only the tools in the custom tool list below.",
+      "options": ["Read-only", "All tools", "Custom"],
+      "default": "All tools",
+      "required": true
+    },
+    "enabled_tools": {
+      "type": "string",
+      "title": "Required for Custom tool access: Custom tool list",
+      "description": "Only used when Tool access is Custom; leave blank otherwise. Comma-separated tool names, for example get_secret,search_secrets,get_secret_environment_variable.",
+      "default": ""
+    },
+    "delinea_base_url": {
+      "type": "string",
+      "title": "Optional: Secret Server URL override",
+      "description": "Leave empty to use the Secret Server vault your Delinea Platform tenant reports. Set it only to use a different vault, or for a standalone Secret Server, e.g. https://example.secretservercloud.com or https://ss.example.com/SecretServer.",
+      "default": ""
+    },
+    "allow_plaintext_reveal": {
+      "type": "boolean",
+      "title": "Optional: Allow revealing passwords",
+      "description": "Off by default. When on, Claude can show a masked password or key in plaintext, but only after you approve a prompt each time. Credentials can always be used without being shown.",
+      "default": false
+    },
+    "platform_service_account": {
+      "type": "string",
+      "title": "Optional: Separate Platform service account",
+      "description": "Leave empty to use the client ID above for the Platform user, role and report tools too. Only set it to use a different account for them.",
+      "default": ""
+    },
+    "platform_service_password": {
+      "type": "string",
+      "title": "Optional: Separate Platform service account secret",
+      "description": "Only with a separate Platform service account above. Stored in your operating system's secure credential store.",
+      "sensitive": true,
+      "default": ""
+    },
+    "platform_tenant_id": {
+      "type": "string",
+      "title": "Optional: Platform secondary tenant ID (rarely needed)",
+      "description": "Leave empty. Only for multi-tenant Platform setups where the service account must act inside a specific child tenant.",
+      "default": ""
+    }
+  },
+  "mcpServers": {
+    "delinea": {
+      "command": "uvx",
+      "args": ["--no-config", "--python", "3.13", "delinea-mcp==2.0.0"],
+      "env": {
+        "DELINEA_MCP_PLUGIN": "1",
+        "DELINEA_BASE_URL": "${user_config.delinea_base_url}",
+        "DELINEA_USERNAME": "${user_config.delinea_username}",
+        "DELINEA_PASSWORD": "${user_config.delinea_password}",
+        "PLATFORM_HOSTNAME": "${user_config.platform_hostname}",
+        "PLATFORM_SERVICE_ACCOUNT": "${user_config.platform_service_account}",
+        "PLATFORM_SERVICE_PASSWORD": "${user_config.platform_service_password}",
+        "PLATFORM_TENANT_ID": "${user_config.platform_tenant_id}",
+        "DELINEA_SECRET_REVEAL_MODE": "${user_config.allow_plaintext_reveal}",
+        "DELINEA_TOOL_PRESET": "${user_config.tool_preset}",
+        "DELINEA_ENABLED_TOOLS": "${user_config.enabled_tools}"
+      }
+    }
+  }
+}

@@ -15,7 +15,6 @@ TABLES_AND_COLUMNS = """
    - DisplayName
    - DomainId
    - LastLogin
-   - Active
    - Enabled
    - EmailAddress
    - TwoFactor

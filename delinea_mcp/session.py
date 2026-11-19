@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from delinea_api import DelineaSession
+from delinea_mcp.api import DelineaSession
 
 
 class SessionManager:

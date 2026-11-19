@@ -4,25 +4,34 @@ Use Claude for Desktop with a local instance of the Delinea MCP server.
 
 ## Configuration
 
-Add an entry to `claude_desktop_config.json` pointing to the `server.py` script and your configuration file:
+The simplest setup runs the published package with `uvx`. Add an entry to
+`claude_desktop_config.json`:
 
 ```json
 {
-  "DelineaMCP": {
-    "command": "/path/to/venv/bin/python",
-    "args": ["/path/to/DelineaMCP/server.py"],
-    "env": {
-      "DELINEA_PASSWORD": "<password>",
-      "PLATFORM_SERVICE_PASSWORD": "<password>",
-      "DELINEA_DEBUG": "1"
-    },
-    "configPath": "/path/to/config.json"
+  "mcpServers": {
+    "delinea": {
+      "command": "uvx",
+      "args": ["--no-config", "delinea-mcp==2.0.0"],
+      "env": {
+        "DELINEA_BASE_URL": "https://example.secretservercloud.com",
+        "DELINEA_USERNAME": "<username>",
+        "DELINEA_PASSWORD": "<password>",
+        "DELINEA_MCP_CONFIG": "/path/to/config.json"
+      }
+    }
   }
 }
 ```
 
-Store non‑secret options in `config.json` and point `configPath` at that file.
-`DELINEA_DEBUG` is optional and enables verbose logging.
-Set the Azure OpenAI key only if you plan to use the AI‑powered reporting helper.
+`DELINEA_MCP_CONFIG` is optional; use it to point at a `config.json` with
+non-secret options such as `enabled_tools`. To run from a source checkout
+instead, set `command` to the checkout's Python interpreter and `args` to
+`["/path/to/delinea-mcp/server.py"]`.
+
+Claude Desktop shows the server's confirmation prompt when
+`reveal_secret_field` asks you to approve a plaintext reveal. In Claude
+Code, prefer the [plugin](../plugins/delinea/README.md), which stores the
+password in your operating system's credential store.
 
 <!-- TODO: Screenshot of Claude Desktop configuration -->
