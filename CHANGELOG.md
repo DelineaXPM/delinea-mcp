@@ -57,10 +57,8 @@
   them, or `all`, in the new **Enabled tools** setting
   (`DELINEA_ENABLED_TOOLS`). Standalone servers keep the old default of
   every tool.
-- The plugin launches with `uvx --no-config --python 3.13`, and the repo
-  root has a `.claude-plugin/marketplace.json`, so the plugin can be
-  installed straight from GitHub with
-  `/plugin marketplace add DelineaXPM/delinea-mcp`.
+- The plugin launches with `uvx --no-config --python 3.13`. It's
+  distributed through the official Claude plugin directory.
 - **The plugin never reads config files from your project.** Claude Code
   starts the server in the open project's folder, so a `config.json` in a
   cloned repository could have redirected `delinea_base_url` and received your
