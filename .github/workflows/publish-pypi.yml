@@ -2,9 +2,14 @@
 # Builds the delinea-mcp wheel/sdist and publishes it with PyPI trusted
 # publishing (OIDC): no API token is stored in the repository.
 #
-# One-time setup on pypi.org / test.pypi.org (a Delinea-owned account):
-# add a "pending publisher" for owner DelineaXPM, repository delinea-mcp,
-# workflow publish-pypi.yml, and environment "pypi" (or "testpypi").
+# One-time setup on pypi.org (organization Delinea) and, optionally,
+# test.pypi.org: a trusted publisher for owner DelineaXPM, repository
+# delinea-mcp, workflow publish-pypi.yml, environment "pypi" (or "testpypi").
+#
+# Publishing to PyPI happens on a published GitHub release; mark it a
+# pre-release with a PEP 440 version (e.g. v2.0.0rc1) to test the pipeline
+# without regular users getting it. Manual runs only build and check unless
+# a repository is chosen.
 name: publish-pypi
 on:
   release:
@@ -12,11 +17,12 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Where to publish
+        description: Where to publish (none = build and check only)
         required: true
-        default: testpypi
+        default: none
         type: choice
         options:
+          - none
           - testpypi
           - pypi
 permissions:
@@ -61,6 +67,7 @@ jobs:
   publish:
     name: publish-${{ github.event_name == 'release' && 'pypi' || inputs.repository }}
     needs: build
+    if: github.event_name == 'release' || inputs.repository != 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: ${{ github.event_name == 'release' && 'pypi' || inputs.repository }}
