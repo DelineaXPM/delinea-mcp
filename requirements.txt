@@ -6,6 +6,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.14.2
     # via
+    #   fastapi
     #   httpx
     #   httpx2
     #   mcp
@@ -40,7 +41,7 @@ cryptography==50.0.0
     #   pyjwt
 distro==1.9.0
     # via openai
-fastapi==0.136.1
+fastapi==0.165.0
     # via
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
@@ -95,7 +96,9 @@ openai==1.109.0
     #   delinea-mcp (pyproject.toml)
     #   delinea-mcp (pyproject.toml:test)
 opentelemetry-api==1.45.2
-    # via mcp
+    # via
+    #   fastapi
+    #   mcp
 packaging==25.0
     # via pytest
 pluggy==1.6.0

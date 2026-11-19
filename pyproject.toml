@@ -5,7 +5,7 @@ description = "MCP server for the Delinea Secret Server and Platform APIs"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "fastapi>=0.117.1",
+  "fastapi>=0.163.2",
   "httpx>=0.28.1",
   "httpx-sse>=0.4.1",
   "joserfc>=1.7.6",
@@ -21,7 +21,7 @@ strongdm = ["strongdm>=17.8.0"]
 [dependency-groups]
 dev = ["pytest>=8.4.2", "pytest-asyncio>=1.1.0", "coverage>=7.6.9"]
 test = [
-  "fastapi>=0.117.1",
+  "fastapi>=0.163.2",
   "httpx>=0.28.1",
   "httpx-sse>=0.4.1",
   "joserfc>=1.7.6",
