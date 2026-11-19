@@ -147,7 +147,12 @@ The configuration file supports the following keys:
   bundled CA list instead.
 - **script_delivery** - How the environment-variable tools hand over
   credentials: `auto` (default) uses local handoff files for `stdio` and
-  returns scripts for `sse`; `file` or `inline` force one mode.
+  returns scripts for `sse`; `file` or `inline` force one mode. With local
+  handoff files, `set_secret_field_environment_variable` returns a command
+  that runs `python -I -m delinea_mcp.field_push` with the server's Python.
+  Isolated mode (`-I`) ignores the current directory, so the package must be
+  installed in that Python (`uvx`, `pip install`, `uv sync` or the Docker
+  image), not only present as source in the working directory.
 - **strongdm_enabled** - default `false`. Registers the experimental
   StrongDM preview tools. StrongDM, a Delinea company, will be fully
   supported in a future release.
