@@ -8,7 +8,9 @@ secret value or token is ever printed.
 
 Needs ``DELINEA_BASE_URL``, ``DELINEA_USERNAME``, ``DELINEA_PASSWORD`` and
 ``LIVE_SECRET_ID`` (a secret with username and password fields), plus
-``uvx`` on PATH. Writes are attempted only on the ``notes`` field and
+``uvx`` on PATH. Set ``DELINEA_E2E_PACKAGE=delinea-mcp==<version>`` to test
+a published release instead of the repo source. Writes are attempted only on
+the ``notes`` field and
 pass either when they succeed or when the tenant refuses them with an
 actionable error that doesn't echo the value.
 """
@@ -64,6 +66,10 @@ def _run(scenario, *, mode: str = "auto", answer: str = "accept", **env: str):
     from mcp.client import Client
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
+    # DELINEA_E2E_PACKAGE (e.g. "delinea-mcp==2.0.0rc1") tests a published
+    # release from PyPI instead of the repo source.
+    package = os.getenv("DELINEA_E2E_PACKAGE")
+    source = [package] if package else ["--from", str(REPO), "delinea-mcp"]
     params = StdioServerParameters(
         command="uvx",
         args=[
@@ -73,9 +79,7 @@ def _run(scenario, *, mode: str = "auto", answer: str = "accept", **env: str):
             "3.13",
             "--refresh-package",
             "delinea-mcp",
-            "--from",
-            str(REPO),
-            "delinea-mcp",
+            *source,
         ],
         env=_server_env(**env),
         cwd=tempfile.mkdtemp(prefix="dmcp-e2e-"),
