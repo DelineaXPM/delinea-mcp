@@ -38,7 +38,7 @@ jobs:
         run: |
           pkg=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           plugin=$(jq -r .version plugins/delinea/.claude-plugin/plugin.json)
-          pinned=$(jq -r '.mcpServers.delinea.args[0]' plugins/delinea/.claude-plugin/plugin.json)
+          pinned=$(jq -r '.mcpServers.delinea.args[-1]' plugins/delinea/.claude-plugin/plugin.json)
           echo "pyproject=$pkg plugin=$plugin pinned=$pinned"
           test "$pkg" = "$plugin"
           test "$pinned" = "delinea-mcp==$pkg"

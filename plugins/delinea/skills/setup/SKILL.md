@@ -5,7 +5,7 @@ description: Install and verify what the Delinea plugin needs to start its MCP s
 
 # Set up the Delinea plugin
 
-The Delinea MCP server starts with `uvx delinea-mcp==2.0.0`. That needs one
+The Delinea MCP server starts with `uvx --no-config delinea-mcp==2.0.0`. That needs one
 tool: **uv**, which provides `uvx` and downloads the Python version the
 server runs on. Nothing else is required.
 

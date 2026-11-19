@@ -222,10 +222,13 @@ cmd_prewarm() {
         echo "uvx isn't installed; run 'install' first." >&2
         return 1
     }
+    # --no-config: ignore uv.toml / [tool.uv] in the user's project, which
+    # could otherwise point the download at a different package index (the
+    # manifest launches the server with the same flag).
     if [ -n "${wheel}" ]; then
-        "${uvx_bin}" --quiet --from "${wheel}" delinea-mcp --help >/dev/null
+        "${uvx_bin}" --quiet --no-config --from "${wheel}" delinea-mcp --help >/dev/null
     else
-        "${uvx_bin}" --quiet "${spec}" --help >/dev/null
+        "${uvx_bin}" --quiet --no-config "${spec}" --help >/dev/null
     fi
     status=$?
     if [ "${status}" -eq 0 ]; then

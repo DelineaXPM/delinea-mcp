@@ -74,8 +74,9 @@
   "mcpServers": {
     "delinea": {
       "command": "uvx",
-      "args": ["delinea-mcp==2.0.0"],
+      "args": ["--no-config", "delinea-mcp==2.0.0"],
       "env": {
+        "DELINEA_MCP_PLUGIN": "1",
         "DELINEA_BASE_URL": "${user_config.delinea_base_url}",
         "DELINEA_USERNAME": "${user_config.delinea_username}",
         "DELINEA_PASSWORD": "${user_config.delinea_password}",

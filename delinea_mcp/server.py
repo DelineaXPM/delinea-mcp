@@ -170,11 +170,24 @@ def _init_from_config(cfg: dict[str, Any]) -> None:
     strongdm_tools.register(mcp, enabled)
 
 
+def _plugin_mode() -> bool:
+    """Return True when launched by the Claude Code plugin manifest.
+
+    The manifest sets ``DELINEA_MCP_PLUGIN=1``. Claude Code starts the server
+    with the user's project as the working directory, so in this mode no
+    config file is read implicitly: a ``config.json`` committed to a cloned
+    repository could otherwise set ``delinea_base_url`` and receive the
+    password the plugin passes from the OS keychain. Settings then come only
+    from the environment the manifest provides.
+    """
+    return os.getenv("DELINEA_MCP_PLUGIN") == "1"
+
+
 # Load default config on import using the config module's default resolution.
 # Store the loaded config so run_server can reuse it when --config is not passed.
 # NOTE: Do not call _init_from_config here - initialization happens in run_server()
 # to avoid duplicate tool registration warnings.
-CURRENT_CONFIG = load_config()
+CURRENT_CONFIG = {} if _plugin_mode() else load_config()
 
 
 def run_report(sql_query: str, report_name: str | None = None) -> dict:
@@ -188,11 +201,17 @@ def list_example_reports() -> str:
 
 
 def run_server(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser()
-    # --config is optional; when omitted we use the module-level CURRENT_CONFIG
+    plugin_mode = _plugin_mode()
+    # Plugin mode rejects abbreviated options (e.g. ``--conf``) so only the
+    # exact flags the manifest passes are accepted.
+    parser = argparse.ArgumentParser(allow_abbrev=not plugin_mode)
+    # --config is optional; when omitted we use the module-level CURRENT_CONFIG.
+    # In plugin mode $DELINEA_MCP_CONFIG (which may be inherited from the
+    # user's shell for a separate server) and ./config.json are ignored; only
+    # an explicit --config from the manifest is honoured.
     parser.add_argument(
         "--config",
-        default=os.getenv("DELINEA_MCP_CONFIG") or None,
+        default=None if plugin_mode else (os.getenv("DELINEA_MCP_CONFIG") or None),
         help="Path to config.json (default: $DELINEA_MCP_CONFIG, then ./config.json)",
     )
     args = parser.parse_args(argv)
@@ -207,6 +226,16 @@ def run_server(argv: list[str] | None = None) -> None:
         # Re-initialize runtime from the provided config
         _init_from_config(cfg)
         # Update module-level current config
+        globals()["CURRENT_CONFIG"] = cfg
+    elif plugin_mode:
+        if Path("config.json").exists():
+            logger.warning(
+                "Plugin mode: ignoring config.json in %s; settings come from the "
+                "plugin configuration only.",
+                os.getcwd(),
+            )
+        cfg = {}
+        _init_from_config(cfg)
         globals()["CURRENT_CONFIG"] = cfg
     else:
         # Try to read config from current directory, fallback to cached config

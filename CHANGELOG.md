@@ -45,6 +45,15 @@
 
 ### Plugin setup
 
+- **The plugin never reads config files from your project.** Claude Code
+  starts the server in the open project's folder, so a `config.json` in a
+  cloned repository could have redirected `delinea_base_url` and received your
+  keychain password. With `DELINEA_MCP_PLUGIN=1` (set by the plugin) the
+  server ignores `./config.json` and `$DELINEA_MCP_CONFIG` and takes settings
+  only from the plugin configuration. `uvx` runs with `--no-config` so a
+  project's `uv.toml` / `[tool.uv]` can't point the download at another
+  package index.
+
 - **Windows support in the plugin is experimental.** The server, skills
   and credential handoff are platform-neutral, but the plugin's startup
   check and `/delinea:setup` helper are POSIX shell scripts (they run under
