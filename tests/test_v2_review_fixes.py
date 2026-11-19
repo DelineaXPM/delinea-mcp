@@ -444,7 +444,9 @@ def test_env_file_is_private_and_holds_no_token(file_mode, shell):
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
     body = path.read_text()
     assert "hunter2" in body and FakeSession.token not in body
-    assert "curl" not in body and "jq" not in body
+    # The file names itself (to self-delete); its random name can contain "jq".
+    commands = body.replace(str(path), "")
+    assert "curl" not in commands and "jq" not in commands
     if shell == "bash":
         assert body.startswith(f"rm -f '{path}'")
     elif shell == "powershell":

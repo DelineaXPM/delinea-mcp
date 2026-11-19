@@ -224,7 +224,9 @@ def test_credential_handoff_needs_no_tools():
         body = path.read_text()
         assert oct(path.stat().st_mode & 0o777) == "0o600"
         assert "Bearer" not in json.dumps(handoff) + body
-        assert "curl" not in body and "jq" not in body
+        # The file names itself (to self-delete); ignore its random name.
+        commands = body.replace(str(path), "")
+        assert "curl" not in commands and "jq" not in commands
         out = subprocess.run(
             [
                 "/bin/bash",
