@@ -15,7 +15,7 @@
 #                                     into a user-writable folder that is
 #   setup-uv.sh prewarm <spec> [wheel]
 #                                     Download the server and Python ahead of
-#                                     time, e.g. `prewarm delinea-mcp==2.0.0`
+#                                     time, e.g. `prewarm delinea-mcp==2.0.0rc1`
 
 # Status lines echo $(...) output on purpose; a failing probe just prints
 # an empty value, which the caller reads as "not found".

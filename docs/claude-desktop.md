@@ -12,7 +12,7 @@ The simplest setup runs the published package with `uvx`. Add an entry to
   "mcpServers": {
     "delinea": {
       "command": "uvx",
-      "args": ["--no-config", "delinea-mcp==2.0.0"],
+      "args": ["--no-config", "delinea-mcp==2.0.0rc1"],
       "env": {
         "DELINEA_BASE_URL": "https://example.secretservercloud.com",
         "DELINEA_USERNAME": "<username>",

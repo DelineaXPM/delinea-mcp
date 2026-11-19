@@ -5,7 +5,7 @@ description: Install and verify what the Delinea plugin needs to start its MCP s
 
 # Set up the Delinea plugin
 
-The Delinea MCP server starts with `uvx --no-config delinea-mcp==2.0.0`. That needs one
+The Delinea MCP server starts with `uvx --no-config delinea-mcp==2.0.0rc1`. That needs one
 tool: **uv**, which provides `uvx` and downloads the Python version the
 server runs on. Nothing else is required.
 
@@ -72,7 +72,7 @@ add the folder to the user PATH instead.
 ## 4. Download the server
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/setup-uv.sh" prewarm delinea-mcp==2.0.0
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/setup-uv.sh" prewarm delinea-mcp==2.0.0rc1
 ```
 
 This downloads the server package and, if needed, Python 3.13, so network
@@ -115,7 +115,7 @@ disable it in `/mcp`.
 
    ```bash
    python3 -m venv ~/.delinea-mcp
-   ~/.delinea-mcp/bin/pip install delinea-mcp==2.0.0
+   ~/.delinea-mcp/bin/pip install delinea-mcp==2.0.0rc1
    ```
 
 2. Register the server. **The user runs this themselves**, because it
