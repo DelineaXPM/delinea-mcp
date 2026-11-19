@@ -134,11 +134,18 @@ def redact(message: str, value: str | None) -> str:
     appears, shorter ones (a PIN, a short code) wherever they stand on their
     own, so ``'ab' is invalid`` is masked but the "ab" in "about" isn't.
     """
-    if not value:
-        return message
+    return _redact_all(message, [value])
+
+
+def _spans(message: str, value: str) -> list[tuple[int, int]]:
     if len(value) >= 4:
-        return message.replace(value, "********")
-    return re.sub(rf"(?<!\w){re.escape(value)}(?!\w)", "********", message)
+        found, start = [], message.find(value)
+        while start != -1:
+            found.append((start, start + len(value)))
+            start = message.find(value, start + 1)
+        return found
+    pattern = rf"(?<!\w){re.escape(value)}(?!\w)"
+    return [m.span() for m in re.finditer(pattern, message)]
 
 
 _SENSITIVE_KEY = re.compile(r"pass|secret|token|key", re.IGNORECASE)
@@ -200,9 +207,24 @@ class DelineaAPIError(requests.HTTPError):
 
 
 def _redact_all(message: str, sensitive: Iterable[str | None]) -> str:
-    for value in sensitive:
-        message = redact(message, value)
-    return message
+    """Mask every value at once.
+
+    Matches are found in the original text and overlapping ones merged, so
+    masking one value can't break up another and leave part of it showing.
+    """
+    spans = sorted(span for v in sensitive if v for span in _spans(message, v))
+    if not spans:
+        return message
+    out, pos = [], 0
+    start, end = spans[0]
+    for s, e in spans[1:]:
+        if s <= end:
+            end = max(end, e)
+            continue
+        out += [message[pos:start], "********"]
+        pos, (start, end) = end, (s, e)
+    out += [message[pos:start], "********", message[end:]]
+    return "".join(out)
 
 
 def _api_error_detail(

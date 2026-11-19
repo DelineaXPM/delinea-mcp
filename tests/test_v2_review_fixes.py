@@ -968,6 +968,15 @@ def test_user_management_debug_log_masks_passwords(monkeypatch, caplog, data):
     assert "secretserver_local_user_management(action=reset_password" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "values", [["abcd", "abcdef"], ["abcdef", "abcd"], ["abcd", "cdef"]]
+)
+def test_overlapping_values_are_masked_whole(values):
+    """Masking one value must not leave part of an overlapping one showing."""
+    out = api._redact_all("got abcdef here", values)
+    assert out == "got ******** here"
+
+
 def test_sensitive_values_collects_password_like_strings():
     data = {
         "Name": "ann",
