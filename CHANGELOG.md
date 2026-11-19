@@ -51,12 +51,9 @@
   Servers with internal CAs. Before, `requests` used Python's bundled list
   and failed with `CERTIFICATE_VERIFY_FAILED`. Set `DELINEA_TLS_TRUST=bundled`
   to keep the old behavior.
-- The plugin registers a **safe default tool set**: every read-only tool
-  plus `get_secret_environment_variable` and `run_report` (neither changes
-  vault data). Tools that change Secret Server are off until the user lists
-  them, or `all`, in the new **Enabled tools** setting
-  (`DELINEA_ENABLED_TOOLS`). Standalone servers keep the old default of
-  every tool.
+- New **Enabled tools** plugin setting (`DELINEA_ENABLED_TOOLS`, a
+  comma-separated list) limits which tools are registered. Blank or `all`
+  enables every tool, which is the default.
 - The plugin launches with `uvx --no-config --python 3.13`. It's
   distributed through the official Claude plugin directory.
 - **The plugin never reads config files from your project.** Claude Code

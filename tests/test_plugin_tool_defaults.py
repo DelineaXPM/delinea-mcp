@@ -1,4 +1,4 @@
-"""Tool selection: read-only plugin default, env allowlist, config precedence."""
+"""Tool selection: every tool by default, narrowed by config or env."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import asyncio
 
 import pytest
 from delinea_mcp import server, tools
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
 from delinea_mcp.session import SessionManager
 from mcp.server.mcpserver import MCPServer
 
@@ -45,37 +44,30 @@ WRITE_TOOLS = {
 }
 
 
-def test_plugin_default_is_read_only_plus_handoff_and_reports(fresh, monkeypatch):
-    monkeypatch.setenv("DELINEA_MCP_PLUGIN", "1")
+@pytest.mark.parametrize("plugin", ["1", ""])
+def test_default_is_every_tool(fresh, monkeypatch, plugin):
+    if plugin:
+        monkeypatch.setenv("DELINEA_MCP_PLUGIN", plugin)
     names = fresh()
-    assert {"get_secret", "search_secrets", "list_example_reports"} <= names
-    assert {"get_secret_environment_variable", "run_report"} <= names
-    assert not names & WRITE_TOOLS
-    # Every registered tool is read-only or one of the documented exceptions.
-    for name in names:
-        assert (
-            TOOL_ANNOTATIONS[name].read_only_hint
-            or name in server.PLUGIN_DEFAULT_EXTRA_TOOLS
-        ), name
-    assert "reveal_secret_field" not in names  # reveal stays off by default
+    assert WRITE_TOOLS <= names
+    assert {"get_secret", "get_secret_environment_variable", "run_report"} <= names
+    assert "reveal_secret_field" not in names  # its own opt-in
 
 
-def test_plugin_default_keeps_explicit_reveal_opt_in(fresh, monkeypatch):
+def test_blank_setting_means_every_tool(fresh, monkeypatch):
+    """The plugin substitutes an empty string when the setting is blank."""
     monkeypatch.setenv("DELINEA_MCP_PLUGIN", "1")
-    monkeypatch.setenv("DELINEA_SECRET_REVEAL_MODE", "true")
-    names = fresh()
-    assert "reveal_secret_field" in names
-    assert not names & WRITE_TOOLS
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "")
+    assert WRITE_TOOLS <= fresh()
 
 
-def test_env_allowlist_and_all(fresh, monkeypatch):
+def test_env_allowlist_narrows(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_MCP_PLUGIN", "1")
     monkeypatch.setenv("DELINEA_ENABLED_TOOLS", " get_secret , folder_management ,")
     assert fresh() == {"get_secret", "folder_management"}
 
 
 def test_env_all_enables_everything(fresh, monkeypatch):
-    monkeypatch.setenv("DELINEA_MCP_PLUGIN", "1")
     monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "All")
     assert WRITE_TOOLS <= fresh()
 
@@ -83,8 +75,3 @@ def test_env_all_enables_everything(fresh, monkeypatch):
 def test_config_list_beats_env(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "folder_management")
     assert fresh({"enabled_tools": ["get_secret"]}) == {"get_secret"}
-
-
-def test_standalone_default_is_unchanged(fresh):
-    """Outside plugin mode an empty allowlist still means every tool."""
-    assert WRITE_TOOLS <= fresh()

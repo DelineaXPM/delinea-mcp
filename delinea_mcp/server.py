@@ -14,7 +14,6 @@ from delinea_mcp import (
     tools,
     user_platform_tools,
 )
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
 from delinea_mcp.api import DelineaSession
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
@@ -104,23 +103,12 @@ def _with_env_fallbacks(cfg: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-# Tools in the plugin's default set besides the read-only ones. Neither changes
-# vault data: the handoff only reads the secret (with an audited checkout when
-# a comment is required) and a report is a temporary SELECT that is deleted
-# afterwards. The plugin's skills are built around both.
-PLUGIN_DEFAULT_EXTRA_TOOLS = frozenset(
-    {"get_secret_environment_variable", "run_report"}
-)
-
-
 def _select_tools(cfg: dict[str, Any]) -> set[str]:
     """Return the tool allowlist; an empty set means every tool.
 
     Precedence: ``enabled_tools`` in config.json, then the comma-separated
-    ``DELINEA_ENABLED_TOOLS`` environment variable (``all`` = every tool),
-    then, in plugin mode, the read-only tools plus
-    :data:`PLUGIN_DEFAULT_EXTRA_TOOLS`. Outside plugin mode the default stays
-    every tool.
+    ``DELINEA_ENABLED_TOOLS`` environment variable (the plugin's "Enabled
+    tools" setting). Blank or ``all`` means every tool, in plugin mode too.
     """
     enabled = {str(n) for n in cfg.get("enabled_tools", []) if str(n).strip()}
     if enabled:
@@ -129,18 +117,7 @@ def _select_tools(cfg: dict[str, Any]) -> set[str]:
     names = {n.strip() for n in raw.split(",") if n.strip()}
     if "all" in {n.lower() for n in names}:
         return set()
-    if names:
-        return names
-    if _plugin_mode():
-        selected = {
-            name for name, hints in TOOL_ANNOTATIONS.items() if hints.read_only_hint
-        }
-        selected |= PLUGIN_DEFAULT_EXTRA_TOOLS
-        # Plaintext reveal is its own explicit opt-in; tools.register still
-        # drops it unless secret_reveal_mode enables it.
-        selected.add("reveal_secret_field")
-        return selected
-    return set()
+    return names
 
 
 def _init_from_config(cfg: dict[str, Any]) -> None:

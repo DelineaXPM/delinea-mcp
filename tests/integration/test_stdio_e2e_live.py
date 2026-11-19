@@ -106,18 +106,29 @@ SID = int(os.getenv("LIVE_SECRET_ID", "0"))
 
 
 def test_plugin_mode_defaults():
-    """Plugin mode: read-only default set, reveal off, masked results."""
+    """Plugin mode: every tool by default, reveal off, masked results."""
 
     async def scenario(call, tools, prompts):
         assert all(t.title and t.annotations for t in tools.values())
         assert {"get_secret_environment_variable", "run_report"} <= set(tools)
-        assert not set(tools) & WRITE_TOOLS
+        assert WRITE_TOOLS <= set(tools)
         assert "reveal_secret_field" not in tools
         assert not any(n.startswith(("sdm_", "ai_")) for n in tools)
         secret = await call("get_secret", {"id": SID})
         assert "disabled" in secret.get("maskedNote", "")
 
     _run(scenario, DELINEA_MCP_PLUGIN="1")
+
+
+def test_plugin_enabled_tools_setting_narrows():
+    async def scenario(call, tools, prompts):
+        assert set(tools) == {"get_secret", "search_secrets"}
+
+    _run(
+        scenario,
+        DELINEA_MCP_PLUGIN="1",
+        DELINEA_ENABLED_TOOLS="get_secret,search_secrets",
+    )
 
 
 def test_read_paths_reports_and_errors():

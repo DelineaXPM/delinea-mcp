@@ -73,7 +73,7 @@
     "enabled_tools": {
       "type": "string",
       "title": "Enabled tools (optional)",
-      "description": "Leave blank for the safe default: read-only tools plus credential handoff and reports, no write tools. Enter comma-separated tool names to choose your own set, or 'all' to enable every tool, including ones that change Secret Server.",
+      "description": "Leave blank to enable every tool. To limit what Claude can do, enter comma-separated tool names, for example get_secret,search_secrets,get_secret_environment_variable.",
       "default": ""
     }
   },
