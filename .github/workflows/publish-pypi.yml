@@ -65,7 +65,8 @@ jobs:
           if [ "$EVENT_NAME" = "release" ]; then
             test "$RELEASE_TAG" = "v$pkg"
           fi
-          echo "stable=$(uv run scripts/version_is_stable.py "$pkg")" >> "$GITHUB_OUTPUT"
+          stable=$(uv run scripts/version_is_stable.py "$pkg")
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
       - name: build
         run: uv build
       - name: smoke-test-wheel
