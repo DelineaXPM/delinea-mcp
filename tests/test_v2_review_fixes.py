@@ -420,9 +420,40 @@ def test_env_file_is_private_and_holds_no_token(file_mode, shell):
 
 def test_env_file_passes_audit_comment(file_mode):
     tools.get_secret_environment_variable(7, "bash", comment="CHG-9")
-    method, path, kwargs = file_mode.calls[-1]
-    assert (method, path) == ("GET", "/v2/secrets/7")
-    assert kwargs["params"]["autoComment"] == "CHG-9"
+    reads = file_mode.calls[-2:]  # after the approval check
+    assert [(m, p) for m, p, _ in reads] == [
+        ("GET", "/v2/secrets/7"),
+        ("GET", "/v1/secrets/7/fields/password"),
+    ]
+    for _, _, kwargs in reads:
+        assert kwargs["params"]["autoComment"] == "CHG-9"
+
+
+def test_field_text_handles_json_plain_text_and_null():
+    assert tools._field_text(Resp("pw")) == "pw"
+    assert tools._field_text(Resp(None)) == ""
+    assert tools._field_text(Resp(ValueError("no json"), text="raw pw")) == "raw pw"
+
+
+@pytest.mark.parametrize("omitted", [{"itemValue": ""}, {"itemValue": None}, {}])
+def test_env_file_password_comes_from_field_endpoint(file_mode, monkeypatch, omitted):
+    """Secret GETs may leave password values out (per the API spec)."""
+    secret = json.loads(json.dumps(SECRET))
+    del secret["items"][1]["itemValue"]
+    secret["items"][1].update(omitted)
+
+    def request(self, method, path, **kwargs):
+        self.calls.append((method, path, kwargs))
+        if path == "/v2/secrets/7":
+            return Resp(secret)
+        assert path == "/v1/secrets/7/fields/password"
+        return Resp("from-field-endpoint")
+
+    monkeypatch.setattr(FakeSession, "request", request)
+    body = Path(tools.get_secret_environment_variable(7, "bash")["script_path"])
+    text = body.read_text()
+    assert "SECRET_PASSWORD_7='from-field-endpoint'" in text
+    assert "SECRET_USERNAME_7='sa'" in text
 
 
 def test_bash_env_file_exports_exact_values(file_mode, monkeypatch):
@@ -433,11 +464,11 @@ def test_bash_env_file_exports_exact_values(file_mode, monkeypatch):
     if not shutil.which("bash"):
         pytest.skip("bash required")
     secret = json.loads(json.dumps(SECRET))
-    secret["items"][1]["itemValue"] = TRICKY
+    del secret["items"][1]["itemValue"]  # GETs may omit password values
     monkeypatch.setattr(
         FakeSession,
         "request",
-        lambda self, m, p, **kw: self.calls.append((m, p, kw)) or Resp(secret),
+        lambda self, m, p, **kw: Resp(TRICKY if p.endswith("/password") else secret),
     )
     result = tools.get_secret_environment_variable(7, "bash")
     out = subprocess.run(
@@ -526,6 +557,37 @@ def test_set_field_env_or_stdin_returns_python_command(file_mode, source):
     assert ("user must run it" in result["purpose"]) == (source == "stdin")
 
 
+@pytest.mark.parametrize("shell", ["bash", "powershell", "cmd"])
+def test_push_command_runs_python_isolated(shell):
+    command = tools._python_command(shell, Path("/tmp/job.json"))
+    assert " -I -m delinea_mcp.field_push " in command
+
+
+def test_push_command_ignores_project_shadow_packages(tmp_path):
+    """A project-local delinea_mcp/requests must not see the job file."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("bash"):
+        pytest.skip("bash required")
+    marker = tmp_path / "shadow-ran"
+    shadow = f"open({str(marker)!r}, 'w').write('x')\n"
+    (tmp_path / "delinea_mcp").mkdir()
+    (tmp_path / "delinea_mcp" / "__init__.py").write_text(shadow)
+    (tmp_path / "delinea_mcp" / "field_push.py").write_text(shadow)
+    (tmp_path / "requests.py").write_text(shadow)
+    command = tools._python_command("bash", tmp_path / "missing-job.json")
+    out = subprocess.run(
+        ["bash", "-c", command],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(tmp_path)},
+    )
+    assert not marker.exists()
+    assert out.returncode == 1 and "already used" in out.stderr
+
+
 def test_field_push_command_uploads_value(file_mode):
     """Run the returned command for real against a local stub server."""
     import http.server
@@ -604,8 +666,12 @@ def test_delivery_defaults_follow_transport(monkeypatch):
 
 def test_inline_scripts_state_requirements(monkeypatch, fake_session):
     monkeypatch.setitem(tools._CFG, "script_delivery", "inline")
-    assert tools.get_secret_environment_variable(7, "bash").startswith(
-        "# Requires: curl, jq"
+    bash = tools.get_secret_environment_variable(7, "bash", comment="CHG 9")
+    assert bash.startswith("# Requires: curl, jq")
+    password_url = "/api/v1/secrets/7/fields/password?autoCheckout=true"
+    assert password_url in bash
+    assert password_url in tools.get_secret_environment_variable(
+        7, "powershell", comment="CHG 9"
     )
     assert "powershell" in tools.get_secret_environment_variable(7, "cmd")["error"]
     assert tools.set_secret_field_environment_variable(7, "k", "cmd").startswith(

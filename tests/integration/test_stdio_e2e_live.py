@@ -235,47 +235,71 @@ def test_credential_handoff_needs_no_tools():
         assert out.returncode == 0 and re.fullmatch(r"[1-9]\d*:\d+", out.stdout)
         assert not path.exists()  # self-deleted
 
-        marker = "dmcp-e2e-marker"
-        src = Path(tempfile.mkdtemp()) / "v.txt"
-        src.write_text(marker + "\n")
-        result = await call(
-            "set_secret_field_environment_variable",
-            {
-                "secret_id": SID,
-                "field_slug": "notes",
-                "environment": "bash",
-                "source": f"file:{src}",
-            },
-        )
-        error = result.get("error", "")
-        assert result.get("result", {}).get("updated") or (
-            "Access denied" in error and marker not in error
-        )
-        result = await call(
-            "set_secret_field_environment_variable",
-            {
-                "secret_id": SID,
-                "field_slug": "notes",
-                "environment": "bash",
-                "source": "env:DMCP_E2E",
-            },
-        )
-        command = result["command"]
-        assert "field_push" in command and "Bearer" not in json.dumps(result)
-        first = subprocess.run(
-            ["/bin/bash", "-c", command],
-            capture_output=True,
-            text=True,
-            env={"PATH": "/bin", "DMCP_E2E": marker},
-        )
-        output = first.stdout + first.stderr
-        assert first.returncode == 0 or (
-            "Access denied" in output and marker not in output
-        )
-        again = subprocess.run(
-            ["/bin/bash", "-c", command], capture_output=True, text=True
-        )
-        assert again.returncode == 1 and "already used" in again.stderr
+        # The uploads below write the secret's notes field; put it back after.
+        notes = [
+            item
+            for item in (await call("get_secret", {"id": SID})).get("items", [])
+            if item.get("slug") == "notes"
+        ]
+        assert notes, "LIVE_SECRET_ID needs a notes field"
+        original = notes[0].get("itemValue") or ""
+        wrote = []
+        try:
+            marker = "dmcp-e2e-marker"
+            src = Path(tempfile.mkdtemp()) / "v.txt"
+            src.write_text(marker + "\n")
+            result = await call(
+                "set_secret_field_environment_variable",
+                {
+                    "secret_id": SID,
+                    "field_slug": "notes",
+                    "environment": "bash",
+                    "source": f"file:{src}",
+                },
+            )
+            error = result.get("error", "")
+            if result.get("result", {}).get("updated"):
+                wrote.append("file")
+            else:
+                assert "Access denied" in error and marker not in error
+            result = await call(
+                "set_secret_field_environment_variable",
+                {
+                    "secret_id": SID,
+                    "field_slug": "notes",
+                    "environment": "bash",
+                    "source": "env:DMCP_E2E",
+                },
+            )
+            command = result["command"]
+            assert "field_push" in command and "Bearer" not in json.dumps(result)
+            first = subprocess.run(
+                ["/bin/bash", "-c", command],
+                capture_output=True,
+                text=True,
+                env={"PATH": "/bin", "DMCP_E2E": marker},
+            )
+            output = first.stdout + first.stderr
+            if first.returncode == 0:
+                wrote.append("env")
+            else:
+                assert "Access denied" in output and marker not in output
+            again = subprocess.run(
+                ["/bin/bash", "-c", command], capture_output=True, text=True
+            )
+            assert again.returncode == 1 and "already used" in again.stderr
+        finally:
+            if wrote:
+                restored = await call(
+                    "update_secret_fields",
+                    {"secret_id": SID, "field_updates": {"notes": original}},
+                )
+                assert "error" not in restored, restored
+                after = await call("get_secret", {"id": SID})
+                value = next(
+                    i.get("itemValue") for i in after["items"] if i["slug"] == "notes"
+                )
+                assert (value or "") == original
 
     _run(scenario)
 

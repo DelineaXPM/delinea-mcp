@@ -150,6 +150,27 @@ def test_result_limit_truncates_oversized_error_payloads(result_limit):
     assert tool_guard.result_size(result, meta) <= 4096
 
 
+def test_result_limit_applies_to_async_tools(result_limit):
+    """reveal_secret_field is async; the cap must hold for it too."""
+    result_limit(1000)
+
+    async def big() -> dict:
+        return {"value": "v" * 5000}
+
+    async def small() -> dict:
+        return {"value": "v"}
+
+    async def boom() -> dict:
+        raise ValueError("e" * 2_000_000)
+
+    assert "Result too large" in asyncio.run(guard_tool(big)())["error"]
+    assert asyncio.run(guard_tool(small)()) == {"value": "v"}
+    error = asyncio.run(guard_tool(boom)())["error"]
+    assert "[truncated " in error
+    meta = tool_guard._tool_metadata(boom)
+    assert tool_guard.result_size({"error": error}, meta) <= 1000
+
+
 def test_error_truncation_keeps_a_minimum_diagnostic(result_limit):
     result_limit(10)
 

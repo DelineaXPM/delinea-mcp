@@ -125,11 +125,19 @@ disable it in `/mcp`.
 
    ```bash
    claude mcp add delinea-local --scope user \
-     -e DELINEA_BASE_URL=https://example.secretservercloud.com \
-     -e DELINEA_USERNAME=<username> \
-     -e DELINEA_PASSWORD=<password> \
+     -e DELINEA_MCP_PLUGIN=1 \
+     -e PLATFORM_HOSTNAME=example.delinea.app \
+     -e DELINEA_USERNAME=<client-id> \
+     -e DELINEA_PASSWORD=<client-secret> \
      -- ~/.delinea-mcp/bin/delinea-mcp
    ```
+
+   Keep `DELINEA_MCP_PLUGIN=1`: like the plugin, it makes the server ignore
+   config files in whatever project Claude Code opens, so a project can't
+   redirect the sign-in. For a standalone Secret Server without the Delinea
+   Platform, replace the `PLATFORM_HOSTNAME` line with
+   `-e DELINEA_BASE_URL=https://example.secretservercloud.com` and use that
+   account's username and password.
 
    Warn the user that this stores the password in plain text in Claude
    Code's user configuration, unlike the plugin, which keeps it in the

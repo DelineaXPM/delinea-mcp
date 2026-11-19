@@ -159,11 +159,12 @@ def _select_tools(cfg: dict[str, Any]) -> set[str]:
       plugin's "Custom tool list"); an empty list falls back to read-only.
 
     With no preset, ``DELINEA_ENABLED_TOOLS`` alone narrows the set, and blank
-    or ``all`` means every tool.
+    or ``all`` means every tool. An ``enabled_tools`` key in config.json,
+    even an empty list (every tool), is final: inherited environment
+    variables don't override an explicit configuration.
     """
-    enabled = {str(n) for n in cfg.get("enabled_tools", []) if str(n).strip()}
-    if enabled:
-        return enabled
+    if cfg.get("enabled_tools") is not None:
+        return {str(n) for n in cfg["enabled_tools"] if str(n).strip()}
     names = _env_tool_list()
     preset = _tool_preset(
         str(cfg.get("tool_preset") or os.getenv("DELINEA_TOOL_PRESET", ""))

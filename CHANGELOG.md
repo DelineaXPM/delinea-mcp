@@ -33,11 +33,15 @@
   and writes a private (`0600`), self-deleting env file that expires after
   15 minutes, returning only its path. It no longer needs curl or jq, and
   works the same in bash, PowerShell and cmd (the old cmd script needed
-  `head` and `sed`, which Windows doesn't have).
+  `head` and `sed`, which Windows doesn't have). Passwords come from the
+  field endpoint (`/secrets/{id}/fields/{slug}`), since a secret GET may
+  leave them out; the HTTP-transport scripts do the same.
 - Over stdio, `set_secret_field_environment_variable` uploads `file:`
   sources directly, and for `env:`/`stdin` returns a one-line command that
-  runs the server's own Python (`delinea_mcp.field_push`, hidden prompt for
-  `stdin`). No curl, jq or PowerShell 7 needed.
+  runs the server's own Python in isolated mode (`python -I -m
+delinea_mcp.field_push`, hidden prompt for `stdin`), so a package in the
+  user's project can't stand in for it and read the job's access token. No
+  curl, jq or PowerShell 7 needed.
 - New `script_delivery` config key (`auto`, `file`, `inline`). Scripts
   returned over HTTP transports state their requirements; the broken bash
   script (both `export` lines on one line, mis-quoted `jq`, two API calls)
@@ -69,6 +73,10 @@
   setting accepts a pasted URL (`https://<tenant>.delinea.app/`), and the
   plugin never falls back to `https://localhost/SecretServer` with your
   credentials when both URLs are blank.
+- `max_result_bytes` now also caps async tools (`reveal_secret_field`), and
+  an `enabled_tools` key in `config.json`, even an empty list (every tool),
+  is no longer overridden by `DELINEA_TOOL_PRESET` or
+  `DELINEA_ENABLED_TOOLS` from the environment.
 - **Tool access presets.** The plugin's required **Tool access** picker
   chooses **Read-only** (read-only tools plus `run_report` and
   `get_secret_environment_variable`; nothing in the vault or Platform is

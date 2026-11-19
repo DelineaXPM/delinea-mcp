@@ -3,7 +3,7 @@
 Run by the command that ``set_secret_field_environment_variable`` returns
 when the MCP server runs locally::
 
-    <python> -m delinea_mcp.field_push <job.json>
+    <python> -I -m delinea_mcp.field_push <job.json>
 
 The job file (0600, written by the server) holds the field URL, a
 short-lived access token and the value's source. It is deleted as soon as
@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     use_system_trust_store()
     if len(args) != 1:
-        return _fail("usage: python -m delinea_mcp.field_push <job.json>", 2)
+        return _fail("usage: python -I -m delinea_mcp.field_push <job.json>", 2)
     job_path = Path(args[0])
     try:
         job = json.loads(job_path.read_text(encoding="utf-8"))

@@ -191,10 +191,11 @@ def guard_tool(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                return await func(*args, **kwargs)
+                result = await func(*args, **kwargs)
             except Exception as exc:
                 logger.exception("Tool %s failed", func.__name__)
-                return {"error": str(exc)}
+                return _bounded_error(func.__name__, str(exc), metadata)
+            return _check_size(func.__name__, result, metadata)
 
         return async_wrapper
 

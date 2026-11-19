@@ -81,6 +81,13 @@ def test_config_list_beats_env(fresh, monkeypatch):
     assert fresh({"enabled_tools": ["get_secret"]}) == {"get_secret"}
 
 
+def test_explicit_empty_config_list_is_final(fresh, monkeypatch):
+    """``enabled_tools: []`` means every tool; inherited env can't change it."""
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "get_secret")
+    monkeypatch.setenv("DELINEA_TOOL_PRESET", "Read-only")
+    assert WRITE_TOOLS <= fresh({"enabled_tools": []})
+
+
 def test_platform_tools_reuse_main_account(fresh, monkeypatch):
     """One Platform service account serves the vault and the Platform tools."""
     from delinea_mcp import user_platform_tools

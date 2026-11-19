@@ -429,19 +429,26 @@ def _deliver_env_file(values: dict[str, str], environment: str, purpose: str) ->
 
 
 def _python_command(environment: str, job_path: Path) -> str:
-    """Command line that runs ``delinea_mcp.field_push`` with this Python."""
+    """Command line that runs ``delinea_mcp.field_push`` with this Python.
+
+    ``-I`` (isolated mode) keeps the current directory, ``PYTHONPATH`` and
+    user site-packages off ``sys.path``: the command runs inside the user's
+    project, and a package there named like ``delinea_mcp`` or one of its
+    dependencies must not get the job file and its access token.
+    """
     exe = sys.executable
+    module = "-I -m delinea_mcp.field_push"
     if environment == "bash":
-        return f"{_quote(exe, 'bash')} -m delinea_mcp.field_push {_quote(str(job_path), 'bash')}"
+        return f"{_quote(exe, 'bash')} {module} {_quote(str(job_path), 'bash')}"
     if environment == "powershell":
         return (
-            f"& {_quote(exe, 'powershell')} -m delinea_mcp.field_push "
+            f"& {_quote(exe, 'powershell')} {module} "
             f"{_quote(str(job_path), 'powershell')}"
         )
-    return f'"{exe}" -m delinea_mcp.field_push "{job_path}"'
+    return f'"{exe}" {module} "{job_path}"'
 
 
-def _item_value(secret: dict, slug: str) -> str | None:
+def _find_item(secret: dict, slug: str) -> dict | None:
     for item in secret.get("items", []) or []:
         if not isinstance(item, dict):
             continue
@@ -450,9 +457,55 @@ def _item_value(secret: dict, slug: str) -> str | None:
             str(item.get("fieldName", "")).lower(),
         }
         if slug in names:
-            value = item.get("itemValue")
-            return "" if value is None else str(value)
+            return item
     return None
+
+
+def _field_text(response: Any) -> str:
+    """The value from ``GET /v1/secrets/{id}/fields/{slug}``."""
+    try:
+        value = response.json()
+    except ValueError:
+        return response.text
+    return "" if value is None else str(value)
+
+
+class _NoCredentialFields(Exception):
+    """The secret has neither a username nor a password field."""
+
+
+def _handoff_values(
+    session: Any, secret_id: int, names: dict[str, str], params: dict | None
+) -> dict[str, str]:
+    """Read the username and password for an environment-variable handoff.
+
+    A secret GET doesn't have to include password values (the API documents
+    that it leaves them out), so password fields always come from the field
+    endpoint, the same call ``reveal_secret_field`` makes.
+    """
+    secret = session.request("GET", f"/v2/secrets/{secret_id}", params=params).json()
+    values: dict[str, str] = {}
+    for slug, var in names.items():
+        item = _find_item(secret, slug)
+        if item is None:
+            continue
+        if item.get("isPassword") or slug == "password":
+            field = item.get("slug") or slug
+            response = session.request(
+                "GET", f"/v1/secrets/{secret_id}/fields/{field}", params=params
+            )
+            values[var] = _field_text(response)
+        else:
+            value = item.get("itemValue")
+            values[var] = "" if value is None else str(value)
+    if not values:
+        slugs = [i.get("slug") for i in secret.get("items", []) if isinstance(i, dict)]
+        raise _NoCredentialFields(
+            f"Secret {secret_id} has no username or password field; its "
+            f"fields are {slugs}. Use set_secret_field_environment_variable "
+            "or get_secret to work with other fields."
+        )
+    return values
 
 
 def _checkout_params(comment: str | None) -> dict | None:
@@ -527,28 +580,14 @@ def get_secret_environment_variable(
 
     if _script_delivery() == "file":
         try:
-            secret = session.request(
-                "GET", f"/v2/secrets/{secret_id}", params=_checkout_params(comment)
-            ).json()
+            values = _handoff_values(
+                session, secret_id, names, _checkout_params(comment)
+            )
+        except _NoCredentialFields as exc:
+            return {"error": str(exc)}
         except Exception as exc:  # pragma: no cover - network failures
             logger.exception("Failed to read secret %s", secret_id)
             return {"error": f"Failed to read secret {secret_id}: {exc}"}
-        values = {
-            var: value
-            for slug, var in names.items()
-            if (value := _item_value(secret, slug)) is not None
-        }
-        if not values:
-            slugs = [
-                i.get("slug") for i in secret.get("items", []) if isinstance(i, dict)
-            ]
-            return {
-                "error": (
-                    f"Secret {secret_id} has no username or password field; its "
-                    f"fields are {slugs}. Use set_secret_field_environment_variable "
-                    "or get_secret to work with other fields."
-                )
-            }
         return _deliver_env_file(values, env, purpose)
 
     if env == "cmd":
@@ -558,33 +597,41 @@ def get_secret_environment_variable(
                 "use environment='powershell' or 'bash'."
             )
         }
-    url = f"{session.base_url}/api/v2/secrets/{secret_id}"
+    query = ""
     if comment:
         from urllib.parse import quote
 
-        url += f"?autoCheckout=true&autoCheckIn=true&autoComment={quote(comment)}"
+        query = f"?autoCheckout=true&autoCheckIn=true&autoComment={quote(comment)}"
+    url = f"{session.base_url}/api/v2/secrets/{secret_id}{query}"
+    # Secret GETs may leave password values out; the field endpoint has it.
+    password_url = (
+        f"{session.base_url}/api/v1/secrets/{secret_id}/fields/password{query}"
+    )
     access_token = session.token
     if env == "bash":
-        pick = "'.items[] | select(.slug == \"%s\") | .itemValue'"
+        auth = f'-H "Authorization: Bearer {access_token}"'
+        fail = (
+            f"|| {{ echo 'Failed to read secret {secret_id}' >&2; "
+            "return 1 2>/dev/null || exit 1; }\n"
+        )
         return (
             "# Requires: curl, jq\n"
-            f'_dmcp_resp="$(curl -fsS -H "Authorization: Bearer {access_token}" '
-            f"'{url}')\" || {{ echo 'Failed to read secret {secret_id}' >&2; "
-            "return 1 2>/dev/null || exit 1; }\n"
+            f"_dmcp_resp=\"$(curl -fsS {auth} '{url}')\" {fail}"
+            f"_dmcp_pw=\"$(curl -fsS {auth} '{password_url}')\" {fail}"
             f'export {names["username"]}="$(printf \'%s\' "$_dmcp_resp" '
-            f"| jq -r {pick % 'username'})\"\n"
-            f'export {names["password"]}="$(printf \'%s\' "$_dmcp_resp" '
-            f"| jq -r {pick % 'password'})\"\n"
-            "unset _dmcp_resp"
+            '| jq -r \'.items[] | select(.slug == "username") | .itemValue\')"\n'
+            f'export {names["password"]}="$(printf \'%s\' "$_dmcp_pw" '
+            "| jq -sRr 'fromjson? // .')\"\n"
+            "unset _dmcp_resp _dmcp_pw"
         )
     return (
         f'$headers = @{{"Authorization" = "Bearer {access_token}"}}\n'
         f'$response = Invoke-RestMethod -Uri "{url}" -Headers $headers\n'
-        '$passwordItem = $response.items | Where-Object { $_.slug -eq "password" }\n'
         '$usernameItem = $response.items | Where-Object { $_.slug -eq "username" }\n'
-        f"$env:{names['password']} = $passwordItem.itemValue\n"
+        f"$env:{names['password']} = "
+        f'Invoke-RestMethod -Uri "{password_url}" -Headers $headers\n'
         f"$env:{names['username']} = $usernameItem.itemValue\n"
-        "Remove-Variable headers, response, passwordItem, usernameItem"
+        "Remove-Variable headers, response, usernameItem"
     )
 
 

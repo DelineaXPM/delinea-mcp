@@ -10,6 +10,12 @@
 # pre-release with a PEP 440 version (e.g. v2.0.0rc1) to test the pipeline
 # without regular users getting it. Manual runs only build and check unless
 # a repository is chosen.
+#
+# The release must be published by a person (or with a PAT or GitHub App
+# token): a release created with the workflow GITHUB_TOKEN, as
+# release.yml's GoReleaser step does, does not trigger this workflow. For
+# such a release, run this workflow manually from the release tag with
+# repository "pypi".
 name: publish-pypi
 on:
   release:
