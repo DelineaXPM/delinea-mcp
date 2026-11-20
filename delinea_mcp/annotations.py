@@ -95,7 +95,7 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "create_or_update_platform_user": _ADD,
     "delete_platform_user": _DESTR,
     "get_platform_roles": _RO,
-    "create_or_update_platform_role": _ADD,
+    "create_or_update_platform_role": _IDEM,  # upsert
     "delete_platform_role": _DESTR,
     "get_platform_role_members": _RO,
     "add_platform_role_members": _IDEM,

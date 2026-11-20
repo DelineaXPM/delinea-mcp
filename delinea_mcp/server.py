@@ -62,8 +62,6 @@ from delinea_mcp.tools import (
     user_role_management,
 )
 from delinea_mcp.user_platform_tools import (
-    platform_role_management,
-    platform_user_role_management,
     search_users,
     user_management,
 )
@@ -541,8 +539,6 @@ __all__ = [
     # Canonical (Platform-backed) user tools — v1.0.0+
     "user_management",
     "search_users",
-    "platform_role_management",
-    "platform_user_role_management",
     # Legacy SS-local user tools — for SS-only deployments
     "secretserver_local_user_management",
     "search_secretserver_local_users",

@@ -46,6 +46,16 @@ prompts that name the old tools need the new names.
 The plugin's Read-only preset now includes the new role, group and
 membership read tools.
 
+### Platform roles use the Permission service
+
+The Platform role tools called identity API endpoints (`SaasManage/*`,
+`Roles/UpdateRole`) that the Delinea Platform doesn't serve, so every role
+change failed with a 404 that was reported as a scope limitation. Role
+lookups listed legacy identity roles instead of the Platform's roles. The
+tools now use the Platform's Permission service: `/permission/api/roles`
+for roles and `/permission/api/role-memberships` for assignments. They take
+a `role_name`, and members are Platform user or group IDs (`subject_ids`).
+
 ### API documentation links
 
 Every new tool's description names the endpoint it calls and links the

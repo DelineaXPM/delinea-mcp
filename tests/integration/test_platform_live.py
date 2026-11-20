@@ -248,97 +248,75 @@ def test_user_management_unconfigured_returns_helpful_error():
 
 
 # --------------------------------------------------------------------------- #
-# Platform roles — read-only on modern tenants                               #
+# Platform roles (Permission service) — lifecycle on a throwaway role         #
 # --------------------------------------------------------------------------- #
 
 
-def test_platform_role_management_list_live():
-    """role_searchbyname canned report returns role rows.
-
-    Note: this tenant's Row columns are lowercase (``name``, ``description``,
-    ``roletype``, ``visibility``, ``ID``).  Other Centrify-era tenants may
-    use ``Name`` — be tolerant.
-    """
+def test_get_platform_roles_lists_built_in_roles_live():
     _require_platform()
-    out = user_platform_tools.get_platform_roles(page_size=20)
-    assert out.get("success") is True
-    rows = (out.get("Result") or {}).get("Results", [])
-    # Tenant should have at least the "Everybody" system role.
-    assert len(rows) >= 1
-    row_keys = {k.lower() for row in rows for k in (row.get("Row") or {})}
-    assert "name" in row_keys
+    out = user_platform_tools.get_platform_roles()
+    names = {r["roleName"] for r in out.get("records", [])}
+    assert "Platform Admin" in names, out
 
 
-def test_platform_role_management_get_live():
-    """get('Everybody') matches the system role.
-
-    Column casing varies by tenant — check both 'name' and 'Name'.
-    """
+def test_get_platform_role_and_members_live():
     _require_platform()
-    out = user_platform_tools.get_platform_roles("Everybody")
-    assert out.get("success") is True
-    rows = (out.get("Result") or {}).get("Results", [])
-
-    def _name(row: dict) -> str:
-        r = row.get("Row") or {}
-        return r.get("name") or r.get("Name") or ""
-
-    assert any(_name(r) == "Everybody" for r in rows)
+    role = user_platform_tools.get_platform_roles("Platform User")
+    assert role.get("roleName") == "Platform User", role
+    members = user_platform_tools.get_platform_role_members("Platform User")
+    assert "members" in members, members
 
 
-@pytest.mark.parametrize("action", ["create", "update", "delete"])
-def test_platform_role_management_mutations_attempt_then_fallback_live(action):
-    """The tool attempts the documented endpoint; this tenant returns 404
-    and the tool surfaces the structured guidance error."""
+def test_platform_role_lifecycle_live():
+    """Create, update, assign, unassign and delete a role that grants nothing."""
     _require_platform()
-    role = "mcp-itest-role-does-not-exist"
-    out = {
-        "create": lambda: user_platform_tools.create_or_update_platform_role(
-            {"Name": role}
-        ),
-        "update": lambda: user_platform_tools.create_or_update_platform_role(
-            {"Description": "x"}, role
-        ),
-        "delete": lambda: user_platform_tools.delete_platform_role(role),
-    }[action]()
-    # On a 404, the tool returns a guidance error containing "404" and a
-    # pointer at the SS-side fallback.  On a tenant that DOES expose the
-    # endpoint, we'd get {"result": ..., "verification": ...} — the test
-    # tolerates both shapes so it stays useful when run elsewhere.
-    if "error" in out:
-        assert "404" in out["error"]
-        assert "create_or_update_role" in out["error"]
-    else:
-        assert "result" in out
+    role = f"{TEST_PREFIX}role-{int(time.time())}"
+    username = _unique_username("rolemember")
+    user_id = None
+    try:
+        created = user_platform_tools.create_or_update_platform_role(role, "itest")
+        assert created["created"] is True and "error" not in created["result"]
+        updated = user_platform_tools.create_or_update_platform_role(role, "itest 2")
+        assert updated["created"] is False
+        assert updated["result"].get("description") == "itest 2"
+
+        out = user_platform_tools.create_or_update_platform_user(
+            {
+                "Name": username,
+                "Mail": username,
+                "DisplayName": "MCP role member",
+                "Password": "TempPass!" + str(int(time.time())),
+                "ForcePasswordChangeNextLogin": True,
+            }
+        )
+        user_id = out["result"].get("Result")
+        assert isinstance(user_id, str), out
+
+        added = user_platform_tools.add_platform_role_members(role, [user_id])
+        assert "error" not in added["results"][user_id], added
+        members = user_platform_tools.get_platform_role_members(role)["members"]
+        assert user_id in members
+
+        removed = user_platform_tools.remove_platform_role_members(role, [user_id])
+        assert "error" not in removed["results"][user_id], removed
+        assert (
+            user_id
+            not in user_platform_tools.get_platform_role_members(role)["members"]
+        )
+    finally:
+        if user_id:
+            _try_cleanup_user(user_id)
+        assert user_platform_tools.delete_platform_role(role) == {"success": True}
+    assert "HTTP 404" in user_platform_tools.get_platform_roles(role)["error"]
 
 
-# --------------------------------------------------------------------------- #
-# Platform role members — read-only                                          #
-# --------------------------------------------------------------------------- #
-
-
-def test_platform_user_role_management_list_live():
+def test_built_in_platform_role_cannot_be_changed_live():
     _require_platform()
-    out = user_platform_tools.get_platform_role_members("Everybody")
-    assert out.get("success") is True
-
-
-@pytest.mark.parametrize("action", ["add", "remove"])
-def test_platform_user_role_management_mutations_attempt_then_fallback_live(action):
-    """Add/remove are attempted; this tenant returns 404 so guidance surfaces."""
-    _require_platform()
-    # Use a synthetic non-existent test principal so even if the tenant DID
-    # support the endpoint, nothing real changes.
-    tool = {
-        "add": user_platform_tools.add_platform_role_members,
-        "remove": user_platform_tools.remove_platform_role_members,
-    }[action]
-    out = tool("Everybody", ["mcp-itest-noone@dartlabs.invalid"])
-    if "error" in out:
-        assert "404" in out["error"]
-        assert "add_user_roles" in out["error"]
-    else:
-        assert "result" in out
+    current = user_platform_tools.get_platform_roles("Platform User")
+    out = user_platform_tools.create_or_update_platform_role(
+        "Platform User", current.get("description", ""), current.get("enabled", True)
+    )
+    assert "HTTP 403" in out["result"].get("error", ""), out
 
 
 # --------------------------------------------------------------------------- #

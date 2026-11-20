@@ -418,7 +418,12 @@ Discovered while implementing; kept here because context.md is not tracked.
   - The current read tools (`role_searchbyname` report) list legacy identity
     roles such as "Everybody", which the Permission service treats as a
     group, not the Platform's roles.
-  - Follow-up: move the Platform role tools to the Permission API.
+  - Done 2026-11-20: the six Platform role tools now call the Permission
+    API. Live run: role create, update, member add/remove, delete and the
+    built-in-role 403 all pass on the test tenant; no objects left behind.
+    `add_platform_role_members` falls back to `POST role-memberships` when
+    a subject has no assignments yet (a new user already has Platform
+    User, so the live run only exercises the PATCH path).
 - Secret Server refuses role removals that would lock the service account
   out of Role Administration (`API_RoleAdministrationNoLockout`); the live
   test now allows that one error instead of ignoring every step's result.

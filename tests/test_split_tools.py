@@ -177,33 +177,6 @@ def posts(monkeypatch):
             lambda: user_platform_tools.delete_platform_user("u-1"),
             "/UserMgmt/RemoveUsers",
         ),
-        (lambda: user_platform_tools.get_platform_roles(), "/Report/RunReport"),
-        (
-            lambda: user_platform_tools.create_or_update_platform_role({"Name": "r"}),
-            "/SaasManage/StoreRole",
-        ),
-        (
-            lambda: user_platform_tools.create_or_update_platform_role(
-                {"Description": "d"}, "r"
-            ),
-            "/Roles/UpdateRole",
-        ),
-        (
-            lambda: user_platform_tools.delete_platform_role("r"),
-            "/SaasManage/RemoveRole",
-        ),
-        (
-            lambda: user_platform_tools.get_platform_role_members("r"),
-            "/Report/RunReport",
-        ),
-        (
-            lambda: user_platform_tools.add_platform_role_members("r", ["a@t"]),
-            "/Roles/UpdateRole",
-        ),
-        (
-            lambda: user_platform_tools.remove_platform_role_members("r", ["a@t"]),
-            "/Roles/UpdateRole",
-        ),
     ],
 )
 def test_platform_tool_request(posts, call, path):
@@ -211,12 +184,97 @@ def test_platform_tool_request(posts, call, path):
     assert posts[0][0] == path
 
 
-def test_platform_member_tools_add_and_delete(posts):
-    user_platform_tools.add_platform_role_members("r", ["a@t"])
-    user_platform_tools.remove_platform_role_members("r", ["a@t"])
-    bodies = [body for path, body in posts if path == "/Roles/UpdateRole"]
-    assert "Add" in bodies[0]["Users"]
-    assert "Delete" in bodies[1]["Users"]
+# Platform roles live in the Permission service (/permission/api), not the
+# identity API.
+
+
+@pytest.fixture
+def perm(monkeypatch):
+    """Record Permission API calls; ``replies`` maps (method, path) to a status."""
+    seen, replies = [], {}
+
+    def request(method, url, json=None, params=None, **kwargs):
+        path = url.split("/permission/api", 1)[1]
+        seen.append((method, path, json, params))
+        status = replies.get((method, path), 200)
+        body = {} if status < 400 else {"title": "Not Found"}
+        return Mock(status_code=status, json=lambda: body, text="")
+
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    monkeypatch.setattr(user_platform_tools.requests, "request", request)
+    return seen, replies
+
+
+def test_platform_role_reads(perm):
+    seen, _ = perm
+    user_platform_tools.get_platform_roles(query="ops")
+    user_platform_tools.get_platform_roles("Ops Team")
+    user_platform_tools.get_platform_role_members("Ops Team")
+    assert seen[0][:2] == ("GET", "/roles")
+    assert seen[0][3]["Name.Contains"] == "ops"
+    assert [c[:2] for c in seen[1:]] == [
+        ("GET", "/roles/Ops%20Team"),
+        ("GET", "/roles/Ops%20Team/members"),
+    ]
+
+
+def test_create_or_update_platform_role_creates_when_missing(perm):
+    seen, replies = perm
+    replies[("GET", "/roles/new")] = 404
+    result = user_platform_tools.create_or_update_platform_role("new", "d")
+    assert result["created"] is True
+    body = {"roleName": "new", "enabled": True, "description": "d"}
+    assert seen[-1] == ("POST", "/roles", body, None)
+
+
+def test_create_or_update_platform_role_updates_existing(perm):
+    seen, _ = perm
+    result = user_platform_tools.create_or_update_platform_role("old", "d", False)
+    assert result["created"] is False
+    body = {"id": "old", "enabled": False, "description": "d"}
+    assert seen[-1] == ("PUT", "/roles/old", body, None)
+
+
+def test_create_or_update_platform_role_stops_on_other_errors(perm):
+    seen, replies = perm
+    replies[("GET", "/roles/r")] = 403
+    result = user_platform_tools.create_or_update_platform_role("r")
+    assert "HTTP 403" in result["error"]
+    assert len(seen) == 1
+
+
+def test_delete_platform_role(perm):
+    seen, replies = perm
+    replies[("DELETE", "/roles/r")] = 204
+    assert user_platform_tools.delete_platform_role("r") == {"success": True}
+    assert seen == [("DELETE", "/roles/r", None, None)]
+
+
+def test_add_platform_role_members_creates_membership_when_missing(perm):
+    seen, replies = perm
+    replies[("PATCH", "/role-memberships/u2/add-role")] = 404
+    out = user_platform_tools.add_platform_role_members("r", ["u1", "u2"])
+    assert set(out["results"]) == {"u1", "u2"}
+    assert [c[:2] for c in seen] == [
+        ("PATCH", "/role-memberships/u1/add-role"),
+        ("PATCH", "/role-memberships/u2/add-role"),
+        ("POST", "/role-memberships"),
+    ]
+    assert seen[-1][2] == {"subjectId": "u2", "roleName": "r"}
+
+
+def test_remove_platform_role_members(perm):
+    seen, _ = perm
+    user_platform_tools.remove_platform_role_members("r", ["u1"])
+    body = {"subjectId": "u1", "roleName": "r"}
+    assert seen == [("PATCH", "/role-memberships/u1/remove-role", body, None)]
+
+
+def test_platform_role_tools_report_unconfigured_platform(monkeypatch):
+    monkeypatch.setattr(user_platform_tools, "_headers", None)
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", None)
+    assert "error" in user_platform_tools.get_platform_roles()
 
 
 # --------------------------------------------------------------------------- #

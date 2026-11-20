@@ -14,14 +14,12 @@ Endpoint references
 
 * ``POST /identity/CDirectoryService/CreateUser`` — create user
 * ``POST /identity/CDirectoryService/ChangeUser`` — update user
-* ``GET  /identity/UserMgmt/GetUser?userId=<id>`` — get user
+* ``POST /identity/UserMgmt/GetUserAttributes`` — get user
 * ``POST /identity/UserMgmt/RemoveUsers`` body ``{"Users":[id]}`` — delete
 * ``POST /identity/api/Report/RunReport`` — search via canned reports
-* ``POST /identity/SaasManage/StoreRole`` — create role
-  (https://developer.delinea.com/docs/manage-rolesnew)
-* ``POST /identity/Roles/UpdateRole`` — update role + add/remove members
-* ``POST /identity/Redrock/Query`` — generic SQL-like query for users,
-  roles, groups
+* ``/permission/api/roles`` and ``/permission/api/role-memberships`` —
+  Platform roles and role assignments (the Permission service; the
+  Platform's identity API has no Roles or SaasManage controller)
 * ``GET  /report/api/report/report-definitions`` — Platform report
   library (``platform_reports``); ``POST .../{name}/results`` runs one
 """
@@ -84,18 +82,6 @@ def _raw_json(response: requests.Response) -> dict:
         return response.json()
     except Exception:
         return {"error": response.text}
-
-
-def _endpoint_not_available(response: requests.Response) -> bool:
-    """Return True when *response* looks like 'endpoint not in this scope'.
-
-    On modern Delinea Platform tenants the legacy role-management endpoints
-    return a bare 404 with an empty body.  Older Centrify deployments
-    return a JSON envelope with ``success=False`` and a descriptive
-    message.  We treat any 404 as "not available" — the tools fall back to
-    a structured guidance error in that case.
-    """
-    return response.status_code == 404
 
 
 # Bare host; a pasted URL (https://tenant.delinea.app/) is accepted.
@@ -415,293 +401,6 @@ def user_management(
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Platform user_management action failed")
         return {"error": str(exc)}
-
-
-# --------------------------------------------------------------------------- #
-# Roles                                                                       #
-# --------------------------------------------------------------------------- #
-
-
-_ROLE_SEARCH_REPORT_ID = "role_searchbyname"
-
-
-def _run_role_search_report(
-    headers: dict[str, str], query: str = "%", page_size: int = 100
-) -> dict:
-    """Run the ``role_searchbyname`` canned report.
-
-    The modern Delinea Platform exposes role data through this report
-    rather than via dedicated REST endpoints or Redrock SQL.  The shape
-    mirrors :func:`search_users` exactly.
-    """
-    url = _platform_url("/Report/RunReport")
-    payload = {
-        "ID": _ROLE_SEARCH_REPORT_ID,
-        "Args": {
-            "PageNumber": 1,
-            "PageSize": page_size,
-            "Limit": 100000,
-            "FilterQuery": None,
-            "Caching": 0,
-            "Ascending": True,
-            "SortBy": "Name",
-            "Parameters": [
-                {
-                    "Name": "searchString",
-                    "Value": query,
-                    "Label": "searchString",
-                    "Type": "string",
-                    "ColumnType": 12,
-                },
-                {
-                    "Name": "orderby",
-                    "Value": "Name",
-                    "Label": "orderby",
-                    "Type": "string",
-                    "ColumnType": 12,
-                },
-            ],
-        },
-    }
-    return _json_or_error(
-        requests.post(url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT)
-    )
-
-
-_ROLE_WRITE_NOT_SUPPORTED = (
-    "Platform role write endpoint returned 404 — this OAuth scope on this "
-    "tenant does not expose role mutations (typical on modern Delinea Platform "
-    "deployments using the xpmheadless scope). Use the Secret-Server-backed "
-    "get_roles / create_or_update_role tools to manage roles in mixed "
-    "Platform/SS deployments, "
-    "or open the tenant's admin UI directly."
-)
-
-
-def platform_role_management(
-    action: str,
-    role_id: str | None = None,
-    data: dict | str | None = None,
-    *,
-    page_size: int = 100,
-    query: str = "%",
-) -> dict:
-    """Manage roles on the Delinea Platform identity service.
-
-    Endpoint coverage:
-
-    * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
-      ``role_searchbyname`` with a wildcard match.  Returns all visible roles.
-    * ``"get"`` -> same report filtered by an exact / substring role name.
-    * ``"create"`` -> ``POST /identity/api/SaasManage/StoreRole`` (body
-      ``{"Name": ..., "Description": ...}``).  Returns the role's
-      ``_RowKey`` in ``Result``.
-    * ``"update"`` -> ``POST /identity/api/Roles/UpdateRole`` (body
-      ``{"Name": <role-id>, "Description": ..., "Users": {"Add": [...]}, ...}``).
-    * ``"delete"`` -> ``POST /identity/api/SaasManage/RemoveRole``.
-
-    Mutation behaviour is **discovery-driven**: the tool attempts the
-    documented endpoint, and only falls back to a structured guidance
-    error when the response is HTTP 404 (typical on modern Delinea
-    Platform tenants using the ``xpmheadless`` scope, which exposes
-    user CRUD but not role CRUD).  Tenants that do expose role
-    mutations get the real result.
-
-    Parameters
-    ----------
-    action:
-        ``"list"``, ``"get"``, ``"create"``, ``"update"`` or ``"delete"``.
-    role_id:
-        Required for ``"get"``, ``"update"`` and ``"delete"``.  For
-        modern Platform this is typically a Name; for legacy Centrify
-        deployments it's the ``_RowKey`` returned by ``StoreRole``.
-    data:
-        For ``"create"``: ``{"Name": ..., "Description": ...}``.
-        For ``"update"``: any subset of
-        ``{"Description", "Name", "Users": {"Add": [...], "Delete": [...]},
-        "Roles": {"Add": [...]}}``.
-    page_size:
-        Maximum rows for ``"list"``.
-    query:
-        Optional search substring for ``"list"``.  Default ``"%"`` matches all.
-
-    Returns
-    -------
-    dict
-        Raw API payload for reads, ``{"result": ..., "verification": ...}``
-        for successful writes, or ``{"error": ...}`` when the endpoint is
-        unavailable on this tenant.
-    """
-
-    logger.debug("platform_role_management(action=%s, role_id=%s)", action, role_id)
-
-    try:
-        headers = _build_headers()
-    except RuntimeError as exc:
-        return {"error": str(exc)}
-
-    payload = _parse_json_data(data)
-
-    try:
-        if action == "list":
-            return _run_role_search_report(headers, query=query, page_size=page_size)
-
-        if action == "get":
-            if not role_id:
-                raise ValueError("role_id required for get")
-            # The canned report filters on Name (case-insensitive substring).
-            # For modern tenants role_id is typically a Name; for legacy IDs
-            # callers can pass the ID and rely on Name = ID for system roles.
-            return _run_role_search_report(headers, query=str(role_id), page_size=10)
-
-        if action == "create":
-            if payload is None or not payload.get("Name"):
-                raise ValueError("data with 'Name' required for create")
-            url = _platform_url("/SaasManage/StoreRole")
-            resp = requests.post(
-                url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            if _endpoint_not_available(resp):
-                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
-            result = _json_or_error(resp)
-            new_id = None
-            if isinstance(result, dict):
-                r = result.get("Result")
-                if isinstance(r, str):
-                    new_id = r
-                elif isinstance(r, dict):
-                    new_id = r.get("_RowKey") or r.get("ID") or r.get("Name")
-            verify: dict[str, Any] = {}
-            if new_id:
-                verify = platform_role_management("get", role_id=new_id)
-            return {"result": result, "verification": verify}
-
-        if action == "update":
-            if not role_id or payload is None:
-                raise ValueError("role_id and data required for update")
-            url = _platform_url("/Roles/UpdateRole")
-            body = {"Name": role_id, **payload}
-            resp = requests.post(
-                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            if _endpoint_not_available(resp):
-                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
-            result = _json_or_error(resp)
-            verify = platform_role_management("get", role_id=role_id)
-            return {"result": result, "verification": verify}
-
-        if action == "delete":
-            if not role_id:
-                raise ValueError("role_id required for delete")
-            url = _platform_url("/SaasManage/RemoveRole")
-            resp = requests.post(
-                url, json={"Name": role_id}, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            if _endpoint_not_available(resp):
-                return {"error": _ROLE_WRITE_NOT_SUPPORTED}
-            result = _json_or_error(resp)
-            verify = platform_role_management("get", role_id=role_id)
-            return {"result": result, "verification": verify}
-
-        raise ValueError(f"Unknown action: {action}")
-    except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("platform_role_management action failed")
-        return {"error": str(exc)}
-
-
-_USER_ROLE_WRITE_NOT_SUPPORTED = (
-    "Platform user-role mutation endpoint returned 404 — this OAuth scope on "
-    "this tenant does not expose role-membership writes (typical on modern "
-    "Delinea Platform deployments using the xpmheadless scope). Use the "
-    "Secret-Server-backed add_user_roles / remove_user_roles tools, which manage the "
-    "SS-side role wiring that Platform tenants typically mirror, or the "
-    "Platform admin UI directly."
-)
-
-
-def platform_user_role_management(
-    action: str,
-    role_id: str,
-    user_principals: list[str] | str | None = None,
-) -> dict:
-    """Add, remove, or list users assigned to a Platform role.
-
-    * ``"list"`` -> ``POST /identity/api/Report/RunReport`` ID
-      ``role_searchbyname`` (filtered to *role_id*).  Returns the role's
-      row; some tenants include a ``members`` column there.  Callers can
-      cross-reference with :func:`search_users`.
-    * ``"add"``/``"remove"`` -> ``POST /identity/api/Roles/UpdateRole`` with
-      body ``{"Name": <role_id>, "Users": {"Add": [...]}}`` or
-      ``{"Users": {"Delete": [...]}}``.
-
-    Mutation behaviour is **discovery-driven**: the tool attempts the
-    documented endpoint and only falls back to a structured guidance
-    error when the response is HTTP 404.
-
-    Parameters
-    ----------
-    action:
-        ``"add"``, ``"remove"`` or ``"list"``.
-    role_id:
-        Platform role name/identifier.
-    user_principals:
-        For ``"add"``/``"remove"``: list of user principal names (e.g.
-        ``"alice@tenant"``) or UUIDs.  Accepts a JSON-encoded string too.
-
-    Returns
-    -------
-    dict
-        Report payload for ``"list"``; ``{"result": ..., "verification": ...}``
-        for successful writes; ``{"error": ...}`` when the endpoint is
-        unavailable on this tenant.
-    """
-
-    logger.debug(
-        "platform_user_role_management(action=%s, role_id=%s)", action, role_id
-    )
-
-    try:
-        headers = _build_headers()
-    except RuntimeError as exc:
-        return {"error": str(exc)}
-
-    if isinstance(user_principals, str):
-        try:
-            user_principals = json.loads(user_principals)
-        except Exception:
-            return {"error": "user_principals must be a list or a JSON-encoded list"}
-
-    try:
-        if action == "list":
-            # Look up role-by-name then return any membership info the report
-            # exposes.  The canned report returns roletype + description; some
-            # tenants augment with a 'members' field.
-            return _run_role_search_report(headers, query=str(role_id), page_size=50)
-
-        if action in ("add", "remove"):
-            if not user_principals:
-                raise ValueError(f"user_principals required for {action}")
-            key = "Add" if action == "add" else "Delete"
-            url = _platform_url("/Roles/UpdateRole")
-            body = {"Name": role_id, "Users": {key: list(user_principals)}}
-            resp = requests.post(
-                url, json=body, headers=headers, timeout=_DEFAULT_TIMEOUT
-            )
-            if _endpoint_not_available(resp):
-                return {"error": _USER_ROLE_WRITE_NOT_SUPPORTED}
-            result = _json_or_error(resp)
-            verify = platform_user_role_management("list", role_id=role_id)
-            return {"result": result, "verification": verify}
-
-        raise ValueError(f"Unknown action: {action}")
-    except Exception as exc:  # pragma: no cover - network failures
-        logger.exception("platform_user_role_management action failed")
-        return {"error": str(exc)}
-
-
-# --------------------------------------------------------------------------- #
-# Registration                                                                #
-# --------------------------------------------------------------------------- #
 
 
 # --------------------------------------------------------------------------- #
@@ -1036,9 +735,8 @@ def platform_reports(
         return {"error": str(exc)}
 
 
-# user_management, platform_role_management and
-# platform_user_role_management are not registered: each mixes reads and
-# writes, which the Claude directory rejects. These tools split them.
+# user_management is not registered: it mixes reads and writes, which the
+# Claude directory rejects. These tools split it.
 
 
 def get_platform_user(user_id: str) -> dict:
@@ -1081,78 +779,149 @@ def delete_platform_user(user_id: str) -> dict:
     return user_management("delete", user_id=user_id)
 
 
-def get_platform_roles(
-    role_id: str | None = None, query: str = "%", page_size: int = 100
-) -> dict:
-    """List Delinea Platform roles, or get one role by name.
+def _permission_url(path: str) -> str:
+    """Build a Platform *Permission service* URL (``/permission/api/...``).
 
-    Runs the Platform's ``role_searchbyname`` report (``POST
-    /identity/api/Report/RunReport``): every role matching *query* (default
-    ``%``, all), or the role named *role_id*. Platform API reference:
-    https://developer.delinea.com/
+    Platform roles and role assignments live in this service, not in the
+    identity API behind :func:`_platform_url` (which has no Roles or
+    SaasManage controller on the Platform). It publishes its OpenAPI document
+    at ``https://<tenant>/permission/swagger/v1/swagger.json`` and accepts the
+    same bearer token.
     """
-    if role_id is None:
-        return platform_role_management("list", query=query, page_size=page_size)
-    return platform_role_management("get", role_id=role_id)
+    return f"https://{platform_hostname}/permission/api{path}"
+
+
+def _permission_request(method: str, path: str, **kwargs: Any) -> dict:
+    """Call the Permission service; non-2xx responses become ``{"error": ...}``."""
+    try:
+        headers = _build_headers()
+    except RuntimeError as exc:
+        return {"error": str(exc)}
+    response = requests.request(
+        method,
+        _permission_url(path),
+        headers=headers,
+        timeout=_DEFAULT_TIMEOUT,
+        **kwargs,
+    )
+    if response.status_code == 204:
+        return {"success": True}
+    body = _raw_json(response)
+    if response.status_code < 400:
+        return body
+    return {
+        "error": f"Platform permission API returned HTTP {response.status_code}",
+        "detail": body,
+    }
+
+
+def _role_path(role_name: str) -> str:
+    return f"/roles/{quote(role_name, safe='')}"
+
+
+def get_platform_roles(
+    role_name: str | None = None, query: str = "", page_size: int = 100
+) -> dict:
+    """List Delinea Platform roles, or get one role (with its permissions) by name.
+
+    Calls ``GET /permission/api/roles`` (roles whose name contains *query*;
+    all roles when empty) or, with *role_name*, ``GET
+    /permission/api/roles/{name}``. Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
+    """
+    if role_name:
+        return _permission_request("GET", _role_path(role_name))
+    params: dict[str, Any] = {"RecordsPerPage": page_size}
+    if query:
+        params["Name.Contains"] = query
+    return _permission_request("GET", "/roles", params=params)
 
 
 def create_or_update_platform_role(
-    data: dict | str, role_id: str | None = None
+    role_name: str, description: str = "", enabled: bool = True
 ) -> dict:
-    """Create a Delinea Platform role, or update one when *role_id* is given.
+    """Create a Delinea Platform role, or update it if *role_name* already exists.
 
-    Create calls ``POST /identity/api/SaasManage/StoreRole`` with
-    ``{"Name": ..., "Description": ...}``. Update calls ``POST
-    /identity/api/Roles/UpdateRole`` with any subset of ``Description``,
-    ``Name``, ``Users``/``Groups``/``Roles`` as ``{"Add": [...], "Delete":
-    [...]}``. Some tenants don't allow role changes for the service account
-    and return guidance instead. API reference:
-    https://developer.delinea.com/reference/post_saasmanage-storerole and
-    https://developer.delinea.com/reference/post_roles-updaterole-1
+    Create calls ``POST /permission/api/roles``; update calls ``PUT
+    /permission/api/roles/{name}``, which replaces both *description* and
+    *enabled* (read the role first with ``get_platform_roles`` to keep its
+    description). Built-in roles can't be changed. A new role has no
+    permissions and grants nothing until it is given some in the Platform.
+    Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
     """
-    if role_id is None:
-        return platform_role_management("create", data=data)
-    return platform_role_management("update", role_id=role_id, data=data)
+    existing = _permission_request("GET", _role_path(role_name))
+    if "error" not in existing:
+        body = {"id": role_name, "enabled": enabled, "description": description}
+        return {
+            "result": _permission_request("PUT", _role_path(role_name), json=body),
+            "created": False,
+        }
+    if "HTTP 404" not in existing["error"]:
+        return existing
+    body = {"roleName": role_name, "enabled": enabled, "description": description}
+    return {
+        "result": _permission_request("POST", "/roles", json=body),
+        "created": True,
+    }
 
 
-def delete_platform_role(role_id: str) -> dict:
+def delete_platform_role(role_name: str) -> dict:
     """Delete a Delinea Platform role.
 
-    Calls ``POST /identity/api/SaasManage/RemoveRole``. Some tenants don't
-    allow role changes for the service account and return guidance instead.
-    Platform API reference: https://developer.delinea.com/
+    Calls ``DELETE /permission/api/roles/{name}``, which also succeeds when
+    no such role exists; users and groups lose the role's permissions.
+    Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
     """
-    return platform_role_management("delete", role_id=role_id)
+    return _permission_request("DELETE", _role_path(role_name))
 
 
-def get_platform_role_members(role_id: str) -> dict:
-    """List the users assigned to a Delinea Platform role.
+def get_platform_role_members(role_name: str) -> dict:
+    """List the users and groups assigned to a Delinea Platform role.
 
-    Runs the Platform's ``role_searchbyname`` report (``POST
-    /identity/api/Report/RunReport``) for *role_id*; some tenants include a
-    ``members`` column. Platform API reference: https://developer.delinea.com/
+    Calls ``GET /permission/api/roles/{name}/members``; members are keyed by
+    user or group ID. Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
     """
-    return platform_user_role_management("list", role_id)
+    return _permission_request("GET", f"{_role_path(role_name)}/members")
 
 
-def add_platform_role_members(role_id: str, user_principals: list[str]) -> dict:
-    """Add users to a Delinea Platform role.
+def add_platform_role_members(role_name: str, subject_ids: list[str]) -> dict:
+    """Assign a Delinea Platform role to users or groups, granting its permissions.
 
-    Calls ``POST /identity/api/Roles/UpdateRole`` with ``{"Users": {"Add":
-    [...]}}``; *user_principals* are login names (``alice@tenant``) or UUIDs.
-    API reference: https://developer.delinea.com/reference/post_roles-updaterole-1
+    *subject_ids* are Platform user or group IDs (find users with
+    ``search_users``). For each, calls ``PATCH
+    /permission/api/role-memberships/{id}/add-role``, or ``POST
+    /permission/api/role-memberships`` when the subject has no role
+    assignments yet. Returns one result per subject. Platform Permission API
+    reference: https://<tenant>/permission/swagger/v1/swagger.json
     """
-    return platform_user_role_management("add", role_id, user_principals)
+    results = {}
+    for subject_id in subject_ids:
+        body = {"subjectId": subject_id, "roleName": role_name}
+        path = f"/role-memberships/{quote(subject_id, safe='')}"
+        result = _permission_request("PATCH", f"{path}/add-role", json=body)
+        if "HTTP 404" in result.get("error", ""):
+            result = _permission_request("POST", "/role-memberships", json=body)
+        results[subject_id] = result
+    return {"results": results}
 
 
-def remove_platform_role_members(role_id: str, user_principals: list[str]) -> dict:
-    """Remove users from a Delinea Platform role.
+def remove_platform_role_members(role_name: str, subject_ids: list[str]) -> dict:
+    """Remove a Delinea Platform role from users or groups.
 
-    Calls ``POST /identity/api/Roles/UpdateRole`` with ``{"Users":
-    {"Delete": [...]}}``; *user_principals* are login names or UUIDs.
-    API reference: https://developer.delinea.com/reference/post_roles-updaterole-1
+    For each of *subject_ids* (Platform user or group IDs), calls ``PATCH
+    /permission/api/role-memberships/{id}/remove-role``. Returns one result
+    per subject. Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
     """
-    return platform_user_role_management("remove", role_id, user_principals)
+    results = {}
+    for subject_id in subject_ids:
+        body = {"subjectId": subject_id, "roleName": role_name}
+        path = f"/role-memberships/{quote(subject_id, safe='')}/remove-role"
+        results[subject_id] = _permission_request("PATCH", path, json=body)
+    return {"results": results}
 
 
 TOOLS = [

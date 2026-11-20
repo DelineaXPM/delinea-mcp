@@ -341,14 +341,14 @@ without them the tools return guidance instead of failing):
 - `search_users(query)` - search the Platform user directory.
 - `get_platform_user(user_id)`, `create_or_update_platform_user(data, user_id=None)`,
   `delete_platform_user(user_id)` - Platform users (replace `user_management`).
-- `get_platform_roles(role_id=None, query="%", page_size=100)`,
-  `create_or_update_platform_role(data, role_id=None)`,
-  `delete_platform_role(role_id)` - Platform roles. Role changes are
-  discovery-driven and return guidance on tenants whose API scope doesn't
-  expose them.
-- `get_platform_role_members(role_id)`,
-  `add_platform_role_members(role_id, user_principals)`,
-  `remove_platform_role_members(role_id, user_principals)`.
+- `get_platform_roles(role_name=None, query="", page_size=100)`,
+  `create_or_update_platform_role(role_name, description="", enabled=True)`,
+  `delete_platform_role(role_name)` - Platform roles. Updating replaces the
+  description and enabled state; built-in roles can't be changed.
+- `get_platform_role_members(role_name)`,
+  `add_platform_role_members(role_name, subject_ids)`,
+  `remove_platform_role_members(role_name, subject_ids)` - assign a role to
+  users or groups by Platform ID.
 
 ### Delinea Platform reports
 
