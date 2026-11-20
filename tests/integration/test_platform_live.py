@@ -149,7 +149,7 @@ def test_user_management_create_get_update_delete_lifecycle():
             "Password": "TempPass!" + str(int(time.time())),
             "ForcePasswordChangeNextLogin": True,
         }
-        out = user_platform_tools.create_or_update_platform_user(create_payload)
+        out = user_platform_tools.create_platform_user(create_payload)
         assert "result" in out, f"create returned: {out}"
         result = out["result"]
         # Result shape: {"success": True, "Result": <user_uuid>} on modern Platform
@@ -180,8 +180,8 @@ def test_user_management_create_get_update_delete_lifecycle():
 
         # 3. Update (change DisplayName)
         new_display = f"MCP Updated {int(time.time())}"
-        upd = user_platform_tools.create_or_update_platform_user(
-            {"ID": new_user_id, "DisplayName": new_display}, new_user_id
+        upd = user_platform_tools.update_platform_user(
+            new_user_id, {"ID": new_user_id, "DisplayName": new_display}
         )
         assert "result" in upd
 
@@ -274,13 +274,14 @@ def test_platform_role_lifecycle_live():
     username = _unique_username("rolemember")
     user_id = None
     try:
-        created = user_platform_tools.create_or_update_platform_role(role, "itest")
-        assert created["created"] is True and "error" not in created["result"]
-        updated = user_platform_tools.create_or_update_platform_role(role, "itest 2")
-        assert updated["created"] is False
-        assert updated["result"].get("description") == "itest 2"
+        created = user_platform_tools.create_platform_role(role, "itest")
+        assert "error" not in created, created
+        again = user_platform_tools.create_platform_role(role, "itest")
+        assert "error" in again, again
+        updated = user_platform_tools.update_platform_role(role, "itest 2", True)
+        assert updated.get("description") == "itest 2", updated
 
-        out = user_platform_tools.create_or_update_platform_user(
+        out = user_platform_tools.create_platform_user(
             {
                 "Name": username,
                 "Mail": username,
@@ -313,10 +314,10 @@ def test_platform_role_lifecycle_live():
 def test_built_in_platform_role_cannot_be_changed_live():
     _require_platform()
     current = user_platform_tools.get_platform_roles("Platform User")
-    out = user_platform_tools.create_or_update_platform_role(
+    out = user_platform_tools.update_platform_role(
         "Platform User", current.get("description", ""), current.get("enabled", True)
     )
-    assert "HTTP 403" in out["result"].get("error", ""), out
+    assert "HTTP 403" in out.get("error", ""), out
 
 
 # --------------------------------------------------------------------------- #

@@ -2141,18 +2141,27 @@ def get_roles(role_id: int | None = None, params: dict | None = None) -> dict:
     return role_management("get", role_id=role_id)
 
 
-def create_or_update_role(data: dict, role_id: int | None = None) -> dict:
-    """Create a Secret Server role, or update one when *role_id* is given.
+def create_role(data: dict) -> dict:
+    """Create a Secret Server role.
 
-    Create calls ``POST /api/v1/roles``; *data* needs ``name`` and
-    ``enabled``. Update calls ``PATCH /api/v1/roles/{id}``: get the role
-    first with ``get_roles``, change the fields and send them all back.
+    Calls ``POST /api/v1/roles``; *data* needs ``name`` and ``enabled``.
     Returns ``{"result": ..., "verification": ...}``, where verification is
     a follow-up GET of the role. Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    if role_id is None:
-        return role_management("create", data=data)
+    return role_management("create", data=data)
+
+
+def update_role(role_id: int, data: dict) -> dict:
+    """Update a Secret Server role, replacing its fields with *data*.
+
+    Calls ``PATCH /api/v1/roles/{id}``. Fields left out of *data* are
+    overwritten, so *data* is the full role as ``get_roles`` returns it with
+    the changes applied; ``enabled: false`` disables the role for every
+    member. Returns ``{"result": ..., "verification": ...}``. Secret Server
+    REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
     return role_management("update", role_id=role_id, data=data)
 
 
@@ -2280,19 +2289,29 @@ def remove_group_roles(group_id: int, role_ids: list[int]) -> dict:
     return group_role_management("remove", group_id, role_ids)
 
 
-def create_or_update_folder(data: dict, folder_id: int | None = None) -> dict:
-    """Create a Secret Server folder, or update one when *folder_id* is given.
+def create_folder(data: dict) -> dict:
+    """Create a Secret Server folder.
 
-    Create calls ``POST /api/v1/folders``; *data* needs ``folderName``,
+    Calls ``POST /api/v1/folders``; *data* needs ``folderName``,
     ``parentFolderId`` (``-1`` for the root) and ``folderTypeId`` (``1``);
     ``inheritPermissions`` and ``inheritSecretPolicy`` are optional booleans.
-    Update calls ``PUT /api/v1/folders/{id}`` with the full folder: read it
-    first with ``get_folder``. Returns ``{"result": ..., "verification":
-    ...}``. Secret Server REST API reference:
+    Returns ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    if folder_id is None:
-        return folder_management("create", data=data)
+    return folder_management("create", data=data)
+
+
+def update_folder(folder_id: int, data: dict) -> dict:
+    """Update a Secret Server folder, replacing it with *data*.
+
+    Calls ``PUT /api/v1/folders/{id}``. *data* is the full folder as
+    ``get_folder`` returns it with the changes applied; it can rename or move
+    the folder and change its permission and policy inheritance. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
     return folder_management("update", folder_id=folder_id, data=data)
 
 
@@ -2827,7 +2846,8 @@ TOOLS = [
     ("reveal_secret_field", reveal_secret_field),
     ("get_folder", get_folder),
     ("get_roles", get_roles),
-    ("create_or_update_role", create_or_update_role),
+    ("create_role", create_role),
+    ("update_role", update_role),
     ("get_user_roles", get_user_roles),
     ("add_user_roles", add_user_roles),
     ("remove_user_roles", remove_user_roles),
@@ -2840,7 +2860,8 @@ TOOLS = [
     ("get_group_roles", get_group_roles),
     ("add_group_roles", add_group_roles),
     ("remove_group_roles", remove_group_roles),
-    ("create_or_update_folder", create_or_update_folder),
+    ("create_folder", create_folder),
+    ("update_folder", update_folder),
     ("delete_folder", delete_folder),
     ("health_check", health_check),
     ("search_secrets", search_secrets),

@@ -38,7 +38,12 @@ pytestmark = pytest.mark.skipif(
     reason=f"needs {', '.join(NEEDED)} and uvx",
 )
 
-WRITE_TOOLS = {"delete_folder", "update_secret_fields", "delete_platform_user"}
+WRITE_TOOLS = {
+    "delete_folder",
+    "update_folder",
+    "update_secret_fields",
+    "delete_platform_user",
+}
 
 
 def _server_env(**extra: str) -> dict[str, str]:

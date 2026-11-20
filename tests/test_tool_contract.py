@@ -70,6 +70,14 @@ def test_request_body_tools_link_api_docs(all_tools):
             assert "https://" in (tool.description or ""), tool.name
 
 
+def test_overwriting_tools_are_destructive(all_tools):
+    # destructiveHint=False means "only additive"; updates overwrite.
+    for tool in all_tools:
+        name = tool.name.removeprefix("sdm_")
+        if name.startswith(("update_", "delete_", "remove_", "set_")):
+            assert tool.annotations.destructive_hint, tool.name
+
+
 def test_tool_names_fit_the_limit(all_tools):
     assert all(len(t.name) <= 64 for t in all_tools)
 

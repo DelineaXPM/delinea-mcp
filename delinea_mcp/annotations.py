@@ -1,10 +1,10 @@
 """Behaviour hints (ToolAnnotations) for every registered tool.
 
 Clients use these to decide when to ask the human for confirmation, so
-honesty beats optimism: for verb-dispatch tools whose ``action`` parameter
-reaches several operations, the hints describe the *worst reachable*
-action — ``user_management`` can delete, therefore it is destructive even
-though it can also merely list.
+honesty beats optimism: a tool is only non-destructive when every call
+adds state. Creating is additive; updating overwrites, so update tools are
+destructive, and a tool whose ``action`` reaches several operations gets
+the hints of the *worst reachable* one.
 
 All backends talk to remote Delinea/StrongDM services, so
 ``open_world_hint`` stays at the default (None) rather than claiming a
@@ -25,13 +25,15 @@ _ADD = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False
 )
 
-# Writes that overwrite nothing irrecoverable and can be safely repeated.
+# Writes that only add (or flip a flag the same tool can flip back) and can
+# be safely repeated.
 _IDEM = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=True
 )
 
-# Verb-dispatch tools where some reachable action deletes, disables or
-# irreversibly overwrites.
+# Writes that delete, disable or overwrite existing data. Per the MCP spec,
+# anything that isn't purely additive is destructive, so every update tool
+# carries this.
 _DESTR = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False
 )
@@ -59,12 +61,13 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     # ---- Secret Server writes
     "run_report": _ADD,
     "create_secret_with_generated_password": _ADD,
-    "handle_access_request": _ADD,  # approve/deny: state change, not data loss
+    "handle_access_request": _DESTR,  # approve grants access; final either way
     "mark_inbox_messages_read": _IDEM,
     "get_secret_environment_variable": _IDEM,  # emits a local shell script
-    "set_secret_field_environment_variable": _IDEM,
+    "set_secret_field_environment_variable": _DESTR,  # overwrites the field
     "get_roles": _RO,
-    "create_or_update_role": _IDEM,
+    "create_role": _ADD,
+    "update_role": _DESTR,  # overwrites; can disable the role
     "get_user_roles": _RO,
     "add_user_roles": _IDEM,
     "remove_user_roles": _DESTR,
@@ -77,7 +80,8 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "get_group_roles": _RO,
     "add_group_roles": _IDEM,
     "remove_group_roles": _DESTR,
-    "create_or_update_folder": _IDEM,
+    "create_folder": _ADD,
+    "update_folder": _DESTR,  # overwrites; can move or re-permission
     "delete_folder": _DESTR,
     "update_secret_fields": _DESTR,
     "update_secret_generated_password": _DESTR,  # rotates irreversibly
@@ -86,16 +90,19 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "search_secretserver_local_users": _RO,
     "get_secretserver_local_user": _RO,
     "list_secretserver_user_sessions": _RO,
-    "create_or_update_secretserver_local_user": _ADD,
+    "create_secretserver_local_user": _ADD,
+    "update_secretserver_local_user": _DESTR,  # can disable, lock, re-password
     "delete_secretserver_local_user": _DESTR,
     "secretserver_local_user_security_action": _DESTR,  # resets, lock-out
     # ---- Delinea Platform
     "search_users": _RO,
     "get_platform_user": _RO,
-    "create_or_update_platform_user": _ADD,
+    "create_platform_user": _ADD,
+    "update_platform_user": _DESTR,  # can disable or re-password
     "delete_platform_user": _DESTR,
     "get_platform_roles": _RO,
-    "create_or_update_platform_role": _IDEM,  # upsert
+    "create_platform_role": _ADD,  # fails if the role exists
+    "update_platform_role": _DESTR,  # can disable the role
     "delete_platform_role": _DESTR,
     "get_platform_role_members": _RO,
     "add_platform_role_members": _IDEM,
@@ -148,7 +155,8 @@ TOOL_TITLES: dict[str, str] = {
     "get_secret_environment_variable": "Export Secret to Environment Variables",
     "set_secret_field_environment_variable": "Set Secret Field from Local Value",
     "get_roles": "Get Roles",
-    "create_or_update_role": "Create or Update Role",
+    "create_role": "Create Role",
+    "update_role": "Update Role",
     "get_user_roles": "Get User Roles",
     "add_user_roles": "Add Roles to User",
     "remove_user_roles": "Remove Roles from User",
@@ -161,7 +169,8 @@ TOOL_TITLES: dict[str, str] = {
     "get_group_roles": "Get Group Roles",
     "add_group_roles": "Add Roles to Group",
     "remove_group_roles": "Remove Roles from Group",
-    "create_or_update_folder": "Create or Update Folder",
+    "create_folder": "Create Folder",
+    "update_folder": "Update Folder",
     "delete_folder": "Delete Folder",
     "update_secret_fields": "Update Secret Fields",
     "update_secret_generated_password": "Rotate Secret Password",
@@ -170,17 +179,20 @@ TOOL_TITLES: dict[str, str] = {
     "search_secretserver_local_users": "Search Secret Server Local Users",
     "get_secretserver_local_user": "Get Secret Server Local User",
     "list_secretserver_user_sessions": "List Secret Server User Sessions",
-    "create_or_update_secretserver_local_user": "Create or Update Secret Server Local User",
+    "create_secretserver_local_user": "Create Secret Server Local User",
+    "update_secretserver_local_user": "Update Secret Server Local User",
     "delete_secretserver_local_user": "Delete Secret Server Local User",
     "secretserver_local_user_security_action": "Reset or Lock Out Secret Server Local User",
     # ---- Delinea Platform
     "search_users": "Search Platform Users",
     "platform_reports": "Browse and Run Platform Reports",
     "get_platform_user": "Get Platform User",
-    "create_or_update_platform_user": "Create or Update Platform User",
+    "create_platform_user": "Create Platform User",
+    "update_platform_user": "Update Platform User",
     "delete_platform_user": "Delete Platform User",
     "get_platform_roles": "Get Platform Roles",
-    "create_or_update_platform_role": "Create or Update Platform Role",
+    "create_platform_role": "Create Platform Role",
+    "update_platform_role": "Update Platform Role",
     "delete_platform_role": "Delete Platform Role",
     "get_platform_role_members": "Get Platform Role Members",
     "add_platform_role_members": "Add Platform Role Members",
@@ -210,7 +222,7 @@ TOOL_TITLES: dict[str, str] = {
 # mapped to the tools that replaced them. An old name in an allowlist
 # expands to these so existing configurations keep every capability.
 LEGACY_TOOL_NAMES: dict[str, tuple[str, ...]] = {
-    "role_management": ("get_roles", "create_or_update_role"),
+    "role_management": ("get_roles", "create_role", "update_role"),
     "user_role_management": ("get_user_roles", "add_user_roles", "remove_user_roles"),
     "group_management": ("get_groups", "create_group", "delete_group"),
     "user_group_management": (
@@ -226,25 +238,29 @@ LEGACY_TOOL_NAMES: dict[str, tuple[str, ...]] = {
     "folder_management": (
         "get_folder",
         "search_folders",
-        "create_or_update_folder",
+        "create_folder",
+        "update_folder",
         "delete_folder",
     ),
     "secretserver_local_user_management": (
         "get_secretserver_local_user",
         "list_secretserver_user_sessions",
-        "create_or_update_secretserver_local_user",
+        "create_secretserver_local_user",
+        "update_secretserver_local_user",
         "delete_secretserver_local_user",
         "secretserver_local_user_security_action",
     ),
     "user_management": (
         "search_users",
         "get_platform_user",
-        "create_or_update_platform_user",
+        "create_platform_user",
+        "update_platform_user",
         "delete_platform_user",
     ),
     "platform_role_management": (
         "get_platform_roles",
-        "create_or_update_platform_role",
+        "create_platform_role",
+        "update_platform_role",
         "delete_platform_role",
     ),
     "platform_user_role_management": (

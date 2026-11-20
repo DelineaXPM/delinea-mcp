@@ -74,7 +74,7 @@ def test_folder_crud_live():
     require_credentials()
     name = unique_name("mcp-folder")
     parent = int(os.getenv("LIVE_FOLDER_ID") or -1)
-    res = tools.create_or_update_folder(
+    res = tools.create_folder(
         {
             "folderName": name,
             "parentFolderId": parent,
@@ -87,7 +87,7 @@ def test_folder_crud_live():
     if not fid:
         pytest.skip(f"folder create failed: {res.get('error', '')[:120]}")
     current = server.get_folder(fid)
-    updated = tools.create_or_update_folder({**current, "folderName": name + "-u"}, fid)
+    updated = tools.update_folder(fid, {**current, "folderName": name + "-u"})
     assert "error" not in updated
     deleted = tools.delete_folder(fid)
     assert "error" not in deleted

@@ -33,8 +33,8 @@ def first(calls):
     [
         (lambda: tools.get_roles(), "GET", "/v1/roles"),
         (lambda: tools.get_roles(3), "GET", "/v1/roles/3"),
-        (lambda: tools.create_or_update_role({"name": "r"}), "POST", "/v1/roles"),
-        (lambda: tools.create_or_update_role({"name": "r"}, 3), "PATCH", "/v1/roles/3"),
+        (lambda: tools.create_role({"name": "r"}), "POST", "/v1/roles"),
+        (lambda: tools.update_role(3, {"name": "r"}), "PATCH", "/v1/roles/3"),
         (lambda: tools.get_user_roles(5), "GET", "/v1/users/5/roles"),
         (lambda: tools.add_user_roles(5, [1]), "POST", "/v1/users/5/roles"),
         (lambda: tools.remove_user_roles(5, [1]), "DELETE", "/v1/users/5/roles"),
@@ -49,12 +49,12 @@ def first(calls):
         (lambda: tools.add_group_roles(4, [1]), "POST", "/v1/groups/4/roles"),
         (lambda: tools.remove_group_roles(4, [1]), "DELETE", "/v1/groups/4/roles"),
         (
-            lambda: tools.create_or_update_folder({"folderName": "f"}),
+            lambda: tools.create_folder({"folderName": "f"}),
             "POST",
             "/v1/folders",
         ),
         (
-            lambda: tools.create_or_update_folder({"folderName": "f"}, 9),
+            lambda: tools.update_folder(9, {"folderName": "f"}),
             "PUT",
             "/v1/folders/9",
         ),
@@ -89,15 +89,15 @@ def test_secret_server_tool_request(calls, call, method, path):
             "/v1/users/sessions",
         ),
         (
-            lambda: secretserver_users.create_or_update_secretserver_local_user(
+            lambda: secretserver_users.create_secretserver_local_user(
                 {"userName": "u"}
             ),
             "POST",
             "/v1/users",
         ),
         (
-            lambda: secretserver_users.create_or_update_secretserver_local_user(
-                {"userName": "u"}, 5
+            lambda: secretserver_users.update_secretserver_local_user(
+                5, {"userName": "u"}
             ),
             "PUT",
             "/v1/users/5",
@@ -164,13 +164,11 @@ def posts(monkeypatch):
             "/UserMgmt/GetUserAttributes",
         ),
         (
-            lambda: user_platform_tools.create_or_update_platform_user({"Name": "a@t"}),
+            lambda: user_platform_tools.create_platform_user({"Name": "a@t"}),
             "/CDirectoryService/CreateUser",
         ),
         (
-            lambda: user_platform_tools.create_or_update_platform_user(
-                {"Mail": "m"}, "u-1"
-            ),
+            lambda: user_platform_tools.update_platform_user("u-1", {"Mail": "m"}),
             "/CDirectoryService/ChangeUser",
         ),
         (
@@ -219,29 +217,25 @@ def test_platform_role_reads(perm):
     ]
 
 
-def test_create_or_update_platform_role_creates_when_missing(perm):
-    seen, replies = perm
-    replies[("GET", "/roles/new")] = 404
-    result = user_platform_tools.create_or_update_platform_role("new", "d")
-    assert result["created"] is True
-    body = {"roleName": "new", "enabled": True, "description": "d"}
-    assert seen[-1] == ("POST", "/roles", body, None)
-
-
-def test_create_or_update_platform_role_updates_existing(perm):
+def test_create_platform_role(perm):
     seen, _ = perm
-    result = user_platform_tools.create_or_update_platform_role("old", "d", False)
-    assert result["created"] is False
-    body = {"id": "old", "enabled": False, "description": "d"}
-    assert seen[-1] == ("PUT", "/roles/old", body, None)
+    user_platform_tools.create_platform_role("new", "d")
+    body = {"roleName": "new", "enabled": True, "description": "d"}
+    assert seen == [("POST", "/roles", body, None)]
 
 
-def test_create_or_update_platform_role_stops_on_other_errors(perm):
-    seen, replies = perm
-    replies[("GET", "/roles/r")] = 403
-    result = user_platform_tools.create_or_update_platform_role("r")
+def test_update_platform_role(perm):
+    seen, _ = perm
+    user_platform_tools.update_platform_role("Old Role", "d", False)
+    body = {"id": "Old Role", "enabled": False, "description": "d"}
+    assert seen == [("PUT", "/roles/Old%20Role", body, None)]
+
+
+def test_update_platform_role_reports_errors(perm):
+    _, replies = perm
+    replies[("PUT", "/roles/r")] = 403
+    result = user_platform_tools.update_platform_role("r", "", True)
     assert "HTTP 403" in result["error"]
-    assert len(seen) == 1
 
 
 def test_delete_platform_role(perm):

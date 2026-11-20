@@ -20,10 +20,10 @@ Most administration tasks require every tool except `get_secret_environment_vari
     "get_secret",
     "get_folder",
     "get_platform_user",
-    "create_or_update_platform_user",
+    "create_platform_user",
     "get_secretserver_local_user",
     "get_roles",
-    "create_or_update_role",
+    "create_role",
     "get_user_roles",
     "add_user_roles",
     "get_groups",
@@ -31,7 +31,7 @@ Most administration tasks require every tool except `get_secret_environment_vari
     "get_user_groups",
     "add_user_to_groups",
     "get_group_roles",
-    "create_or_update_folder",
+    "create_folder",
     "health_check",
     "search_users",
     "search_secretserver_local_users",
@@ -53,9 +53,9 @@ Most administration tasks require every tool except `get_secret_environment_vari
 > the **Delinea Platform** identity directory and need `platform_hostname` +
 > `PLATFORM_SERVICE_*` credentials configured. For Secret-Server-only
 > deployments, use `search_secretserver_local_users` /
-> `get_secretserver_local_user`. The list above leaves out the delete and
-> remove tools; add them (`delete_group`, `remove_user_roles`, ...) to allow
-> those. Pre-3.0 names such as `role_management` still work and enable
+> `get_secretserver_local_user`. The list above leaves out the update,
+> delete and remove tools; add them (`update_folder`, `delete_group`,
+> `remove_user_roles`, ...) to allow those. Pre-3.0 names such as `role_management` still work and enable
 > every replacement tool, including the destructive ones.
 
 ## Adding to openwebui

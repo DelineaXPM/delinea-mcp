@@ -223,21 +223,28 @@ def list_secretserver_user_sessions(
     )
 
 
-def create_or_update_secretserver_local_user(
-    data: dict, user_id: int | None = None
-) -> dict:
-    """Create a local Secret Server user, or update one when *user_id* is given.
+def create_secretserver_local_user(data: dict) -> dict:
+    """Create a local Secret Server user.
 
-    Create calls ``POST /api/v1/users``; update calls ``PUT
-    /api/v1/users/{id}`` with the full user (read it first with
-    ``get_secretserver_local_user``). Passwords in *data* are masked in
-    errors and logs. In Platform tenants these records mirror Platform users
-    and changes here don't reach the Platform. Returns ``{"result": ...,
+    Calls ``POST /api/v1/users``. Passwords in *data* are masked in errors
+    and logs. In Platform tenants these records mirror Platform users and
+    changes here don't reach the Platform. Returns ``{"result": ...,
     "verification": ...}``. Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    if user_id is None:
-        return secretserver_local_user_management("create", data=data)
+    return secretserver_local_user_management("create", data=data)
+
+
+def update_secretserver_local_user(user_id: int, data: dict) -> dict:
+    """Update a local Secret Server user, replacing it with *data*.
+
+    Calls ``PUT /api/v1/users/{id}``. *data* is the full user as
+    ``get_secretserver_local_user`` returns it with the changes applied; it
+    can disable or lock the user or replace the password. Passwords are
+    masked in errors and logs. Returns ``{"result": ..., "verification":
+    ...}``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
     return secretserver_local_user_management("update", user_id, data)
 
 
@@ -280,10 +287,8 @@ TOOLS = [
     ("search_secretserver_local_users", search_secretserver_local_users),
     ("get_secretserver_local_user", get_secretserver_local_user),
     ("list_secretserver_user_sessions", list_secretserver_user_sessions),
-    (
-        "create_or_update_secretserver_local_user",
-        create_or_update_secretserver_local_user,
-    ),
+    ("create_secretserver_local_user", create_secretserver_local_user),
+    ("update_secretserver_local_user", update_secretserver_local_user),
     ("delete_secretserver_local_user", delete_secretserver_local_user),
     (
         "secretserver_local_user_security_action",

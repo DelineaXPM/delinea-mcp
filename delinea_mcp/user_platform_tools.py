@@ -749,22 +749,27 @@ def get_platform_user(user_id: str) -> dict:
     return user_management("get", user_id=user_id)
 
 
-def create_or_update_platform_user(
-    data: dict | str, user_id: str | None = None
-) -> dict:
-    """Create a Delinea Platform cloud user, or update one when *user_id* is given.
+def create_platform_user(data: dict | str) -> dict:
+    """Create a Delinea Platform cloud user.
 
-    Create calls ``POST /identity/api/CDirectoryService/CreateUser``; *data*
-    needs ``Name`` (the login name, e.g. ``alice@tenant``) and usually
-    ``Mail``, ``DisplayName`` and ``Password``. Update calls ``POST
-    /identity/api/CDirectoryService/ChangeUser`` with only the fields to
-    change. Passwords are masked in errors and logs. Returns ``{"result":
-    ..., "verification": ...}``. API reference:
+    Calls ``POST /identity/api/CDirectoryService/CreateUser``; *data* needs
+    ``Name`` (the login name, e.g. ``alice@tenant``) and usually ``Mail``,
+    ``DisplayName`` and ``Password``. Passwords are masked in errors and
+    logs. Returns ``{"result": ..., "verification": ...}``. API reference:
     https://developer.delinea.com/reference/post_cdirectoryservice-createuser
-    and https://developer.delinea.com/reference/post_cdirectoryservice-changeuser
     """
-    if user_id is None:
-        return user_management("create", data=data)
+    return user_management("create", data=data)
+
+
+def update_platform_user(user_id: str, data: dict | str) -> dict:
+    """Update a Delinea Platform cloud user.
+
+    Calls ``POST /identity/api/CDirectoryService/ChangeUser`` with only the
+    fields in *data*; it can replace the password or disable the user.
+    Passwords are masked in errors and logs. Returns ``{"result": ...,
+    "verification": ...}``. API reference:
+    https://developer.delinea.com/reference/post_cdirectoryservice-changeuser
+    """
     return user_management("update", user_id=user_id, data=data)
 
 
@@ -837,33 +842,30 @@ def get_platform_roles(
     return _permission_request("GET", "/roles", params=params)
 
 
-def create_or_update_platform_role(
+def create_platform_role(
     role_name: str, description: str = "", enabled: bool = True
 ) -> dict:
-    """Create a Delinea Platform role, or update it if *role_name* already exists.
+    """Create a Delinea Platform role.
 
-    Create calls ``POST /permission/api/roles``; update calls ``PUT
-    /permission/api/roles/{name}``, which replaces both *description* and
-    *enabled* (read the role first with ``get_platform_roles`` to keep its
-    description). Built-in roles can't be changed. A new role has no
-    permissions and grants nothing until it is given some in the Platform.
-    Platform Permission API reference:
+    Calls ``POST /permission/api/roles``; fails if the role exists. A new
+    role has no permissions and grants nothing until it is given some in the
+    Platform. Platform Permission API reference:
     https://<tenant>/permission/swagger/v1/swagger.json
     """
-    existing = _permission_request("GET", _role_path(role_name))
-    if "error" not in existing:
-        body = {"id": role_name, "enabled": enabled, "description": description}
-        return {
-            "result": _permission_request("PUT", _role_path(role_name), json=body),
-            "created": False,
-        }
-    if "HTTP 404" not in existing["error"]:
-        return existing
     body = {"roleName": role_name, "enabled": enabled, "description": description}
-    return {
-        "result": _permission_request("POST", "/roles", json=body),
-        "created": True,
-    }
+    return _permission_request("POST", "/roles", json=body)
+
+
+def update_platform_role(role_name: str, description: str, enabled: bool) -> dict:
+    """Update a Delinea Platform role's description and enabled state.
+
+    Calls ``PUT /permission/api/roles/{name}``, which replaces both;
+    ``enabled=False`` disables the role for every member. Built-in roles
+    can't be changed. Platform Permission API reference:
+    https://<tenant>/permission/swagger/v1/swagger.json
+    """
+    body = {"id": role_name, "enabled": enabled, "description": description}
+    return _permission_request("PUT", _role_path(role_name), json=body)
 
 
 def delete_platform_role(role_name: str) -> dict:
@@ -927,10 +929,12 @@ def remove_platform_role_members(role_name: str, subject_ids: list[str]) -> dict
 TOOLS = [
     ("search_users", search_users),
     ("get_platform_user", get_platform_user),
-    ("create_or_update_platform_user", create_or_update_platform_user),
+    ("create_platform_user", create_platform_user),
+    ("update_platform_user", update_platform_user),
     ("delete_platform_user", delete_platform_user),
     ("get_platform_roles", get_platform_roles),
-    ("create_or_update_platform_role", create_or_update_platform_role),
+    ("create_platform_role", create_platform_role),
+    ("update_platform_role", update_platform_role),
     ("delete_platform_role", delete_platform_role),
     ("get_platform_role_members", get_platform_role_members),
     ("add_platform_role_members", add_platform_role_members),

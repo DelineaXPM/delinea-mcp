@@ -39,12 +39,14 @@ def fresh(monkeypatch):
 
 
 WRITE_TOOLS = {
-    "create_or_update_folder",
+    "create_folder",
+    "update_folder",
     "delete_folder",
     "update_secret_fields",
     "set_secret_field_environment_variable",
     "create_secret_with_generated_password",
-    "create_or_update_platform_user",
+    "create_platform_user",
+    "update_platform_user",
     "delete_platform_user",
     "bulk_user_response",
 }
@@ -201,7 +203,7 @@ def test_custom_preset_uses_list(fresh, monkeypatch):
 
 def test_legacy_name_in_config_expands(fresh, caplog):
     names = fresh({"enabled_tools": ["role_management"]})
-    assert names == {"get_roles", "create_or_update_role"}
+    assert names == {"get_roles", "create_role", "update_role"}
     assert "role_management" in caplog.text
 
 
@@ -211,7 +213,8 @@ def test_legacy_name_in_custom_list_keeps_reads(fresh, monkeypatch):
     assert fresh() == {
         "get_folder",
         "search_folders",
-        "create_or_update_folder",
+        "create_folder",
+        "update_folder",
         "delete_folder",
     }
 

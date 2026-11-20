@@ -70,9 +70,9 @@ def test_registered_tool_reports_uninitialised_session(monkeypatch):
 
 def test_registered_tool_reports_invalid_json(monkeypatch):
     mcp = RecordingMCP()
-    user_platform_tools.register(mcp, {"create_or_update_platform_user"})
+    user_platform_tools.register(mcp, {"update_platform_user"})
     monkeypatch.setattr(user_platform_tools, "_build_headers", lambda: {})
-    result = mcp.tools["create_or_update_platform_user"](data="{not json", user_id="u")
+    result = mcp.tools["update_platform_user"](user_id="u", data="{not json")
     assert result == {"error": "Invalid JSON data"}
 
 

@@ -317,8 +317,8 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   (default 50, max 500) and `skip` through `params`.
 
 - Roles: `get_roles(role_id=None, params=None)`,
-  `create_or_update_role(data, role_id=None)` (create needs `name` and
-  `enabled`; to update, get the role first and send every field back).
+  `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, data)`
+  (send the full role from `get_roles` with your changes).
 - User roles: `get_user_roles(user_id)`, `add_user_roles(user_id, role_ids)`,
   `remove_user_roles(user_id, role_ids)`.
 - Groups: `get_groups(group_id=None, params=None)`, `create_group(data)`,
@@ -329,7 +329,8 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - Group roles: `get_group_roles(group_id)`, `add_group_roles(group_id, role_ids)`,
   `remove_group_roles(group_id, role_ids)`.
 - Folders: read with `get_folder` / `search_folders`;
-  `create_or_update_folder(data, folder_id=None)`, `delete_folder(folder_id)`.
+  `create_folder(data)`, `update_folder(folder_id, data)` (the full folder from
+  `get_folder` with your changes), `delete_folder(folder_id)`.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
 
 ### Delinea Platform users and roles
@@ -339,10 +340,12 @@ directory (requires `platform_hostname` + `PLATFORM_SERVICE_*` credentials;
 without them the tools return guidance instead of failing):
 
 - `search_users(query)` - search the Platform user directory.
-- `get_platform_user(user_id)`, `create_or_update_platform_user(data, user_id=None)`,
-  `delete_platform_user(user_id)` - Platform users (replace `user_management`).
+- `get_platform_user(user_id)`, `create_platform_user(data)`,
+  `update_platform_user(user_id, data)`, `delete_platform_user(user_id)` -
+  Platform users (replace `user_management`).
 - `get_platform_roles(role_name=None, query="", page_size=100)`,
-  `create_or_update_platform_role(role_name, description="", enabled=True)`,
+  `create_platform_role(role_name, description="", enabled=True)`,
+  `update_platform_role(role_name, description, enabled)`,
   `delete_platform_role(role_name)` - Platform roles. Updating replaces the
   description and enabled state; built-in roles can't be changed.
 - `get_platform_role_members(role_name)`,
@@ -371,7 +374,8 @@ For SS-only deployments without Platform configured:
 
 - `get_secretserver_local_user(user_id)`,
   `list_secretserver_user_sessions(skip=0, take=20, is_exporting=False)`,
-  `create_or_update_secretserver_local_user(data, user_id=None)`,
+  `create_secretserver_local_user(data)`,
+  `update_secretserver_local_user(user_id, data)`,
   `delete_secretserver_local_user(user_id)`.
 - `secretserver_local_user_security_action(action, user_id, data=None)` -
   `reset_2fa`, `reset_password` or `lock_out`. Example:
