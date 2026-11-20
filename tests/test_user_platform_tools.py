@@ -57,15 +57,13 @@ def test_platform_user_functions(monkeypatch):
         return DummyResponse()
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    res = user_platform_tools.platform_user_management("create", data={"Name": "u"})
+    res = user_platform_tools.user_management("create", data={"Name": "u"})
     assert res == {"result": {"ok": True}, "verification": {"ok": True}}
-    res = user_platform_tools.platform_user_management("delete", user_id="id")
+    res = user_platform_tools.user_management("delete", user_id="id")
     assert res == {"result": {"ok": True}, "verification": {"ok": True}}
-    res = user_platform_tools.platform_user_management(
-        "update", user_id="id", data={"a": 1}
-    )
+    res = user_platform_tools.user_management("update", user_id="id", data={"a": 1})
     assert res == {"result": {"ok": True}, "verification": {"ok": True}}
-    res = user_platform_tools.platform_user_management("search", username="u")
+    res = user_platform_tools.user_management("search", username="u")
     assert res == {"ok": True}
     assert len(calls) == 7
     assert "CreateUser" in calls[0][0]
@@ -82,7 +80,7 @@ def test_platform_user_get(monkeypatch):
         return DummyResponse()
 
     monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    res = user_platform_tools.platform_user_management("get", user_id="x")
+    res = user_platform_tools.user_management("get", user_id="x")
     assert res == {"ok": True}
     assert "GetUserAttributes" in calls[0][0]
     # Body should be {"ID": "x"}
@@ -92,7 +90,7 @@ def test_platform_user_get(monkeypatch):
 def test_register(monkeypatch):
     dummy = DummyMCP()
     user_platform_tools.register(dummy)
-    assert {"platform_user_management"} <= set(dummy.names)
+    assert {"get_platform_user", "delete_platform_user"} <= set(dummy.names)
 
 
 def test_build_headers_error(monkeypatch):
@@ -120,7 +118,7 @@ def test_create_user_nonjson(monkeypatch):
     monkeypatch.setattr(
         user_platform_tools.requests, "post", lambda *a, **k: BadResponse()
     )
-    res = user_platform_tools.platform_user_management("create", data={"Name": "u"})
+    res = user_platform_tools.user_management("create", data={"Name": "u"})
     assert res == {"result": {"error": "tx"}, "verification": {"error": "tx"}}
 
 
@@ -133,17 +131,15 @@ def test_other_calls_nonjson(monkeypatch):
             raise ValueError
 
     monkeypatch.setattr(user_platform_tools.requests, "post", lambda *a, **k: Bad())
-    assert user_platform_tools.platform_user_management("delete", user_id="x") == {
+    assert user_platform_tools.user_management("delete", user_id="x") == {
         "result": {"error": "tx"},
         "verification": {"error": "tx"},
     }
-    assert user_platform_tools.platform_user_management(
-        "update", user_id="x", data={}
-    ) == {
+    assert user_platform_tools.user_management("update", user_id="x", data={}) == {
         "result": {"error": "tx"},
         "verification": {"error": "tx"},
     }
-    assert user_platform_tools.platform_user_management("search", username="x") == {
+    assert user_platform_tools.user_management("search", username="x") == {
         "error": "tx"
     }
 

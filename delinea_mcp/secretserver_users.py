@@ -5,8 +5,9 @@ Platform identity provider. The tools in this module talk directly to
 Secret Server's own ``/v1/users`` endpoints, which only manage the
 *local* user records inside Secret Server.
 
-For Platform-integrated tenants, use :mod:`delinea_mcp.user_platform_tools`
-(registered as ``user_management`` and ``search_users``) instead.
+For Platform-integrated tenants, use the Platform user tools in
+:mod:`delinea_mcp.user_platform_tools` (``search_users``,
+``get_platform_user``, ...) instead.
 
 These functions are preserved under the ``secretserver_local_*`` names for
 SS-only on-prem deployments and as a fallback during migration.
@@ -79,8 +80,10 @@ def secretserver_local_user_management(
     """Manage local Secret Server users (legacy SS-only deployments).
 
     For Platform-integrated tenants the authoritative user store is the
-    Platform identity directory; use the canonical ``user_management``
-    tool (provided by :mod:`delinea_mcp.user_platform_tools`) instead.
+    Platform identity directory; use the Platform user tools in
+    :mod:`delinea_mcp.user_platform_tools` instead. Not registered as a tool
+    (it mixes reads and writes); the ``*secretserver_local_user*`` tools
+    call it.
 
     This function operates on Secret Server's own ``/v1/users`` records,
     which in Platform tenants are typically read-only mirrors of Platform
@@ -193,9 +196,100 @@ def secretserver_local_user_management(
         return {"error": str(exc)}
 
 
+# secretserver_local_user_management is not registered: it mixes reads and
+# writes, which the Claude directory rejects. These tools split it.
+
+
+def get_secretserver_local_user(user_id: int) -> dict:
+    """Get one local Secret Server user by ID (legacy SS-only deployments).
+
+    Calls ``GET /api/v1/users/{id}``. In Platform-integrated tenants use
+    ``get_platform_user``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return secretserver_local_user_management("get", user_id)
+
+
+def list_secretserver_user_sessions(
+    skip: int = 0, take: int = 20, is_exporting: bool = False
+) -> dict:
+    """List active Secret Server user sessions.
+
+    Calls ``GET /api/v1/users/sessions`` paged by *skip* and *take*.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return secretserver_local_user_management(
+        "list_sessions", skip=skip, take=take, is_exporting=is_exporting
+    )
+
+
+def create_or_update_secretserver_local_user(
+    data: dict, user_id: int | None = None
+) -> dict:
+    """Create a local Secret Server user, or update one when *user_id* is given.
+
+    Create calls ``POST /api/v1/users``; update calls ``PUT
+    /api/v1/users/{id}`` with the full user (read it first with
+    ``get_secretserver_local_user``). Passwords in *data* are masked in
+    errors and logs. In Platform tenants these records mirror Platform users
+    and changes here don't reach the Platform. Returns ``{"result": ...,
+    "verification": ...}``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if user_id is None:
+        return secretserver_local_user_management("create", data=data)
+    return secretserver_local_user_management("update", user_id, data)
+
+
+def delete_secretserver_local_user(user_id: int) -> dict:
+    """Delete a local Secret Server user.
+
+    Calls ``DELETE /api/v1/users/{id}``, then reads the user back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return secretserver_local_user_management("delete", user_id)
+
+
+_SECURITY_ACTIONS = ("reset_2fa", "reset_password", "lock_out")
+
+
+def secretserver_local_user_security_action(
+    action: str, user_id: int, data: dict | None = None
+) -> dict:
+    """Reset two-factor, reset the password of, or lock out a local Secret Server user.
+
+    *action* is one of:
+
+    * ``"reset_2fa"``: ``POST /api/v1/users/{id}/reset-two-factor``.
+    * ``"reset_password"``: ``POST /api/v1/users/{id}/password-reset``;
+      *data* carries the new password (masked in errors and logs).
+    * ``"lock_out"``: ``POST /api/v1/users/{id}/lock-out``.
+
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if action not in _SECURITY_ACTIONS:
+        return {
+            "error": f"Unknown action {action!r}; use one of {list(_SECURITY_ACTIONS)}"
+        }
+    return secretserver_local_user_management(action, user_id, data)
+
+
 TOOLS = [
     ("search_secretserver_local_users", search_secretserver_local_users),
-    ("secretserver_local_user_management", secretserver_local_user_management),
+    ("get_secretserver_local_user", get_secretserver_local_user),
+    ("list_secretserver_user_sessions", list_secretserver_user_sessions),
+    (
+        "create_or_update_secretserver_local_user",
+        create_or_update_secretserver_local_user,
+    ),
+    ("delete_secretserver_local_user", delete_secretserver_local_user),
+    (
+        "secretserver_local_user_security_action",
+        secretserver_local_user_security_action,
+    ),
 ]
 
 

@@ -1,5 +1,57 @@
 # Release Notes
 
+## v3.0.0 — read and write tools split
+
+### Breaking: tools that mixed reads and writes are split
+
+The Claude directory rejects a tool that takes both read and write
+operations. Each `*_management(action, ...)` tool is replaced by a read tool,
+a write tool and, where something can be deleted or removed, a separate
+destructive tool. Read tools carry `readOnlyHint`, so clients can run them
+without asking; deletes and removals carry `destructiveHint` and always ask;
+creates and updates no longer do.
+
+An old name in `enabled_tools`, `DELINEA_ENABLED_TOOLS` or the plugin's
+Custom tool list still works: it enables every replacement (including the
+destructive ones) and logs a warning. Update the list to the new names to
+choose exactly which operations to allow. Claude Code permission rules and
+prompts that name the old tools need the new names.
+
+- `role_management` → `get_roles`, `create_or_update_role`
+- `user_role_management` → `get_user_roles`, `add_user_roles`,
+  `remove_user_roles`
+- `group_management` → `get_groups`, `create_group`, `delete_group`
+- `user_group_management` → `get_user_groups`, `add_user_to_groups`,
+  `remove_user_from_groups`
+- `group_role_management` → `get_group_roles`, `add_group_roles`,
+  `remove_group_roles`
+- `folder_management` → `get_folder`, `search_folders` (existing),
+  `create_or_update_folder`, `delete_folder`
+- `secretserver_local_user_management` → `get_secretserver_local_user`,
+  `list_secretserver_user_sessions`,
+  `create_or_update_secretserver_local_user`,
+  `delete_secretserver_local_user`, `secretserver_local_user_security_action`
+- `user_management`, `platform_user_management` → `search_users` (existing),
+  `get_platform_user`, `create_or_update_platform_user`,
+  `delete_platform_user`
+- `platform_role_management` → `get_platform_roles`,
+  `create_or_update_platform_role`, `delete_platform_role`
+- `platform_user_role_management` → `get_platform_role_members`,
+  `add_platform_role_members`, `remove_platform_role_members`
+- `sdm_user_management` → `sdm_get_users`, `sdm_create_user`,
+  `sdm_set_user_status`, `sdm_delete_user`
+- `sdm_role_management` → `sdm_get_roles`, `sdm_create_role`,
+  `sdm_delete_role`, `sdm_add_role_member`, `sdm_remove_role_member`
+
+The plugin's Read-only preset now includes the new role, group and
+membership read tools.
+
+### API documentation links
+
+Every new tool's description names the endpoint it calls and links the
+vendor API reference (Secret Server REST API, developer.delinea.com for the
+Platform, StrongDM API reference).
+
 ## v2.0.0 — Claude Code plugin, PyPI package, secret-visibility hardening
 
 ### Distribution

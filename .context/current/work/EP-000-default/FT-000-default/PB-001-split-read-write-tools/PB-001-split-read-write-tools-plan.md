@@ -2,7 +2,7 @@
 
 > **Type:** pbi
 > **Created:** 2026-11-20T00:00:00-08:00
-> **Updated:** 2026-11-20T00:00:00-08:00
+> **Updated:** 2026-11-20T16:00:00-08:00
 > **ADO:** TBD (not yet linked)
 
 ---
@@ -84,9 +84,13 @@ D = `destructiveHint: true`. Names are proposals; review in plan review.
 
 ### Secret Server local users (`delinea_mcp/secretserver_users.py`)
 
-| Old tool (actions)                                                                                                     | New tools                                                                                                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `secretserver_local_user_management` (get, create, update, delete, list_sessions, reset_2fa, reset_password, lock_out) | `get_secretserver_local_user` RO; `list_secretserver_user_sessions` RO; `create_or_update_secretserver_local_user` W; `delete_secretserver_local_user` D; `secretserver_local_user_security_action` D (reset_2fa, reset_password, lock_out: all writes) |
+- `secretserver_local_user_management` (get, create, update, delete,
+  list_sessions, reset_2fa, reset_password, lock_out): New tools:
+  `get_secretserver_local_user` RO; `list_secretserver_user_sessions` RO;
+  `create_or_update_secretserver_local_user` W;
+  `delete_secretserver_local_user` D;
+  `secretserver_local_user_security_action` D (reset_2fa, reset_password,
+  lock_out: all writes)
 
 ### Delinea Platform (`delinea_mcp/user_platform_tools.py`)
 
@@ -102,12 +106,17 @@ D = `destructiveHint: true`. Names are proposals; review in plan review.
 Grants and role attachments keep the existing policy: they change security
 posture, so they carry `destructiveHint` even when additive.
 
-| Old tool (actions)                                                                        | New tools                                                                                                                                                       |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdm_user_management` (list, get, create, onboard, suspend, reactivate, offboard, delete) | `sdm_get_users` RO; `sdm_create_user` D (create, onboard: onboard attaches roles); `sdm_set_user_status` D (suspend, reactivate, offboard); `sdm_delete_user` D |
-| `sdm_role_management` (list, get, list_members, create, delete, add_user, remove_user)    | `sdm_get_roles` RO (list, get, list_members); `sdm_create_role` W; `sdm_delete_role` D; `sdm_add_role_member` D; `sdm_remove_role_member` D                     |
+- `sdm_user_management` (list, get, create, onboard, suspend, reactivate,
+  offboard, delete): New tools: `sdm_get_users` RO; `sdm_create_user` D
+  (create, onboard: onboard attaches roles); `sdm_set_user_status` D (suspend,
+  reactivate, offboard); `sdm_delete_user` D
+- `sdm_role_management` (list, get, list_members, create, delete, add_user,
+  remove_user): New tools: `sdm_get_roles` RO (list, get, list_members);
+  `sdm_create_role` W; `sdm_delete_role` D; `sdm_add_role_member` D;
+  `sdm_remove_role_member` D
 
-Net: 14 tools removed, 39 added (46 → 71 registered with everything on).
+Net: 14 tools removed, 39 added. Every tool on (StrongDM and reveal
+included): 73. Plugin defaults (no StrongDM, reveal off): 55.
 
 ### Reviewed, unchanged
 
@@ -123,20 +132,40 @@ Net: 14 tools removed, 39 added (46 → 71 registered with everything on).
 
 ## Verifiable Behaviors
 
-| #   | Requirement | Given                                           | When                             | Then                                                                                                             | Verify by                          |
-| --- | ----------- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| 1   | R1          | all tools enabled, StrongDM enabled             | `list_tools()`                   | no tool has an `action` parameter whose values span read and write; none of the 14 old names is listed           | unit                               |
-| 2   | R3          | all tools enabled                               | `list_tools()`                   | every tool has `title` and annotation `title`; every tool has `readOnlyHint: true` or explicit `destructiveHint` | unit                               |
-| 3   | R2          | new read tool, e.g. `get_roles` with no id      | called                           | sends `GET /v1/roles` with paging; with `role_id`, `GET /v1/roles/{id}`                                          | unit                               |
-| 4   | R2          | `create_or_update_role` with `role_id`          | called                           | `PATCH /v1/roles/{id}` then verifying `GET`; without `role_id`, `POST /v1/roles`                                 | unit                               |
-| 5   | R2          | each destructive tool                           | called with valid args           | issues only its delete/remove request                                                                            | unit                               |
-| 6   | R5          | `enabled_tools: ["role_management"]`            | server starts                    | `get_roles` and `create_or_update_role` registered; warning logged naming the replacements                       | unit                               |
-| 7   | R5          | plugin Custom list `folder_management`          | server starts                    | `create_or_update_folder`, `delete_folder`, `get_folder`, `search_folders` registered                            | unit                               |
-| 8   | R5          | read-only preset                                | server starts                    | new RO tools included; no W or D tool included                                                                   | unit                               |
-| 9   | R6          | every tool whose schema has a `data` property   | description inspected            | contains an `https://` doc URL and the endpoint path                                                             | unit                               |
-| 10  | R9          | release files                                   | inspected                        | `pyproject.toml` version == plugin `version` == pinned `uvx` version == 3.0.0                                    | unit (extend existing plugin test) |
-| 11  | R1-R3       | live test tenant                                | each new SS/Platform tool called | success response; writes clean up after themselves                                                               | integration                        |
-| 12  | R7          | MCP Inspector `tools/list` against stdio server | run                              | 71 tools with expected titles/annotations                                                                        | manual                             |
+- 1: Requirement: R1; Given: all tools enabled, StrongDM enabled; When:
+  `list_tools()`; Then: no tool has an `action` parameter whose values span
+  read and write; none of the 14 old names is listed; Verify by: unit
+- 2: Requirement: R3; Given: all tools enabled; When: `list_tools()`; Then:
+  every tool has `title` and annotation `title`; every tool has `readOnlyHint:
+true` or explicit `destructiveHint`; Verify by: unit
+- 3: Requirement: R2; Given: new read tool, e.g. `get_roles` with no id; When:
+  called; Then: sends `GET /v1/roles` with paging; with `role_id`, `GET
+/v1/roles/{id}`; Verify by: unit
+- 4: Requirement: R2; Given: `create_or_update_role` with `role_id`; When:
+  called; Then: `PATCH /v1/roles/{id}` then verifying `GET`; without
+  `role_id`, `POST /v1/roles`; Verify by: unit
+- 5: Requirement: R2; Given: each destructive tool; When: called with valid
+  args; Then: issues only its delete/remove request; Verify by: unit
+- 6: Requirement: R5; Given: `enabled_tools: ["role_management"]`; When:
+  server starts; Then: `get_roles` and `create_or_update_role` registered;
+  warning logged naming the replacements; Verify by: unit
+- 7: Requirement: R5; Given: plugin Custom list `folder_management`; When:
+  server starts; Then: `create_or_update_folder`, `delete_folder`,
+  `get_folder`, `search_folders` registered; Verify by: unit
+- 8: Requirement: R5; Given: read-only preset; When: server starts; Then: new
+  RO tools included; no W or D tool included; Verify by: unit
+- 9: Requirement: R6; Given: every tool whose schema has a `data` property;
+  When: description inspected; Then: contains an `https://` doc URL and the
+  endpoint path; Verify by: unit
+- 10: Requirement: R9; Given: release files; When: inspected; Then:
+  `pyproject.toml` version == plugin `version` == pinned `uvx` version ==
+  3.0.0; Verify by: unit (extend existing plugin test)
+- 11: Requirement: R1-R3; Given: live test tenant; When: each new SS/Platform
+  tool called; Then: success response; writes clean up after themselves;
+  Verify by: integration
+- 12: Requirement: R7; Given: MCP Inspector `tools/list` against stdio server;
+  When: run; Then: 71 tools with expected titles/annotations; Verify by:
+  manual
 
 Ambiguous rows for plan review:
 
@@ -150,9 +179,11 @@ Ambiguous rows for plan review:
 
 ## Architecture Approach
 
-Thin public wrappers over the existing logic. Each old function becomes a
-private helper (`role_management` → `_role_management`) that keeps its
-`action` dispatch, verification `GET`s and error handling. Each new tool is a
+Thin public wrappers over the existing logic. Each old function keeps its
+name and its `action` dispatch, verification `GET`s and error handling, but
+is no longer registered as a tool (changed from the planned private rename
+during implementation: existing tests call the old names, and the contract
+test stops them being registered again). Each new tool is a
 short public function with its own signature and docstring that calls the
 helper with a fixed action. The dispatch code is already tested; the wrappers
 only fix the action, so no request logic is rewritten.
@@ -349,15 +380,66 @@ way.
 
 ---
 
+## Implementation Notes
+
+Discovered while implementing; kept here because context.md is not tracked.
+
+- Error guidance pointed Claude at removed tools (`_NOT_CONFIGURED_ERROR`,
+  the Platform role 404 messages, the StrongDM revoke note, the `get_folder`
+  description). All now name the new tools.
+- Listing a folder's direct children was only possible through
+  `folder_management("list", params=...)`. `search_folders` gained
+  `parent_folder_id` so no capability is lost.
+- `platform_user_management` (deprecated alias) was deleted with its two
+  alias tests, not just unregistered.
+- Platform role writes target endpoints the Platform doesn't serve
+  (researched 2026-11-20 in ADO and live):
+  - `/SaasManage/RemoveRole` never existed. The legacy Centrify controller
+    (`CloudSuite:/Cloud/Saas/Cloud/controllers/manage.cs`) exposes
+    `StoreRole`, `DeleteRole(Name=<role UUID>)` and `DeleteRoles([uuids])`;
+    `Role.RemoveRole` is only an internal C# method.
+  - The Platform identity service (`Identity:identity`,
+    `src/Delinea.Identity.Api.Public/Controllers`) re-implements only part of
+    that API: `UserMgmt`, `CDirectoryService`, `Report` and others, but no
+    `SaasManage` or `Roles` controller. On the test tenant every
+    `/identity/api/SaasManage/*` and `/identity/api/Roles/*` call, including
+    the correct `DeleteRole`, returns an empty 404, the same as a made-up
+    action name. So `create_or_update_platform_role`,
+    `delete_platform_role` and `add/remove_platform_role_members` can never
+    work on a Platform tenant; the "scope doesn't expose role mutations"
+    message is wrong.
+  - Platform roles live in the Permission service
+    (`NewCo.Platform:Delinea.Permission`), served at `/permission/api/`:
+    `roles` (POST create, GET search, GET/PUT/DELETE `{id}`, GET
+    `{id}/members`, PATCH `{id}/permissions`) and `rolememberships` (POST,
+    PATCH `{subjectId}/add-role` and `/remove-role`, GET/DELETE
+    `{subjectId}`). Role IDs are role names. Live GETs return 200 with the
+    tenant's real roles (Platform Admin, Platform User).
+  - The current read tools (`role_searchbyname` report) list legacy identity
+    roles such as "Everybody", which the Permission service treats as a
+    group, not the Platform's roles.
+  - Follow-up: move the Platform role tools to the Permission API.
+- Secret Server refuses role removals that would lock the service account
+  out of Role Administration (`API_RoleAdministrationNoLockout`); the live
+  test now allows that one error instead of ignoring every step's result.
+- MCP Inspector reports a pre-existing schema-portability warning on
+  `platform_reports.filters` (untyped list items). Unrelated to this item.
+
+Verification run 2026-11-20: unit 539 passed; live 46 passed / 5 skipped
+before the lockout fix, then the affected tests passed and no test objects
+were left behind; stdio e2e 10 passed; MCP Inspector `tools/list` 55 tools,
+all titled and hinted; `claude plugin validate` passed; trunk clean.
+
 ## Success Criteria
 
-- [ ] All requirements met
-- [ ] Contract test proves no mixed tool and full annotations
-- [ ] All tests pass; no regressions from baseline (478 passed, 1 deselected)
-- [ ] New code has 80%+ test coverage
-- [ ] No tests skipped to hide failures
-- [ ] Security considerations addressed
-- [ ] Rollback strategy documented
-- [ ] Live tenant run passes for SS and Platform tools
-- [ ] `claude plugin validate` passes
-- [ ] Docs and CHANGELOG updated
+- [x] All requirements met
+- [x] Contract test proves no mixed tool and full annotations
+- [x] All tests pass; no regressions from baseline (478 → 539)
+- [x] New code has 80%+ test coverage (every new tool has a request test; package 92%)
+- [x] No tests skipped to hide failures
+- [x] Security considerations addressed
+- [x] Rollback strategy documented
+- [x] Live tenant run passes for SS and Platform tools
+- [x] `claude plugin validate` passes
+- [x] Docs and CHANGELOG updated
+- [ ] Plugin installed in Claude Code; destructive tools prompt (manual)

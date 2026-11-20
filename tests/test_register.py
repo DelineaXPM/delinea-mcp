@@ -43,8 +43,8 @@ def test_secretserver_and_platform_register_all_when_enabled_empty():
     plat = DummyMCP()
     secretserver_users.register(ss, set())
     user_platform_tools.register(plat, set())
-    assert "secretserver_local_user_management" in ss.registered
-    assert "user_management" in plat.registered
+    assert "delete_secretserver_local_user" in ss.registered
+    assert "delete_platform_user" in plat.registered
 
 
 def test_load_enabled_tools(tmp_path):
@@ -95,8 +95,8 @@ def test_registered_tools_carry_annotations():
     secretserver_users.register(dummy, set())
     user_platform_tools.register(dummy, set())
     assert dummy.annotations["get_secret"].read_only_hint is True
-    assert dummy.annotations["folder_management"].destructive_hint is True
-    assert dummy.annotations["user_management"].destructive_hint is True
+    assert dummy.annotations["delete_folder"].destructive_hint is True
+    assert dummy.annotations["delete_platform_user"].destructive_hint is True
     assert dummy.annotations["search_users"].read_only_hint is True
 
 

@@ -5,10 +5,8 @@ Platform identity provider.  This module exposes the canonical user,
 role, and search tools that operate against the Platform's identity
 endpoints (``/identity/...``).
 
-In v1.0.0 the canonical names ``user_management`` and ``search_users``
-were promoted from this module.  The previous Secret-Server-local
-implementations are preserved under
-:mod:`delinea_mcp.secretserver_users` as ``secretserver_local_*`` for
+The Secret-Server-local user tools live in
+:mod:`delinea_mcp.secretserver_users` as ``*secretserver_local_*`` for
 SS-only on-prem deployments.
 
 Endpoint references
@@ -150,8 +148,8 @@ _NOT_CONFIGURED_ERROR = (
     "Platform is not configured. This tool requires PLATFORM_HOSTNAME, "
     "PLATFORM_SERVICE_ACCOUNT, PLATFORM_SERVICE_PASSWORD (and typically "
     "PLATFORM_TENANT_ID) to be set, or the equivalent keys in config.json. "
-    "For SS-only deployments, use secretserver_local_user_management / "
-    "search_secretserver_local_users instead."
+    "For SS-only deployments, use search_secretserver_local_users / "
+    "get_secretserver_local_user instead."
 )
 
 
@@ -314,12 +312,9 @@ def user_management(
 ) -> dict:
     """Manage users on the Delinea Platform via a unified helper.
 
-    This is the **canonical** ``user_management`` tool (v1.0.0+).  It
-    talks to the Platform identity API, which is the authoritative user
-    store in cloud-native and Platform-integrated tenants.
-
-    For SS-only deployments without Platform configured, use
-    :func:`delinea_mcp.secretserver_users.secretserver_local_user_management`.
+    Not registered as a tool (it mixes reads and writes); the
+    ``*_platform_user`` tools call it. It talks to the Platform identity
+    API, the authoritative user store in Platform-integrated tenants.
 
     Parameters
     ----------
@@ -422,28 +417,6 @@ def user_management(
         return {"error": str(exc)}
 
 
-# Deprecated alias: keeps existing callers working but discouraged in v1+.
-# The signature is spelled out (not ``*args, **kwargs``) because the MCP SDK
-# derives the tool's input schema from it; a variadic signature advertised
-# required ``args``/``kwargs`` string fields that no caller could satisfy.
-# ``functools.wraps`` is no substitute: it would copy ``__name__`` and the
-# tool would register as ``user_management``. tests/test_tool_guard.py checks
-# that both tools publish the same input schema.
-def platform_user_management(
-    action: str,
-    user_id: str | None = None,
-    data: dict | str | None = None,
-    username: str | None = None,
-) -> dict:
-    """Deprecated alias for :func:`user_management`. Use ``user_management``.
-
-    Takes the same parameters as ``user_management``.  Retained for
-    backwards compatibility with v0.x clients.  Will be removed in a future
-    major release.
-    """
-    return user_management(action, user_id=user_id, data=data, username=username)
-
-
 # --------------------------------------------------------------------------- #
 # Roles                                                                       #
 # --------------------------------------------------------------------------- #
@@ -499,7 +472,8 @@ _ROLE_WRITE_NOT_SUPPORTED = (
     "Platform role write endpoint returned 404 — this OAuth scope on this "
     "tenant does not expose role mutations (typical on modern Delinea Platform "
     "deployments using the xpmheadless scope). Use the Secret-Server-backed "
-    "role_management tool to manage roles in mixed Platform/SS deployments, "
+    "get_roles / create_or_update_role tools to manage roles in mixed "
+    "Platform/SS deployments, "
     "or open the tenant's admin UI directly."
 )
 
@@ -639,7 +613,7 @@ _USER_ROLE_WRITE_NOT_SUPPORTED = (
     "Platform user-role mutation endpoint returned 404 — this OAuth scope on "
     "this tenant does not expose role-membership writes (typical on modern "
     "Delinea Platform deployments using the xpmheadless scope). Use the "
-    "Secret-Server-backed user_role_management tool, which manages the "
+    "Secret-Server-backed add_user_roles / remove_user_roles tools, which manage the "
     "SS-side role wiring that Platform tenants typically mirror, or the "
     "Platform admin UI directly."
 )
@@ -730,9 +704,6 @@ def platform_user_role_management(
 # --------------------------------------------------------------------------- #
 
 
-# In v1.0.0 the canonical names ``user_management`` and ``search_users`` are
-# served from this module.  ``platform_user_management`` is retained as a
-# deprecated alias.
 # --------------------------------------------------------------------------- #
 # Platform reports (Insights > Reports)                                       #
 # --------------------------------------------------------------------------- #
@@ -1065,12 +1036,136 @@ def platform_reports(
         return {"error": str(exc)}
 
 
+# user_management, platform_role_management and
+# platform_user_role_management are not registered: each mixes reads and
+# writes, which the Claude directory rejects. These tools split them.
+
+
+def get_platform_user(user_id: str) -> dict:
+    """Get one Delinea Platform user's attributes by user UUID.
+
+    Calls ``POST /identity/api/UserMgmt/GetUserAttributes``; find the UUID
+    with ``search_users``. API reference:
+    https://developer.delinea.com/reference/post_usermgmt-getuserattributes
+    """
+    return user_management("get", user_id=user_id)
+
+
+def create_or_update_platform_user(
+    data: dict | str, user_id: str | None = None
+) -> dict:
+    """Create a Delinea Platform cloud user, or update one when *user_id* is given.
+
+    Create calls ``POST /identity/api/CDirectoryService/CreateUser``; *data*
+    needs ``Name`` (the login name, e.g. ``alice@tenant``) and usually
+    ``Mail``, ``DisplayName`` and ``Password``. Update calls ``POST
+    /identity/api/CDirectoryService/ChangeUser`` with only the fields to
+    change. Passwords are masked in errors and logs. Returns ``{"result":
+    ..., "verification": ...}``. API reference:
+    https://developer.delinea.com/reference/post_cdirectoryservice-createuser
+    and https://developer.delinea.com/reference/post_cdirectoryservice-changeuser
+    """
+    if user_id is None:
+        return user_management("create", data=data)
+    return user_management("update", user_id=user_id, data=data)
+
+
+def delete_platform_user(user_id: str) -> dict:
+    """Delete a Delinea Platform user by UUID.
+
+    Calls ``POST /identity/api/UserMgmt/RemoveUsers``. Cloud directory users
+    are deleted; users from other directories are only removed from the
+    Platform. API reference:
+    https://developer.delinea.com/reference/post_usermgmt-removeusers
+    """
+    return user_management("delete", user_id=user_id)
+
+
+def get_platform_roles(
+    role_id: str | None = None, query: str = "%", page_size: int = 100
+) -> dict:
+    """List Delinea Platform roles, or get one role by name.
+
+    Runs the Platform's ``role_searchbyname`` report (``POST
+    /identity/api/Report/RunReport``): every role matching *query* (default
+    ``%``, all), or the role named *role_id*. Platform API reference:
+    https://developer.delinea.com/
+    """
+    if role_id is None:
+        return platform_role_management("list", query=query, page_size=page_size)
+    return platform_role_management("get", role_id=role_id)
+
+
+def create_or_update_platform_role(
+    data: dict | str, role_id: str | None = None
+) -> dict:
+    """Create a Delinea Platform role, or update one when *role_id* is given.
+
+    Create calls ``POST /identity/api/SaasManage/StoreRole`` with
+    ``{"Name": ..., "Description": ...}``. Update calls ``POST
+    /identity/api/Roles/UpdateRole`` with any subset of ``Description``,
+    ``Name``, ``Users``/``Groups``/``Roles`` as ``{"Add": [...], "Delete":
+    [...]}``. Some tenants don't allow role changes for the service account
+    and return guidance instead. API reference:
+    https://developer.delinea.com/reference/post_saasmanage-storerole and
+    https://developer.delinea.com/reference/post_roles-updaterole-1
+    """
+    if role_id is None:
+        return platform_role_management("create", data=data)
+    return platform_role_management("update", role_id=role_id, data=data)
+
+
+def delete_platform_role(role_id: str) -> dict:
+    """Delete a Delinea Platform role.
+
+    Calls ``POST /identity/api/SaasManage/RemoveRole``. Some tenants don't
+    allow role changes for the service account and return guidance instead.
+    Platform API reference: https://developer.delinea.com/
+    """
+    return platform_role_management("delete", role_id=role_id)
+
+
+def get_platform_role_members(role_id: str) -> dict:
+    """List the users assigned to a Delinea Platform role.
+
+    Runs the Platform's ``role_searchbyname`` report (``POST
+    /identity/api/Report/RunReport``) for *role_id*; some tenants include a
+    ``members`` column. Platform API reference: https://developer.delinea.com/
+    """
+    return platform_user_role_management("list", role_id)
+
+
+def add_platform_role_members(role_id: str, user_principals: list[str]) -> dict:
+    """Add users to a Delinea Platform role.
+
+    Calls ``POST /identity/api/Roles/UpdateRole`` with ``{"Users": {"Add":
+    [...]}}``; *user_principals* are login names (``alice@tenant``) or UUIDs.
+    API reference: https://developer.delinea.com/reference/post_roles-updaterole-1
+    """
+    return platform_user_role_management("add", role_id, user_principals)
+
+
+def remove_platform_role_members(role_id: str, user_principals: list[str]) -> dict:
+    """Remove users from a Delinea Platform role.
+
+    Calls ``POST /identity/api/Roles/UpdateRole`` with ``{"Users":
+    {"Delete": [...]}}``; *user_principals* are login names or UUIDs.
+    API reference: https://developer.delinea.com/reference/post_roles-updaterole-1
+    """
+    return platform_user_role_management("remove", role_id, user_principals)
+
+
 TOOLS = [
-    ("user_management", user_management),
     ("search_users", search_users),
-    ("platform_user_management", platform_user_management),
-    ("platform_role_management", platform_role_management),
-    ("platform_user_role_management", platform_user_role_management),
+    ("get_platform_user", get_platform_user),
+    ("create_or_update_platform_user", create_or_update_platform_user),
+    ("delete_platform_user", delete_platform_user),
+    ("get_platform_roles", get_platform_roles),
+    ("create_or_update_platform_role", create_or_update_platform_role),
+    ("delete_platform_role", delete_platform_role),
+    ("get_platform_role_members", get_platform_role_members),
+    ("add_platform_role_members", add_platform_role_members),
+    ("remove_platform_role_members", remove_platform_role_members),
     ("platform_reports", platform_reports),
 ]
 
@@ -1080,8 +1175,7 @@ def register(mcp: Any, enabled: Iterable[str] | None = None) -> None:
 
     Honours the same ``enabled_tools`` allowlist semantics as
     :func:`delinea_mcp.tools.register`: an empty/missing set registers
-    every tool in this module (including the canonical
-    ``user_management`` / ``search_users`` names); a non-empty set
+    every tool in this module; a non-empty set
     registers only the named tools. When Platform is not configured,
     registered tools still return a helpful error directing the caller
     to configure Platform or use the legacy SS-local tools.

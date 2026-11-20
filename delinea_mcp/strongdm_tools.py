@@ -430,7 +430,7 @@ def sdm_revoke_access(
     Compound flow: resolve account and resource, find every direct
     ``AccountGrant`` linking them, delete each. Access that arrives through
     a role attachment is reported (with the role id) instead of silently
-    surviving — detach the role via ``sdm_role_management`` if that is the
+    surviving — detach the role via ``sdm_remove_role_member`` if that is the
     actual intent.
 
     Requires ``confirm=True`` + non-empty ``comment``; ``confirm=False``
@@ -493,7 +493,7 @@ def sdm_revoke_access(
             "role_derived_access": role_paths,
             "note": (
                 "Role-derived access survives grant deletion; detach the role "
-                "via sdm_role_management to remove it."
+                "via sdm_remove_role_member to remove it."
                 if role_paths
                 else None
             ),
@@ -621,7 +621,7 @@ def sdm_user_management(
                 ]
                 result["note"] = (
                     "Account suspended. Review standing_grants/role_attachments "
-                    "and remove them via sdm_revoke_access/sdm_role_management."
+                    "and remove them via sdm_revoke_access/sdm_remove_role_member."
                 )
             return result
 
@@ -782,6 +782,154 @@ def sdm_role_management(
     except Exception as exc:
         logger.error("sdm_role_management failed: %s", exc)
         return {"error": _error_text(exc)}
+
+
+# sdm_user_management and sdm_role_management are not registered: each mixes
+# reads and writes, which the Claude directory rejects. These tools split
+# them. Every write keeps the confirm + comment preview gate.
+
+
+def sdm_get_users(email: str = "", filter: str = "", limit: int = 50) -> dict:
+    """List StrongDM user accounts, or get one by *email*.
+
+    *filter* is a StrongDM filter expression (e.g. ``"suspended:true"``)
+    for the list. Uses the StrongDM API ``Accounts`` resource:
+    https://docs.strongdm.com/references/api
+    """
+    if email:
+        return sdm_user_management("get", email=email)
+    return sdm_user_management("list", data={"filter": filter}, limit=limit)
+
+
+def sdm_create_user(
+    email: str,
+    first_name: str,
+    last_name: str,
+    permission_level: str = "",
+    roles: list[str] | None = None,
+    confirm: bool = False,
+    comment: str = "",
+) -> dict:
+    """Create a StrongDM user, optionally attaching roles by name (onboarding).
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview and
+    changes nothing. Attaching *roles* grants the access those roles carry.
+    Uses the StrongDM API ``Accounts`` and ``AccountAttachments`` resources:
+    https://docs.strongdm.com/references/api
+    """
+    data = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "permission_level": permission_level,
+    }
+    action = "onboard" if roles else "create"
+    return sdm_user_management(
+        action, email=email, data=data, roles=roles, confirm=confirm, comment=comment
+    )
+
+
+_USER_STATUS_ACTIONS = ("suspend", "reactivate", "offboard")
+
+
+def sdm_set_user_status(
+    action: str, email: str, confirm: bool = False, comment: str = ""
+) -> dict:
+    """Suspend, reactivate or offboard a StrongDM user.
+
+    *action* is ``"suspend"``, ``"reactivate"`` or ``"offboard"`` (suspend,
+    then list the standing grants and role attachments left to review).
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``Accounts`` resource:
+    https://docs.strongdm.com/references/api
+    """
+    if action not in _USER_STATUS_ACTIONS:
+        return {
+            "error": f"Unknown action {action!r}; use one of {list(_USER_STATUS_ACTIONS)}"
+        }
+    return sdm_user_management(action, email=email, confirm=confirm, comment=comment)
+
+
+def sdm_delete_user(email: str, confirm: bool = False, comment: str = "") -> dict:
+    """Permanently delete a StrongDM user.
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``Accounts`` resource:
+    https://docs.strongdm.com/references/api
+    """
+    return sdm_user_management("delete", email=email, confirm=confirm, comment=comment)
+
+
+def sdm_get_roles(role_name: str = "", members: bool = False, limit: int = 50) -> dict:
+    """List StrongDM roles, get one by *role_name*, or list its members.
+
+    With *role_name* and ``members=True``, returns the accounts attached to
+    the role. Uses the StrongDM API ``Roles`` and ``AccountAttachments``
+    resources: https://docs.strongdm.com/references/api
+    """
+    if not role_name:
+        return sdm_role_management("list", limit=limit)
+    action = "list_members" if members else "get"
+    return sdm_role_management(action, role_name=role_name, limit=limit)
+
+
+def sdm_create_role(role_name: str, confirm: bool = False, comment: str = "") -> dict:
+    """Create an empty StrongDM role.
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``Roles`` resource:
+    https://docs.strongdm.com/references/api
+    """
+    return sdm_role_management(
+        "create", role_name=role_name, confirm=confirm, comment=comment
+    )
+
+
+def sdm_delete_role(role_name: str, confirm: bool = False, comment: str = "") -> dict:
+    """Delete a StrongDM role.
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``Roles`` resource:
+    https://docs.strongdm.com/references/api
+    """
+    return sdm_role_management(
+        "delete", role_name=role_name, confirm=confirm, comment=comment
+    )
+
+
+def sdm_add_role_member(
+    role_name: str, user_email: str, confirm: bool = False, comment: str = ""
+) -> dict:
+    """Attach a StrongDM user to a role, granting the role's access.
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``AccountAttachments``
+    resource: https://docs.strongdm.com/references/api
+    """
+    return sdm_role_management(
+        "add_user",
+        role_name=role_name,
+        user_email=user_email,
+        confirm=confirm,
+        comment=comment,
+    )
+
+
+def sdm_remove_role_member(
+    role_name: str, user_email: str, confirm: bool = False, comment: str = ""
+) -> dict:
+    """Detach a StrongDM user from a role, removing the role's access.
+
+    Without ``confirm=True`` and a non-empty *comment*, returns a preview
+    and changes nothing. Uses the StrongDM API ``AccountAttachments``
+    resource: https://docs.strongdm.com/references/api
+    """
+    return sdm_role_management(
+        "remove_user",
+        role_name=role_name,
+        user_email=user_email,
+        confirm=confirm,
+        comment=comment,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -955,8 +1103,15 @@ TOOLS = [
     ("sdm_audit_access", sdm_audit_access),
     ("sdm_grant_access", sdm_grant_access),
     ("sdm_revoke_access", sdm_revoke_access),
-    ("sdm_user_management", sdm_user_management),
-    ("sdm_role_management", sdm_role_management),
+    ("sdm_get_users", sdm_get_users),
+    ("sdm_create_user", sdm_create_user),
+    ("sdm_set_user_status", sdm_set_user_status),
+    ("sdm_delete_user", sdm_delete_user),
+    ("sdm_get_roles", sdm_get_roles),
+    ("sdm_create_role", sdm_create_role),
+    ("sdm_delete_role", sdm_delete_role),
+    ("sdm_add_role_member", sdm_add_role_member),
+    ("sdm_remove_role_member", sdm_remove_role_member),
     ("sdm_resource_health", sdm_resource_health),
     ("sdm_access_requests", sdm_access_requests),
     ("sdm_activity_report", sdm_activity_report),

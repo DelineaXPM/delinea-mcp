@@ -43,14 +43,19 @@ Allow all tools except `get_secret_environment_variable`.
     "list_example_reports",
     "get_secret",
     "get_folder",
-    "user_management",
-    "secretserver_local_user_management",
-    "role_management",
-    "user_role_management",
-    "group_management",
-    "user_group_management",
-    "group_role_management",
-    "folder_management",
+    "get_platform_user",
+    "create_or_update_platform_user",
+    "get_secretserver_local_user",
+    "get_roles",
+    "create_or_update_role",
+    "get_user_roles",
+    "add_user_roles",
+    "get_groups",
+    "create_group",
+    "get_user_groups",
+    "add_user_to_groups",
+    "get_group_roles",
+    "create_or_update_folder",
     "health_check",
     "search_users",
     "search_secretserver_local_users",
@@ -68,11 +73,14 @@ Allow all tools except `get_secret_environment_variable`.
 ```
 
 > [!NOTE]
-> Since v1.0.0 `user_management` and `search_users` target the **Delinea
-> Platform** identity directory and need `platform_hostname` +
+> The Platform user tools (`search_users`, `get_platform_user`, ...) target
+> the **Delinea Platform** identity directory and need `platform_hostname` +
 > `PLATFORM_SERVICE_*` credentials configured. For Secret-Server-only
-> deployments, the SS-local equivalents in the list above are
-> `secretserver_local_user_management` / `search_secretserver_local_users`.
+> deployments, use `search_secretserver_local_users` /
+> `get_secretserver_local_user`. The list above leaves out the delete and
+> remove tools; add them (`delete_group`, `remove_user_roles`, ...) to allow
+> those. Pre-3.0 names such as `role_management` still work and enable
+> every replacement tool, including the destructive ones.
 
 ## Connecting from Claude
 

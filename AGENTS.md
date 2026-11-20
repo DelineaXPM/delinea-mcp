@@ -256,7 +256,14 @@ cfg.write_text(json.dumps({"auth_mode": "none"}))
 **MCP Tool Development**:
 
 - Tools registered via `@mcp.tool()` decorator with type hints for automatic schema generation
-- Follow naming convention: verb_noun (e.g., `get_secret`, `search_users`, `user_management`)
+- Follow naming convention: verb_noun (e.g., `get_secret`, `search_users`, `delete_group`)
+- Never put reads and writes in one tool (no `action` that spans both): the
+  Claude directory rejects it. Give each resource a read tool, a
+  non-destructive write tool and a destructive tool, each with a `title` and
+  hints in `annotations.py`. Tools that take a caller-built `data` body must
+  link the vendor API docs in their description. `tests/test_tool_contract.py`
+  enforces all three. A renamed or split tool goes into `LEGACY_TOOL_NAMES`
+  so old allowlists keep working.
 - Include comprehensive docstrings with Parameters and Returns sections
 - Return dictionaries with `error` key on failures, structured data on success
 - Use `logger.debug()` for operation logging with descriptive messages

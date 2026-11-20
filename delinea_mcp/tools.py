@@ -1383,7 +1383,7 @@ def get_folder(id: int, all_children: bool = False) -> dict:
     all_children:
         When ``True`` include ``childFolders`` with the full descendant
         tree, which can be large. To page through direct children only, use
-        ``folder_management("list", params={"filter.parentFolderId": id})``.
+        ``search_folders(query="", parent_folder_id=id)``.
 
     Returns
     -------
@@ -1433,7 +1433,11 @@ def search_secrets(
 
 
 def search_folders(
-    query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+    query: str,
+    lookup: bool = False,
+    take: int = DEFAULT_PAGE_SIZE,
+    skip: int = 0,
+    parent_folder_id: int | None = None,
 ) -> dict:
     """Search or look up folders.
 
@@ -1447,6 +1451,8 @@ def search_folders(
         Page size (default 50, capped at 500).
     skip:
         Number of records to skip, for paging with ``take``.
+    parent_folder_id:
+        Only return direct children of this folder.
 
     Returns
     -------
@@ -1458,6 +1464,8 @@ def search_folders(
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
         params = _paged({"filter.searchText": query}, take, skip)
+        if parent_folder_id is not None:
+            params["filter.parentFolderId"] = parent_folder_id
         return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search folders %s", query)
@@ -2134,6 +2142,189 @@ def folder_management(
         return {"error": str(exc)}
 
 
+# The *_management functions above are not registered as tools: each mixes
+# reads and writes, which the Claude directory rejects. These tools split
+# them into read, write and destructive operations.
+
+
+def get_roles(role_id: int | None = None, params: dict | None = None) -> dict:
+    """List Secret Server roles, or get one role by ID.
+
+    Calls ``GET /api/v1/roles`` (paged; *params* adds query filters such as
+    ``filter.searchText``) or, with *role_id*, ``GET /api/v1/roles/{id}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if role_id is None:
+        return role_management("list", params=params)
+    return role_management("get", role_id=role_id)
+
+
+def create_or_update_role(data: dict, role_id: int | None = None) -> dict:
+    """Create a Secret Server role, or update one when *role_id* is given.
+
+    Create calls ``POST /api/v1/roles``; *data* needs ``name`` and
+    ``enabled``. Update calls ``PATCH /api/v1/roles/{id}``: get the role
+    first with ``get_roles``, change the fields and send them all back.
+    Returns ``{"result": ..., "verification": ...}``, where verification is
+    a follow-up GET of the role. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if role_id is None:
+        return role_management("create", data=data)
+    return role_management("update", role_id=role_id, data=data)
+
+
+def get_user_roles(user_id: int) -> dict:
+    """List the roles assigned to a Secret Server user.
+
+    Calls ``GET /api/v1/users/{id}/roles``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("get", user_id)
+
+
+def add_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server user.
+
+    Calls ``POST /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("add", user_id, role_ids)
+
+
+def remove_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server user.
+
+    Calls ``DELETE /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("remove", user_id, role_ids)
+
+
+def get_groups(group_id: int | None = None, params: dict | None = None) -> dict:
+    """List Secret Server groups, or get one group by ID.
+
+    Calls ``GET /api/v1/groups`` (paged; *params* adds query filters such as
+    ``filter.searchText``) or, with *group_id*, ``GET /api/v1/groups/{id}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if group_id is None:
+        return group_management("list", params=params)
+    return group_management("get", group_id=group_id)
+
+
+def create_group(data: dict) -> dict:
+    """Create a Secret Server group.
+
+    Calls ``POST /api/v1/groups``. *data* needs ``name`` and ``enabled``;
+    optional keys include ``adGuid``, ``domainId``, ``hasGroupOwners``,
+    ``isPlatform``, ``ownerGroupIds``, ``ownerGroupNames``, ``ownerUserIds``,
+    ``ownerUserNames``, ``synchronized`` and ``synchronizeNow``. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("create", data=data)
+
+
+def delete_group(group_id: int) -> dict:
+    """Delete a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}``, then reads the group back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("delete", group_id=group_id)
+
+
+def get_user_groups(user_id: int) -> dict:
+    """List the groups a Secret Server user belongs to.
+
+    Calls ``GET /api/v1/users/{id}/groups``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("get", user_id)
+
+
+def add_user_to_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Add a Secret Server user to groups.
+
+    Calls ``POST /api/v1/users/{id}/groups`` with ``{"groupIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("add", user_id, group_ids)
+
+
+def remove_user_from_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Remove a Secret Server user from groups.
+
+    Calls ``DELETE /api/v1/users/{id}/groups?groupIds=...``. Secret Server
+    REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("remove", user_id, group_ids)
+
+
+def get_group_roles(group_id: int) -> dict:
+    """List the roles assigned to a Secret Server group.
+
+    Calls ``GET /api/v1/groups/{id}/roles``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("list", group_id)
+
+
+def add_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server group.
+
+    Calls ``POST /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("add", group_id, role_ids)
+
+
+def remove_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("remove", group_id, role_ids)
+
+
+def create_or_update_folder(data: dict, folder_id: int | None = None) -> dict:
+    """Create a Secret Server folder, or update one when *folder_id* is given.
+
+    Create calls ``POST /api/v1/folders``; *data* needs ``folderName``,
+    ``parentFolderId`` (``-1`` for the root) and ``folderTypeId`` (``1``);
+    ``inheritPermissions`` and ``inheritSecretPolicy`` are optional booleans.
+    Update calls ``PUT /api/v1/folders/{id}`` with the full folder: read it
+    first with ``get_folder``. Returns ``{"result": ..., "verification":
+    ...}``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if folder_id is None:
+        return folder_management("create", data=data)
+    return folder_management("update", folder_id=folder_id, data=data)
+
+
+def delete_folder(folder_id: int) -> dict:
+    """Delete a Secret Server folder.
+
+    Calls ``DELETE /api/v1/folders/{id}``, then reads the folder back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("delete", folder_id=folder_id)
+
+
 def health_check() -> dict:
     """Return the current server health status.
 
@@ -2658,12 +2849,22 @@ TOOLS = [
     ("get_secret", get_secret),
     ("reveal_secret_field", reveal_secret_field),
     ("get_folder", get_folder),
-    ("role_management", role_management),
-    ("user_role_management", user_role_management),
-    ("group_management", group_management),
-    ("user_group_management", user_group_management),
-    ("group_role_management", group_role_management),
-    ("folder_management", folder_management),
+    ("get_roles", get_roles),
+    ("create_or_update_role", create_or_update_role),
+    ("get_user_roles", get_user_roles),
+    ("add_user_roles", add_user_roles),
+    ("remove_user_roles", remove_user_roles),
+    ("get_groups", get_groups),
+    ("create_group", create_group),
+    ("delete_group", delete_group),
+    ("get_user_groups", get_user_groups),
+    ("add_user_to_groups", add_user_to_groups),
+    ("remove_user_from_groups", remove_user_from_groups),
+    ("get_group_roles", get_group_roles),
+    ("add_group_roles", add_group_roles),
+    ("remove_group_roles", remove_group_roles),
+    ("create_or_update_folder", create_or_update_folder),
+    ("delete_folder", delete_folder),
     ("health_check", health_check),
     ("search_secrets", search_secrets),
     ("search_folders", search_folders),

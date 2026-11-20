@@ -4,8 +4,7 @@
 - ``bulk_user_response``
 - ``platform_role_management``
 - ``platform_user_role_management``
-- ``user_management`` / ``search_users`` (Platform-canonical, with the
-  legacy ``platform_user_management`` alias)
+- ``user_management`` / ``search_users`` (Platform-canonical)
 """
 
 from __future__ import annotations
@@ -369,28 +368,6 @@ def test_bulk_user_response_rejects_non_int_ids(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def test_platform_user_management_canonical_alias(monkeypatch):
-    """user_management is the canonical name; platform_user_management is alias."""
-    monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
-    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
-
-    captured = []
-
-    def fake_post(url, **kwargs):
-        captured.append(url)
-        return DummyResponse({"ok": True})
-
-    monkeypatch.setattr(user_platform_tools.requests, "post", fake_post)
-    res = user_platform_tools.user_management("create", data={"Name": "u"})
-    assert res == {"result": {"ok": True}, "verification": {"ok": True}}
-
-    # Alias goes to the same place.
-    res2 = user_platform_tools.platform_user_management("create", data={"Name": "u"})
-    assert res2 == {"result": {"ok": True}, "verification": {"ok": True}}
-
-    assert all("CreateUser" in u for u in captured if "CreateUser" in u)
-
-
 def test_platform_search_users_uses_canned_report(monkeypatch):
     monkeypatch.setattr(user_platform_tools, "_headers", {"h": 1})
     monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
@@ -416,7 +393,7 @@ def test_user_management_returns_helpful_error_when_unconfigured(monkeypatch):
     monkeypatch.setattr(user_platform_tools, "platform_service_password", None)
     res = user_platform_tools.user_management("get", user_id="x")
     assert "error" in res
-    assert "secretserver_local_user_management" in res["error"]
+    assert "search_secretserver_local_users" in res["error"]
 
 
 # --------------------------------------------------------------------------- #
@@ -488,7 +465,7 @@ def test_platform_role_management_write_falls_back_on_404(monkeypatch, action):
     assert calls, "tool must attempt the endpoint before falling back"
     assert "error" in res
     assert "404" in res["error"]
-    assert "role_management" in res["error"]
+    assert "create_or_update_role" in res["error"]
 
 
 def test_platform_role_management_create_success_on_supporting_tenant(monkeypatch):
@@ -603,7 +580,7 @@ def test_platform_user_role_mutations_fall_back_on_404(monkeypatch, action):
     assert calls, "tool must attempt the endpoint before falling back"
     assert "error" in res
     assert "404" in res["error"]
-    assert "user_role_management" in res["error"]
+    assert "add_user_roles" in res["error"]
 
 
 @pytest.mark.parametrize("action,key", [("add", "Add"), ("remove", "Delete")])
@@ -678,11 +655,11 @@ def test_register_exposes_canonical_and_legacy_names():
     """The Platform module registers canonical user_management + search_users."""
     mcp = _DummyMCP()
     user_platform_tools.register(mcp)
-    assert "user_management" in mcp.names
     assert "search_users" in mcp.names
-    assert "platform_user_management" in mcp.names  # back-compat alias
-    assert "platform_role_management" in mcp.names
-    assert "platform_user_role_management" in mcp.names
+    assert "get_platform_user" in mcp.names
+    assert "delete_platform_role" in mcp.names
+    assert "add_platform_role_members" in mcp.names
+    assert not {"user_management", "platform_role_management"} & set(mcp.names)
 
 
 def test_register_ss_local_users():
@@ -690,7 +667,7 @@ def test_register_ss_local_users():
 
     mcp = _DummyMCP()
     secretserver_users.register(mcp)
-    assert "secretserver_local_user_management" in mcp.names
+    assert "delete_secretserver_local_user" in mcp.names
     assert "search_secretserver_local_users" in mcp.names
 
 

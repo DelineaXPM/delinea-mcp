@@ -16,7 +16,7 @@ from delinea_mcp import (
     tools,
     user_platform_tools,
 )
-from delinea_mcp.annotations import TOOL_ANNOTATIONS
+from delinea_mcp.annotations import LEGACY_TOOL_NAMES, TOOL_ANNOTATIONS
 from delinea_mcp.api import DelineaSession, platform_host
 from delinea_mcp.config import load_config
 from delinea_mcp.secretserver_users import (
@@ -153,6 +153,21 @@ def _env_tool_list() -> set[str]:
     return {n.strip() for n in raw.split(",") if n.strip()}
 
 
+def _expand_legacy(names: set[str]) -> set[str]:
+    """Replace pre-3.0 tool names with the tools that replaced them."""
+    expanded = set()
+    for name in names:
+        new = LEGACY_TOOL_NAMES.get(name)
+        if new is None:
+            expanded.add(name)
+            continue
+        logger.warning(
+            "Tool %r was split in 3.0; enabling %s instead", name, ", ".join(new)
+        )
+        expanded.update(new)
+    return expanded
+
+
 def _select_tools(cfg: dict[str, Any]) -> set[str]:
     """Return the tool allowlist; an empty set means every tool.
 
@@ -171,8 +186,8 @@ def _select_tools(cfg: dict[str, Any]) -> set[str]:
     variables don't override an explicit configuration.
     """
     if cfg.get("enabled_tools") is not None:
-        return {str(n) for n in cfg["enabled_tools"] if str(n).strip()}
-    names = _env_tool_list()
+        return _expand_legacy({str(n) for n in cfg["enabled_tools"] if str(n).strip()})
+    names = _expand_legacy(_env_tool_list())
     preset = _tool_preset(
         str(cfg.get("tool_preset") or os.getenv("DELINEA_TOOL_PRESET", ""))
     )
