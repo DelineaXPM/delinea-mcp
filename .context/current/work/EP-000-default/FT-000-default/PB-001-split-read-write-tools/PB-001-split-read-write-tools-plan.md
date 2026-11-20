@@ -1,0 +1,363 @@
+# PB-001: Split mixed read/write tools and link API docs
+
+> **Type:** pbi
+> **Created:** 2026-11-20T00:00:00-08:00
+> **Updated:** 2026-11-20T00:00:00-08:00
+> **ADO:** TBD (not yet linked)
+
+---
+
+## Metadata
+
+| Field              | Value                                |
+| ------------------ | ------------------------------------ |
+| **Criticality**    | C3 (proposed, awaiting confirmation) |
+| **Target version** | 3.0.0 (breaking: tool names change)  |
+
+---
+
+## Overview
+
+The Claude directory review criteria reject any tool that takes both safe and
+unsafe operations:
+
+> A single tool that accepts both safe HTTP methods, such as GET, HEAD, and
+> OPTIONS, and unsafe methods, such as POST, PUT, PATCH, and DELETE, is
+> rejected. [...] Split a catch-all tool into a read-only tool and one or more
+> write tools. Ideally, split write operations further by action type: create,
+> update, and delete. Documenting safe versus unsafe operations within one
+> tool's description doesn't satisfy this requirement.
+>
+> — <https://claude.com/docs/connectors/building/review-criteria>, "Separate
+> read and write tools"
+
+13 registered tools dispatch reads and writes through one `action` parameter
+(plus `platform_user_management`, a deprecated alias of one of them, for 14).
+This item replaces each with a read tool, a non-destructive write tool and a
+destructive tool, and links the vendor API documentation from every tool that
+takes a caller-built request body (required by the same page's "Reference API
+docs in custom query tools") and from the other tools where a stable doc URL
+exists.
+
+---
+
+## Requirements
+
+1. No registered tool accepts both a read operation and a write operation.
+2. Per resource: one read tool (list/get), one non-destructive write tool
+   (create/update/add), one destructive tool (delete/remove/lock/reset). A
+   resource with no destructive action gets no destructive tool.
+3. Every new tool has a `title` and an accurate `readOnlyHint` or
+   `destructiveHint` (in `annotations.py`).
+4. Where an existing read tool already covers a read (`get_folder`,
+   `search_folders`, `search_users`, `search_secretserver_local_users`), reuse
+   it instead of adding a duplicate.
+5. Old tool names are no longer registered. An old name in `enabled_tools`,
+   `DELINEA_ENABLED_TOOLS` or the plugin's Custom tool list expands to its
+   replacements, with a deprecation warning in the log.
+6. Every tool that takes a freeform JSON `data` body names its target API
+   endpoint and links the vendor API docs in its description.
+7. Other tools link the API docs where a stable public URL exists.
+8. StrongDM tools are split the same way.
+9. Release as 3.0.0: `pyproject.toml`, plugin `version` and the pinned `uvx`
+   version move together; CHANGELOG lists every rename.
+10. Non-functional: tool descriptions stay narrow and accurate; no catch-all
+    tool is introduced.
+
+---
+
+## Tool map
+
+Annotation: RO = `readOnlyHint: true`; W = write, `destructiveHint: false`;
+D = `destructiveHint: true`. Names are proposals; review in plan review.
+
+### Secret Server (`delinea_mcp/tools.py`)
+
+| Old tool (actions)                                      | New tools                                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `role_management` (list, get, create, update)           | `get_roles` RO (list, or one by `role_id`); `create_or_update_role` W                          |
+| `user_role_management` (get, add, remove)               | `get_user_roles` RO; `add_user_roles` W; `remove_user_roles` D                                 |
+| `group_management` (get, list, create, delete)          | `get_groups` RO; `create_group` W; `delete_group` D                                            |
+| `user_group_management` (get, add, remove)              | `get_user_groups` RO; `add_user_to_groups` W; `remove_user_from_groups` D                      |
+| `group_role_management` (list, add, remove)             | `get_group_roles` RO; `add_group_roles` W; `remove_group_roles` D                              |
+| `folder_management` (get, list, create, update, delete) | reads: existing `get_folder`, `search_folders`; `create_or_update_folder` W; `delete_folder` D |
+
+### Secret Server local users (`delinea_mcp/secretserver_users.py`)
+
+| Old tool (actions)                                                                                                     | New tools                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secretserver_local_user_management` (get, create, update, delete, list_sessions, reset_2fa, reset_password, lock_out) | `get_secretserver_local_user` RO; `list_secretserver_user_sessions` RO; `create_or_update_secretserver_local_user` W; `delete_secretserver_local_user` D; `secretserver_local_user_security_action` D (reset_2fa, reset_password, lock_out: all writes) |
+
+### Delinea Platform (`delinea_mcp/user_platform_tools.py`)
+
+| Old tool (actions)                                             | New tools                                                                                                             |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `user_management` (get, create, update, delete, search)        | search: existing `search_users`; `get_platform_user` RO; `create_or_update_platform_user` W; `delete_platform_user` D |
+| `platform_user_management` (deprecated alias)                  | dropped; maps to the `user_management` replacements                                                                   |
+| `platform_role_management` (list, get, create, update, delete) | `get_platform_roles` RO; `create_or_update_platform_role` W; `delete_platform_role` D                                 |
+| `platform_user_role_management` (list, add, remove)            | `get_platform_role_members` RO; `add_platform_role_members` W; `remove_platform_role_members` D                       |
+
+### StrongDM (`delinea_mcp/strongdm_tools.py`)
+
+Grants and role attachments keep the existing policy: they change security
+posture, so they carry `destructiveHint` even when additive.
+
+| Old tool (actions)                                                                        | New tools                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdm_user_management` (list, get, create, onboard, suspend, reactivate, offboard, delete) | `sdm_get_users` RO; `sdm_create_user` D (create, onboard: onboard attaches roles); `sdm_set_user_status` D (suspend, reactivate, offboard); `sdm_delete_user` D |
+| `sdm_role_management` (list, get, list_members, create, delete, add_user, remove_user)    | `sdm_get_roles` RO (list, get, list_members); `sdm_create_role` W; `sdm_delete_role` D; `sdm_add_role_member` D; `sdm_remove_role_member` D                     |
+
+Net: 14 tools removed, 39 added (46 → 71 registered with everything on).
+
+### Reviewed, unchanged
+
+- `platform_reports`: `run` is an HTTP POST, but it is a query that changes
+  nothing except a "View" audit entry. Same for
+  `get_platform_role_members` (POSTs a RunReport). Kept read-only; noted as a
+  review risk in the PR.
+- `run_report`: POST + DELETE of a temporary report; already annotated as a
+  non-destructive write, already links the API docs.
+- `sdm_access_requests`: list/status, both reads.
+
+---
+
+## Verifiable Behaviors
+
+| #   | Requirement | Given                                           | When                             | Then                                                                                                             | Verify by                          |
+| --- | ----------- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | R1          | all tools enabled, StrongDM enabled             | `list_tools()`                   | no tool has an `action` parameter whose values span read and write; none of the 14 old names is listed           | unit                               |
+| 2   | R3          | all tools enabled                               | `list_tools()`                   | every tool has `title` and annotation `title`; every tool has `readOnlyHint: true` or explicit `destructiveHint` | unit                               |
+| 3   | R2          | new read tool, e.g. `get_roles` with no id      | called                           | sends `GET /v1/roles` with paging; with `role_id`, `GET /v1/roles/{id}`                                          | unit                               |
+| 4   | R2          | `create_or_update_role` with `role_id`          | called                           | `PATCH /v1/roles/{id}` then verifying `GET`; without `role_id`, `POST /v1/roles`                                 | unit                               |
+| 5   | R2          | each destructive tool                           | called with valid args           | issues only its delete/remove request                                                                            | unit                               |
+| 6   | R5          | `enabled_tools: ["role_management"]`            | server starts                    | `get_roles` and `create_or_update_role` registered; warning logged naming the replacements                       | unit                               |
+| 7   | R5          | plugin Custom list `folder_management`          | server starts                    | `create_or_update_folder`, `delete_folder`, `get_folder`, `search_folders` registered                            | unit                               |
+| 8   | R5          | read-only preset                                | server starts                    | new RO tools included; no W or D tool included                                                                   | unit                               |
+| 9   | R6          | every tool whose schema has a `data` property   | description inspected            | contains an `https://` doc URL and the endpoint path                                                             | unit                               |
+| 10  | R9          | release files                                   | inspected                        | `pyproject.toml` version == plugin `version` == pinned `uvx` version == 3.0.0                                    | unit (extend existing plugin test) |
+| 11  | R1-R3       | live test tenant                                | each new SS/Platform tool called | success response; writes clean up after themselves                                                               | integration                        |
+| 12  | R7          | MCP Inspector `tools/list` against stdio server | run                              | 71 tools with expected titles/annotations                                                                        | manual                             |
+
+Ambiguous rows for plan review:
+
+- Row 7: should an old read-and-write name also expand to the reused existing
+  read tools (`get_folder`, `search_folders`, `search_users`)? Proposed: yes,
+  so the user keeps every capability the old tool had.
+- Row 8: the read-only preset grows (role/group/membership reads join it).
+  Proposed: accept; they are reads.
+
+---
+
+## Architecture Approach
+
+Thin public wrappers over the existing logic. Each old function becomes a
+private helper (`role_management` → `_role_management`) that keeps its
+`action` dispatch, verification `GET`s and error handling. Each new tool is a
+short public function with its own signature and docstring that calls the
+helper with a fixed action. The dispatch code is already tested; the wrappers
+only fix the action, so no request logic is rewritten.
+
+**Key Design Decisions:**
+
+- Wrappers over rewrite: smallest diff, keeps the tested request paths and
+  `{"result", "verification"}` shapes unchanged.
+- Legacy-name map lives next to `TOOL_ANNOTATIONS` in `annotations.py`
+  (`LEGACY_TOOL_NAMES: dict[str, tuple[str, ...]]`), expanded once in
+  `server._select_tools`, so every allowlist source (config.json, env, plugin
+  Custom list) goes through one place.
+- Reuse existing reads rather than adding `list_folders`/`search_platform_users`
+  duplicates.
+- Doc URLs: Secret Server REST API reference
+  (`https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/index.htm`,
+  already cited by `run_report`), Delinea Platform API reference and StrongDM
+  SDK reference. Platform and StrongDM URLs to be verified in Phase 0 before
+  use; no unverified URL goes into a description.
+
+---
+
+## Implementation Plan
+
+**TDD Approach:** Each phase follows Red-Green-Refactor. Write tests BEFORE
+implementation code.
+
+### Phase 0: Verify API doc URLs
+
+**Complexity:** Simple (proposed)
+
+- Fetch and confirm the Secret Server REST API reference, the Delinea Platform
+  API reference (identity users, roles, reports) and the StrongDM Python SDK
+  reference. Record the confirmed URLs in context.md.
+- No code change.
+
+### Phase 1: Guardrails and legacy-name expansion
+
+**Complexity:** Moderate (proposed)
+
+**Tests First (RED):**
+
+- `tests/test_tool_contract.py` (new): with all tools + StrongDM registered,
+  assert behaviors 1, 2 and 9 (no old names, every tool titled and hinted,
+  every `data`-taking tool links docs).
+- `tests/test_plugin_tool_defaults.py`: behaviors 6, 7, 8.
+
+**Implementation (GREEN):**
+
+- Files: `delinea_mcp/annotations.py`, `delinea_mcp/server.py`
+- Add `LEGACY_TOOL_NAMES`; expand in `_select_tools`; log one warning per
+  legacy name used.
+
+**Verify:** contract tests stay RED until Phases 2-4 land (expected);
+expansion tests GREEN; full suite otherwise green.
+
+### Phase 2: Secret Server split
+
+**Complexity:** Moderate (proposed)
+
+**Tests First (RED):**
+
+- Per new tool: request method/path/body test (behaviors 3-5), following the
+  mocked-session pattern in `tests/test_management.py`.
+
+**Implementation (GREEN):**
+
+- Files: `delinea_mcp/tools.py`, `delinea_mcp/annotations.py`
+- Rename the six helpers to private, add 16 wrappers, update `TOOLS`,
+  `TOOL_ANNOTATIONS`, `TOOL_TITLES`.
+- Move existing tests that call the old public names to the helpers or the
+  new tools (`test_management.py`, `test_new_flows.py`,
+  `test_tools_errors.py`, `test_coverage_fill.py`, `test_tool_guard.py`).
+
+**Verify:** new tests GREEN; full suite green.
+
+### Phase 3: Local users and Platform split
+
+**Complexity:** Moderate (proposed)
+
+- Same pattern for `secretserver_users.py` (5 tools) and
+  `user_platform_tools.py` (9 tools; drop `platform_user_management`).
+- Files: those two modules, `annotations.py`, `tests/test_user_platform_tools.py`,
+  `tests/test_v2_review_fixes.py`, `tests/test_register.py`.
+
+### Phase 4: StrongDM split
+
+**Complexity:** Moderate (proposed)
+
+- Same pattern for `strongdm_tools.py` (9 tools). The `confirm` + `comment`
+  preview flow stays on every StrongDM write tool.
+- Files: `strongdm_tools.py`, `annotations.py`, `tests/test_strongdm_tools.py`.
+
+### Phase 5: Doc links, docs, release metadata
+
+**Complexity:** Simple (proposed)
+
+**Tests First (RED):** behavior 10 (versions 3.0.0).
+
+**Implementation (GREEN):**
+
+- Add endpoint + verified doc URL to each new tool's docstring (required for
+  `data`-taking tools, Phase 1 contract test enforces it).
+- Update `README.md` tool tables, `docs/claude-remote-connector.md`,
+  `docs/openwebui-admin.md`, `docs/strongdm.md`, `AGENTS.md`, plugin
+  `userConfig` descriptions if they name tools, plugin skills if they name
+  tools.
+- `CHANGELOG.md`: 3.0.0 entry with the old → new table.
+- Bump `pyproject.toml`, plugin `version`, pinned `uvx` version; regenerate
+  `uv.lock` / `requirements.txt` if the version is recorded there.
+
+**Verify:** `claude plugin validate ./plugins/delinea`; `trunk fmt && trunk
+check --fix`; full suite green.
+
+### Phase 6: Live verification
+
+**Complexity:** Moderate (proposed)
+
+- Update `tests/integration/test_tools_live.py`,
+  `tests/integration/test_platform_live.py`,
+  `tests/integration/test_stdio_e2e_live.py` to the new names; run against the
+  plugin test tenant (`.env.test-tenant.local`).
+- MCP Inspector `tools/list` and one `tools/call` per new tool (behavior 12);
+  install the plugin locally and confirm Claude Code shows every tool with its
+  title.
+
+---
+
+## Testing Strategy
+
+**Test Coverage Target:** 80%+ for new code.
+
+**Unit Tests:** request shape per new tool; missing-id errors on get/update/
+delete; legacy expansion from each allowlist source; contract test over the
+full registered tool list.
+
+**Integration Tests:** live tenant round trip for every Secret Server and
+Platform tool (create → read → delete on throwaway objects). StrongDM covered
+by unit tests only (no live StrongDM tenant).
+
+**Manual Testing:** MCP Inspector; plugin install in Claude Code with
+Read-only, All tools and Custom presets; confirm destructive tools prompt and
+read tools don't.
+
+---
+
+## Security Considerations
+
+- [x] **Authentication/Authorization:** unchanged sign-in. The split changes
+      which calls Claude Code auto-approves: reads stay auto-approvable, deletes
+      always prompt, creates/updates no longer carry the destructive hint. Review
+      each W/D assignment.
+- [x] **Input Validation:** existing helper validation (required ids, JSON
+      parsing) runs unchanged under the wrappers; wrappers add none.
+- [x] **Data Exposure:** password masking in local-user create/update/reset
+      (`masked`) stays in the helper; must remain on the new write tools. Contract
+      test does not cover this; existing masking tests must move with the tools.
+- [x] **Secrets Management:** no change.
+- [x] **API Security:** legacy expansion must never widen access: an old name
+      expands only to its own replacements, and the read-only preset still
+      selects by `readOnlyHint` only.
+
+---
+
+## Critical Paths
+
+| Path / Component                                 | Why critical                                          | Review level     |
+| ------------------------------------------------ | ----------------------------------------------------- | ---------------- |
+| `delinea_mcp/annotations.py`                     | hints drive auto-approval in Claude                   | security-focused |
+| `delinea_mcp/server.py` `_select_tools`          | allowlist and preset selection; must not widen access | security-focused |
+| `delinea_mcp/secretserver_users.py`              | password masking on create/update/reset               | security-focused |
+| `delinea_mcp/strongdm_tools.py`                  | access grants; confirm/comment gate                   | security-focused |
+| `delinea_mcp/tools.py`, `user_platform_tools.py` | mechanical wrappers                                   | standard         |
+| `plugins/delinea/.claude-plugin/plugin.json`     | version pin; directory reads it                       | standard         |
+
+---
+
+## Database Changes
+
+N/A: no schema or stored data.
+
+---
+
+## Rollback Strategy
+
+**Immediate (release fails):** don't publish; `release/current` only moves
+after a successful PyPI publish, so the directory stays on 2.0.0.
+
+**Delayed (issue after 3.0.0 ships):** publish 3.0.1 with the fix, or yank
+3.0.0 from PyPI and reset the plugin pin to 2.0.0 in a new release commit
+(`release/current` only fast-forwards, so rollback is a forward commit).
+Users who pinned old names in config keep working via the legacy map either
+way.
+
+---
+
+## Success Criteria
+
+- [ ] All requirements met
+- [ ] Contract test proves no mixed tool and full annotations
+- [ ] All tests pass; no regressions from baseline (478 passed, 1 deselected)
+- [ ] New code has 80%+ test coverage
+- [ ] No tests skipped to hide failures
+- [ ] Security considerations addressed
+- [ ] Rollback strategy documented
+- [ ] Live tenant run passes for SS and Platform tools
+- [ ] `claude plugin validate` passes
+- [ ] Docs and CHANGELOG updated
