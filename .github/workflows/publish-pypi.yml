@@ -38,10 +38,13 @@ jobs:
     name: build-distributions
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      stable: ${{ steps.versions.outputs.stable }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
       - name: check-versions-match
+        id: versions
         # The plugin pins `uvx delinea-mcp==<version>`; a mismatch would ship
         # a plugin that launches a different server than this release.
         env:
@@ -62,6 +65,8 @@ jobs:
           if [ "$EVENT_NAME" = "release" ]; then
             test "$RELEASE_TAG" = "v$pkg"
           fi
+          stable=$(uv run scripts/version_is_stable.py "$pkg")
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
       - name: build
         run: uv build
       - name: smoke-test-wheel
@@ -87,3 +92,20 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           repository-url: ${{ (github.event_name == 'release' || inputs.repository == 'pypi') && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+  update-release-branch:
+    # The Claude plugin directory tracks the `release/current` branch, so it
+    # only sees plugin versions whose pinned delinea-mcp is already on PyPI.
+    # Pre-release versions stay off it, including on manual runs. A plain
+    # (non-force) push refuses to move the branch anywhere but forward.
+    name: update-release-branch
+    needs: [build, publish]
+    if: needs.build.outputs.stable == 'true' && ((github.event_name == 'release' && !github.event.release.prerelease) || inputs.repository == 'pypi')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - run: git push origin "${GITHUB_SHA}:refs/heads/release/current"

@@ -28,14 +28,14 @@ manage folders, users, groups, roles and access requests.
 
 <!-- markdownlint-disable MD013 -->
 
-| Requirement                                                   | Why                                                                                                                           | How you get it                                                                                                                                        |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code 2.1.271 or later                                  | The MCP server runs on your machine. Claude chat on the web and mobile doesn't load local servers; the skills load everywhere | [Install Claude Code](https://code.claude.com/docs/en/setup). Earlier versions can't show the plugin's Tool access picker                             |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Provides `uvx`, which starts the server                                                                                       | Run `/delinea:setup`, or install it yourself: `brew install uv`, `winget install --id=astral-sh.uv -e`, `pipx install uv`, or uv's official installer |
-| Python 3.13                                                   | The server's runtime                                                                                                          | uv downloads it automatically. Where downloads are blocked, install Python 3.13 yourself and uv uses it                                               |
-| Network access to PyPI                                        | First start of each version downloads `delinea-mcp`                                                                           | Allow `pypi.org` and `files.pythonhosted.org`. Behind a TLS-inspecting proxy, set `UV_NATIVE_TLS=1`                                                   |
-| A Delinea Platform tenant and service account                 | Signing in. The plugin finds your Secret Server from the Platform                                                             | A `<tenant>.delinea.app` tenant and a service account with only the permissions you want Claude to have                                               |
-| Or: a standalone Secret Server account                        | Only for a Secret Server that isn't on the Delinea Platform (Cloud or on-premises)                                            | A dedicated **Application Account**. Secret Server 12.1+ blocks password sign-in for regular users by default                                         |
+| Requirement                                                   | Why                                                                                                                           | How you get it                                                                                                                                                              |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code 2.1.271 or later                                  | The MCP server runs on your machine. Claude chat on the web and mobile doesn't load local servers; the skills load everywhere | [Install Claude Code](https://code.claude.com/docs/en/setup). Earlier versions can't show the plugin's Tool access picker                                                   |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Provides `uvx`, which starts the server                                                                                       | Run `/delinea:setup`, or install it yourself: `brew install uv`, `winget install --id=astral-sh.uv -e`, `pipx install uv`, or uv's official installer                       |
+| Python 3.13                                                   | The server's runtime                                                                                                          | If Python 3.13 isn't installed, uv downloads it from GitHub (`astral-sh/python-build-standalone`). Where downloads are blocked, install Python 3.13 yourself and uv uses it |
+| Network access to PyPI                                        | First start of each version downloads `delinea-mcp`                                                                           | Allow `pypi.org` and `files.pythonhosted.org`. Behind a TLS-inspecting proxy, set `UV_NATIVE_TLS=1`                                                                         |
+| A Delinea Platform tenant and service account                 | Signing in. The plugin finds your Secret Server from the Platform                                                             | A `<tenant>.delinea.app` tenant and a service account with only the permissions you want Claude to have                                                                     |
+| Or: a standalone Secret Server account                        | Only for a Secret Server that isn't on the Delinea Platform (Cloud or on-premises)                                            | A dedicated **Application Account**. Secret Server 12.1+ blocks password sign-in for regular users by default                                                               |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -119,9 +119,11 @@ reports (or the Secret Server URL you set instead), using the credentials
 you provide.
 It sends no data to Delinea or any other third party, and it collects no
 telemetry. Tool results that you or Claude request are shown to Claude and
-become part of your conversation. Credential handoff files are written
-to a private temporary folder and are deleted when they're used, after 15
-minutes, or when the server shuts down. The startup check only looks for
+become part of your conversation. To start the server, `uvx` downloads
+`delinea-mcp` from PyPI the first time each version runs. If Python 3.13
+isn't installed, `uvx` also downloads it from GitHub. Credential handoff
+files are written to a private temporary folder and are deleted when
+they're used, after 15 minutes, or when the server shuts down. The startup check only looks for
 `uvx` on your machine; `/delinea:setup` installs nothing until you approve
 it, and then contacts only your chosen package source (Homebrew, WinGet,
 Scoop, PyPI, or astral.sh for uv's official installer).
