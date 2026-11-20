@@ -517,7 +517,7 @@ with their organisation's identity provider. Current safeguards:
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-## Privacy
+## Privacy Policy
 
 The server connects only to the Delinea endpoints you configure and sends
 no telemetry. Delinea's privacy policy is at

@@ -111,7 +111,7 @@ in plaintext unless that setting is on.
   after you approve a confirmation prompt that the server sends to your
   client.
 
-## Data and network use
+## Privacy policy
 
 The MCP server runs on your machine and connects only to the Delinea
 Platform URL you configure and the Secret Server that your Platform tenant
@@ -128,7 +128,8 @@ they're used, after 15 minutes, or when the server shuts down. The startup check
 it, and then contacts only your chosen package source (Homebrew, WinGet,
 Scoop, PyPI, or astral.sh for uv's official installer).
 
-Privacy policy: <https://delinea.com/privacy-policy>
+Delinea's full privacy policy, including how to contact Delinea about
+privacy, is at <https://delinea.com/privacy-policy>.
 
 ## Support
 
