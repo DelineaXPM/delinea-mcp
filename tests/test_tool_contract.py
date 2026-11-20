@@ -9,6 +9,7 @@ target API's documentation.
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 from mcp.server.mcpserver import MCPServer
@@ -69,7 +70,26 @@ def test_request_body_tools_link_api_docs(all_tools):
             assert "https://" in (tool.description or ""), tool.name
 
 
-def test_legacy_names_expand_to_registered_tools(all_tools):
+def test_tool_names_fit_the_limit(all_tools):
+    assert all(len(t.name) <= 64 for t in all_tools)
+
+
+# Descriptions must say what a tool does, not tell Claude how to behave.
+DIRECTIVE = re.compile(
+    r"\byou must\b|\balways\b|\bcall this only\b|\bbefore calling\b"
+    r"|\bcall ``\w+`` first\b|\bprefer\b|\bverify .* with the (user|caller)\b"
+    r"|:func:|:mod:|\b_[a-z]\w+\(?`",
+    re.IGNORECASE,
+)
+
+
+def test_descriptions_do_not_direct_claude(all_tools):
+    found = {
+        t.name: m.group(0)
+        for t in all_tools
+        if (m := DIRECTIVE.search(t.description or ""))
+    }
+    assert not found
     names = {t.name for t in all_tools}
     for old, new in LEGACY_TOOL_NAMES.items():
         assert set(new) <= names, old
