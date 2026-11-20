@@ -70,17 +70,17 @@ def test_registered_tool_reports_uninitialised_session(monkeypatch):
 
 def test_registered_tool_reports_invalid_json(monkeypatch):
     mcp = RecordingMCP()
-    user_platform_tools.register(mcp, {"user_management"})
+    user_platform_tools.register(mcp, {"update_platform_user"})
     monkeypatch.setattr(user_platform_tools, "_build_headers", lambda: {})
-    result = mcp.tools["user_management"](action="get", user_id="u", data="{not json")
+    result = mcp.tools["update_platform_user"](user_id="u", data="{not json")
     assert result == {"error": "Invalid JSON data"}
 
 
 def test_registered_ss_local_tool_reports_uninitialised_session(monkeypatch):
     mcp = RecordingMCP()
-    secretserver_users.register(mcp, {"secretserver_local_user_management"})
+    secretserver_users.register(mcp, {"get_secretserver_local_user"})
     monkeypatch.setattr(SessionManager, "_session", None)
-    result = mcp.tools["secretserver_local_user_management"](action="get", user_id=1)
+    result = mcp.tools["get_secretserver_local_user"](user_id=1)
     assert set(result) == {"error"}
 
 
@@ -352,24 +352,14 @@ async def test_every_registered_tool_schema_accepts_guard_error_payload():
 # --- SDK input-schema interplay --------------------------------------------
 #
 # The SDK builds a tool's ``inputSchema`` from its signature. A variadic
-# signature becomes required ``args``/``kwargs`` fields, which is how the
-# deprecated ``platform_user_management`` alias shipped a schema that
-# rejected every real call (2.0.0rc1).
+# signature becomes required ``args``/``kwargs`` fields, which shipped a
+# schema that rejected every real call (2.0.0rc1).
 
 
 async def _input_schemas() -> dict[str, dict]:
     async with Client(_server_with_all_tools()) as client:
         listed = (await client.list_tools()).tools
     return {tool.name: tool.input_schema for tool in listed}
-
-
-@pytest.mark.asyncio
-async def test_platform_user_management_schema_matches_user_management():
-    schemas = await _input_schemas()
-    alias = schemas["platform_user_management"]
-    canonical = schemas["user_management"]
-    assert alias["properties"] == canonical["properties"]
-    assert alias.get("required") == canonical.get("required") == ["action"]
 
 
 @pytest.mark.asyncio
@@ -381,26 +371,6 @@ async def test_no_registered_tool_advertises_variadic_parameters():
         if {"args", "kwargs"} & set(schema.get("properties", {}))
     )
     assert not offenders, offenders
-
-
-@pytest.mark.asyncio
-async def test_platform_user_management_alias_accepts_named_arguments(monkeypatch):
-    calls = []
-
-    def fake_user_management(action, user_id=None, data=None, username=None):
-        calls.append((action, user_id, data, username))
-        return {"ok": True}
-
-    monkeypatch.setattr(user_platform_tools, "user_management", fake_user_management)
-    mcp = MCPServer("delinea-test")
-    user_platform_tools.register(mcp, {"platform_user_management"})
-    async with Client(mcp) as client:
-        result = await client.call_tool(
-            "platform_user_management", {"action": "get", "user_id": "u-1"}
-        )
-    assert result.is_error is False
-    assert json.loads(result.content[0].text) == {"ok": True}
-    assert calls == [("get", "u-1", None, None)]
 
 
 @pytest.mark.asyncio

@@ -180,9 +180,9 @@ def run_report(
 ) -> dict:
     """Run a read-only SQL report on Secret Server and return its rows.
 
-    Call ``list_example_reports`` first: it is the reference for this tool
-    and lists the Secret Server database tables, columns, special fields and
-    tested example queries to build *sql_query* from. The query runs through
+    ``list_example_reports`` returns the Secret Server database tables,
+    columns, special fields and tested example queries that *sql_query* is
+    written against. The query runs through
     the Secret Server REST API reports endpoints (``POST /api/v1/reports``,
     ``POST /api/v1/reports/execute``, then ``DELETE /api/v1/reports/{id}``;
     see https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/index.htm),
@@ -195,8 +195,8 @@ def run_report(
     sql_query:
         The SQL query to run. Secret Server only accepts a single read-only
         SELECT statement as custom report SQL (no IF, WHILE, BEGIN ... END,
-        TRY/CATCH, PRINT, temporary tables or database-qualified names); call
-        ``list_example_reports`` for the rules, table list and sample queries.
+        TRY/CATCH, PRINT, temporary tables or database-qualified names);
+        ``list_example_reports`` has the rules, table list and sample queries.
     report_name:
         Optional name for the temporary report.
     max_rows:
@@ -236,7 +236,13 @@ def run_report(
 
 
 def check_secret_template(template_id: int) -> dict:  # pragma: no cover
-    """Returns the template details for the given ID."""
+    """Get a secret template by ID: its fields and their settings.
+
+    Calls ``GET /api/v1/secret-templates/{id}``. Each field in ``fields`` has
+    its ``secretTemplateFieldId``, slug (``fieldSlugName``), ``isPassword``
+    and ``isRequired``; these are the IDs and slugs the secret create and
+    update tools take.
+    """
     logger.debug("check_secret_template(%s)", template_id)
     session = SessionManager.get()
     try:
@@ -529,17 +535,11 @@ def get_secret_environment_variable(
     the Secret Server REST API with the server's short-lived access token
     (bash needs curl and jq; powershell needs nothing extra).
 
-    Before retrieving a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being accessed.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -549,11 +549,9 @@ def get_secret_environment_variable(
         Target shell environment. Supported values are ``"bash"``,
         ``"powershell"`` and ``"cmd"``.
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being accessed and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -660,12 +658,10 @@ def create_secret_with_generated_password(
     password requirements and is **never returned** to the caller.  The model
     receives only the secret's ID and safe metadata.
 
-    Before calling, use ``check_secret_template(template_id)`` to discover:
-
-    * Which fields exist and their ``secretTemplateFieldId`` values.
-    * Which fields have ``isPassword=True`` (use their ID as
-      *password_field_id*).
-    * Which fields have ``isRequired=True`` (must be provided in *items*).
+    ``check_secret_template(template_id)`` lists the template's fields:
+    their ``secretTemplateFieldId`` values, which field is the password
+    (``isPassword=True``, its ID is *password_field_id*) and which are
+    required (``isRequired=True``, they must be in *items*).
 
     Parameters
     ----------
@@ -687,10 +683,9 @@ def create_secret_with_generated_password(
     site_id:
         Optional distributed engine site identifier.
     comment:
-        Audit comment recorded against the new secret.  Must explain
-        **why** this secret is being created and, if the action is tied
-        to a formal request (e.g. a Jira ticket, incident, or change
-        request), that reference must be included.
+        Audit comment recorded against the new secret: the reason for
+        creating it, including any ticket, incident or change request
+        number.
 
     Returns
     -------
@@ -814,17 +809,11 @@ def set_secret_field_environment_variable(
     ``create_secret_with_generated_password``), then use this tool to populate
     external fields.
 
-    Before modifying a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being modified.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -842,11 +831,9 @@ def set_secret_field_environment_variable(
         * ``"file:/path/to/file"`` — read from a file
         * ``"stdin"`` — prompt the user to type/paste (default)
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being modified and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -1014,17 +1001,11 @@ def update_secret_generated_password(
     ``PUT /v1/secrets/{id}/fields/{slug}``.  The model **never** sees the old
     or new password value.
 
-    Before modifying a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being modified.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -1037,11 +1018,9 @@ def update_secret_generated_password(
         ``secretTemplateFieldId`` of the password field.  Used to generate a
         compliant password via the template rules.
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being modified and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -1306,10 +1285,9 @@ async def reveal_secret_field(
 ) -> dict:
     """Return one secret field's plaintext value after the human approves.
 
-    Call this only when the user has explicitly asked to *see* a value that
-    ``get_secret`` masked. If the user only needs the credential to run a
-    command, use ``get_secret_environment_variable`` instead, which keeps the
-    value out of the conversation.
+    Reveals a value that ``get_secret`` masked, for a user who asked to
+    see it. ``get_secret_environment_variable`` hands a credential to a
+    command without the value entering the conversation.
 
     Before releasing anything, the server asks the user directly for
     confirmation in their MCP client (elicitation); a model cannot answer
@@ -1383,7 +1361,7 @@ def get_folder(id: int, all_children: bool = False) -> dict:
     all_children:
         When ``True`` include ``childFolders`` with the full descendant
         tree, which can be large. To page through direct children only, use
-        ``folder_management("list", params={"filter.parentFolderId": id})``.
+        ``search_folders(query="", parent_folder_id=id)``.
 
     Returns
     -------
@@ -1403,14 +1381,18 @@ def get_folder(id: int, all_children: bool = False) -> dict:
 def search_secrets(
     query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
 ) -> dict:
-    """Search or look up secrets.
+    """Search secrets by name.
+
+    Calls ``GET /api/v2/secrets?filter.searchText=<query>``, or with
+    *lookup* ``GET /api/v1/secrets/lookup``, which returns only each
+    secret's ID and name. Field values are not returned.
 
     Parameters
     ----------
     query:
         Search text.
     lookup:
-        If ``True``, perform a metadata lookup instead of a full search.
+        If ``True``, return only IDs and names (``/api/v1/secrets/lookup``).
     take:
         Page size (default 50, capped at 500).
     skip:
@@ -1419,7 +1401,7 @@ def search_secrets(
     Returns
     -------
     dict
-        JSON response from the appropriate search endpoint.
+        The Secret Server search response (``records``, paging fields).
     """
     logger.debug("search_secrets(%s, lookup=%s)", query, lookup)
     session = SessionManager.get()
@@ -1433,7 +1415,11 @@ def search_secrets(
 
 
 def search_folders(
-    query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+    query: str,
+    lookup: bool = False,
+    take: int = DEFAULT_PAGE_SIZE,
+    skip: int = 0,
+    parent_folder_id: int | None = None,
 ) -> dict:
     """Search or look up folders.
 
@@ -1447,6 +1433,8 @@ def search_folders(
         Page size (default 50, capped at 500).
     skip:
         Number of records to skip, for paging with ``take``.
+    parent_folder_id:
+        Only return direct children of this folder.
 
     Returns
     -------
@@ -1458,6 +1446,8 @@ def search_folders(
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
         params = _paged({"filter.searchText": query}, take, skip)
+        if parent_folder_id is not None:
+            params["filter.parentFolderId"] = parent_folder_id
         return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search folders %s", query)
@@ -1552,10 +1542,9 @@ def handle_access_request(
     response_comment:
         Comment explaining the decision.
     start_date, expiration_date:
-        Optional ISO date strings used when approving the request. If these
-        values are present in the object returned by
-        :func:`get_pending_access_requests`, include them by default unless
-        overridden.
+        Optional ISO date strings for the access window when approving.
+        ``get_pending_access_requests`` returns the requested window for
+        each request.
 
     Returns
     -------
@@ -2134,6 +2123,208 @@ def folder_management(
         return {"error": str(exc)}
 
 
+# The *_management functions above are not registered as tools: each mixes
+# reads and writes, which the Claude directory rejects. These tools split
+# them into read, write and destructive operations.
+
+
+def get_roles(role_id: int | None = None, params: dict | None = None) -> dict:
+    """List Secret Server roles, or get one role by ID.
+
+    Calls ``GET /api/v1/roles`` (paged; *params* adds query filters such as
+    ``filter.searchText``) or, with *role_id*, ``GET /api/v1/roles/{id}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if role_id is None:
+        return role_management("list", params=params)
+    return role_management("get", role_id=role_id)
+
+
+def create_role(data: dict) -> dict:
+    """Create a Secret Server role.
+
+    Calls ``POST /api/v1/roles``; *data* needs ``name`` and ``enabled``.
+    Returns ``{"result": ..., "verification": ...}``, where verification is
+    a follow-up GET of the role. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return role_management("create", data=data)
+
+
+def update_role(role_id: int, data: dict) -> dict:
+    """Update a Secret Server role, replacing its fields with *data*.
+
+    Calls ``PATCH /api/v1/roles/{id}``. Fields left out of *data* are
+    overwritten, so *data* is the full role as ``get_roles`` returns it with
+    the changes applied; ``enabled: false`` disables the role for every
+    member. Returns ``{"result": ..., "verification": ...}``. Secret Server
+    REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return role_management("update", role_id=role_id, data=data)
+
+
+def get_user_roles(user_id: int) -> dict:
+    """List the roles assigned to a Secret Server user.
+
+    Calls ``GET /api/v1/users/{id}/roles``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("get", user_id)
+
+
+def add_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server user.
+
+    Calls ``POST /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("add", user_id, role_ids)
+
+
+def remove_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server user.
+
+    Calls ``DELETE /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("remove", user_id, role_ids)
+
+
+def get_groups(group_id: int | None = None, params: dict | None = None) -> dict:
+    """List Secret Server groups, or get one group by ID.
+
+    Calls ``GET /api/v1/groups`` (paged; *params* adds query filters such as
+    ``filter.searchText``) or, with *group_id*, ``GET /api/v1/groups/{id}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if group_id is None:
+        return group_management("list", params=params)
+    return group_management("get", group_id=group_id)
+
+
+def create_group(data: dict) -> dict:
+    """Create a Secret Server group.
+
+    Calls ``POST /api/v1/groups``. *data* needs ``name`` and ``enabled``;
+    optional keys include ``adGuid``, ``domainId``, ``hasGroupOwners``,
+    ``isPlatform``, ``ownerGroupIds``, ``ownerGroupNames``, ``ownerUserIds``,
+    ``ownerUserNames``, ``synchronized`` and ``synchronizeNow``. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("create", data=data)
+
+
+def delete_group(group_id: int) -> dict:
+    """Delete a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}``, then reads the group back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("delete", group_id=group_id)
+
+
+def get_user_groups(user_id: int) -> dict:
+    """List the groups a Secret Server user belongs to.
+
+    Calls ``GET /api/v1/users/{id}/groups``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("get", user_id)
+
+
+def add_user_to_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Add a Secret Server user to groups.
+
+    Calls ``POST /api/v1/users/{id}/groups`` with ``{"groupIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("add", user_id, group_ids)
+
+
+def remove_user_from_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Remove a Secret Server user from groups.
+
+    Calls ``DELETE /api/v1/users/{id}/groups?groupIds=...``. Secret Server
+    REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("remove", user_id, group_ids)
+
+
+def get_group_roles(group_id: int) -> dict:
+    """List the roles assigned to a Secret Server group.
+
+    Calls ``GET /api/v1/groups/{id}/roles``. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("list", group_id)
+
+
+def add_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server group.
+
+    Calls ``POST /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("add", group_id, role_ids)
+
+
+def remove_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("remove", group_id, role_ids)
+
+
+def create_folder(data: dict) -> dict:
+    """Create a Secret Server folder.
+
+    Calls ``POST /api/v1/folders``; *data* needs ``folderName``,
+    ``parentFolderId`` (``-1`` for the root) and ``folderTypeId`` (``1``);
+    ``inheritPermissions`` and ``inheritSecretPolicy`` are optional booleans.
+    Returns ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("create", data=data)
+
+
+def update_folder(folder_id: int, data: dict) -> dict:
+    """Update a Secret Server folder, replacing it with *data*.
+
+    Calls ``PUT /api/v1/folders/{id}``. *data* is the full folder as
+    ``get_folder`` returns it with the changes applied; it can rename or move
+    the folder and change its permission and policy inheritance. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("update", folder_id=folder_id, data=data)
+
+
+def delete_folder(folder_id: int) -> dict:
+    """Delete a Secret Server folder.
+
+    Calls ``DELETE /api/v1/folders/{id}``, then reads the folder back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("delete", folder_id=folder_id)
+
+
 def health_check() -> dict:
     """Return the current server health status.
 
@@ -2312,21 +2503,20 @@ def update_secret_fields(
 ) -> dict:
     """Edit non-sensitive fields on an existing secret.
 
-    Composes the read-mutate-verify flow:
+    Runs these requests:
 
     1. ``GET /v1/secrets/{id}/summary`` to check approval / comment
-       requirements via :func:`_check_secret_approval`.
+       requirements.
     2. ``GET /v1/secrets/{id}`` (template lookup) to identify which slugs
        are password fields.
     3. ``PUT /v1/secrets/{id}/fields/{slug}`` per entry in *field_updates*.
     4. ``GET /v1/secrets/{id}/summary`` for verification.
 
     By default, slugs whose template field has ``isPassword=True`` are
-    refused — the model should not see plaintext password values.  Use
-    :func:`set_secret_field_environment_variable` (which emits a shell
-    script that reads the value locally and PUTs it without the value
-    ever passing through the model) for password-class fields, or set
-    ``allow_password_fields=True`` to override (not recommended).
+    refused, so password values don't pass through the conversation.
+    ``set_secret_field_environment_variable`` stores those from the user's
+    machine without the value passing through the model;
+    ``allow_password_fields=True`` lifts the refusal.
 
     Parameters
     ----------
@@ -2334,17 +2524,15 @@ def update_secret_fields(
         Identifier of the secret to update.
     field_updates:
         Mapping of ``field_slug -> new_value`` (or a JSON string).  Use
-        slugs (e.g. ``"notes"``, ``"url"``, ``"hostname"``) discoverable
-        via :func:`check_secret_template`.
+        slugs (e.g. ``"notes"``, ``"url"``, ``"hostname"``) listed by
+        ``check_secret_template``.
     comment:
-        Audit comment recorded against each field update.  Required when
-        the secret has ``requiresComment`` or ``requiresApproval`` set.
-        Must explain **why** the change is being made and reference any
-        related ticket, incident, or change request.
+        Audit comment recorded against each field update: the reason,
+        including any ticket, incident or change request number. Required
+        when the secret has ``requiresComment`` or ``requiresApproval`` set.
     allow_password_fields:
-        Set to ``True`` to permit updating password-class fields.  Doing
-        so means the new value passes through the model — prefer
-        :func:`set_secret_field_environment_variable` for those fields.
+        Set to ``True`` to permit updating password fields. The new value
+        then passes through the conversation.
 
     Returns
     -------
@@ -2506,10 +2694,10 @@ def bulk_user_response(
     .. warning::
         This tool can lock out, disable, or strip 2FA from many users in a
         single call.  It is intended for incident response (e.g. compromised
-        accounts), bulk offboarding, or break-glass restoration.  **Always
-        verify the user_ids list with the caller before invoking** and
-        require an explicit ``confirm=True`` plus a meaningful audit
-        ``comment`` referencing the ticket/incident.
+        accounts), bulk offboarding, or break-glass restoration. Nothing
+        runs without ``confirm=True`` and a non-empty audit ``comment``;
+        with ``confirm=False`` it returns a preview of the steps and
+        target users.
 
     Composes calls to ``POST /v1/bulk-user-operations/*`` endpoints in the
     sequence prescribed by *scenario*.
@@ -2537,9 +2725,8 @@ def bulk_user_response(
     scenario:
         One of the scenario names listed above.
     comment:
-        Required audit comment.  Must reference the ticket/incident and
-        explain *why* this action is being taken.  An empty comment is
-        rejected.
+        Required audit comment: the reason, including any ticket or
+        incident number. An empty comment is rejected.
     confirm:
         Must be set to ``True`` to actually run any destructive scenario.
         ``"unlock"``, ``"reenable"`` and ``"force_logout"`` also require
@@ -2658,12 +2845,24 @@ TOOLS = [
     ("get_secret", get_secret),
     ("reveal_secret_field", reveal_secret_field),
     ("get_folder", get_folder),
-    ("role_management", role_management),
-    ("user_role_management", user_role_management),
-    ("group_management", group_management),
-    ("user_group_management", user_group_management),
-    ("group_role_management", group_role_management),
-    ("folder_management", folder_management),
+    ("get_roles", get_roles),
+    ("create_role", create_role),
+    ("update_role", update_role),
+    ("get_user_roles", get_user_roles),
+    ("add_user_roles", add_user_roles),
+    ("remove_user_roles", remove_user_roles),
+    ("get_groups", get_groups),
+    ("create_group", create_group),
+    ("delete_group", delete_group),
+    ("get_user_groups", get_user_groups),
+    ("add_user_to_groups", add_user_to_groups),
+    ("remove_user_from_groups", remove_user_from_groups),
+    ("get_group_roles", get_group_roles),
+    ("add_group_roles", add_group_roles),
+    ("remove_group_roles", remove_group_roles),
+    ("create_folder", create_folder),
+    ("update_folder", update_folder),
+    ("delete_folder", delete_folder),
     ("health_check", health_check),
     ("search_secrets", search_secrets),
     ("search_folders", search_folders),

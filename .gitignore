@@ -244,3 +244,6 @@ config.json
 
 # Playwright MCP browser snapshots (local tool output)
 .playwright-mcp/
+
+# dev-planning working files (local only)
+.context/

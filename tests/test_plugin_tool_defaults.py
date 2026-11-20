@@ -39,11 +39,15 @@ def fresh(monkeypatch):
 
 
 WRITE_TOOLS = {
-    "folder_management",
+    "create_folder",
+    "update_folder",
+    "delete_folder",
     "update_secret_fields",
     "set_secret_field_environment_variable",
     "create_secret_with_generated_password",
-    "user_management",
+    "create_platform_user",
+    "update_platform_user",
+    "delete_platform_user",
     "bulk_user_response",
 }
 
@@ -67,8 +71,8 @@ def test_blank_setting_means_every_tool(fresh, monkeypatch):
 
 def test_env_allowlist_narrows(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_MCP_PLUGIN", "1")
-    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", " get_secret , folder_management ,")
-    assert fresh() == {"get_secret", "folder_management"}
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", " get_secret , delete_folder ,")
+    assert fresh() == {"get_secret", "delete_folder"}
 
 
 def test_env_all_enables_everything(fresh, monkeypatch):
@@ -141,6 +145,10 @@ READ_ONLY_EXPECTED = {
     "get_secret_environment_variable",
     "search_users",
     "platform_reports",
+    "get_roles",
+    "get_groups",
+    "get_user_roles",
+    "get_platform_user",
 }
 
 
@@ -176,16 +184,50 @@ def test_all_preset_ignores_custom_list(fresh, monkeypatch):
 
 def test_read_only_preset_ignores_custom_list(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_TOOL_PRESET", "Read-only")
-    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "folder_management")
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "delete_folder")
     names = fresh()
-    assert "folder_management" not in names
+    assert "delete_folder" not in names
     assert "get_secret" in names
 
 
 def test_custom_preset_uses_list(fresh, monkeypatch):
     monkeypatch.setenv("DELINEA_TOOL_PRESET", "Custom")
-    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "get_secret, folder_management")
-    assert fresh() == {"get_secret", "folder_management"}
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "get_secret, delete_folder")
+    assert fresh() == {"get_secret", "delete_folder"}
+
+
+# --------------------------------------------------------------------------- #
+# Pre-3.0 tool names expand to their replacements                             #
+# --------------------------------------------------------------------------- #
+
+
+def test_legacy_name_in_config_expands(fresh, caplog):
+    names = fresh({"enabled_tools": ["role_management"]})
+    assert names == {"get_roles", "create_role", "update_role"}
+    assert "role_management" in caplog.text
+
+
+def test_legacy_name_in_custom_list_keeps_reads(fresh, monkeypatch):
+    monkeypatch.setenv("DELINEA_TOOL_PRESET", "Custom")
+    monkeypatch.setenv("DELINEA_ENABLED_TOOLS", "folder_management")
+    assert fresh() == {
+        "get_folder",
+        "search_folders",
+        "create_folder",
+        "update_folder",
+        "delete_folder",
+    }
+
+
+def test_read_only_preset_has_no_write_replacements(fresh, monkeypatch):
+    from delinea_mcp.annotations import LEGACY_TOOL_NAMES, TOOL_ANNOTATIONS
+
+    monkeypatch.setenv("DELINEA_TOOL_PRESET", "Read-only")
+    names = fresh()
+    for new in LEGACY_TOOL_NAMES.values():
+        for name in new:
+            if name in names:
+                assert TOOL_ANNOTATIONS[name].read_only_hint, name
 
 
 @pytest.mark.parametrize(
@@ -282,3 +324,18 @@ def test_manifest_tool_preset_picker_maps_to_presets():
     ]
     env = manifest["mcpServers"]["delinea"]["env"]
     assert env["DELINEA_TOOL_PRESET"] == "${user_config.tool_preset}"
+
+
+def test_plugin_pins_the_package_version():
+    """pyproject, the plugin version and the uvx pin move together."""
+    import pathlib
+    import tomllib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    plugin = json.loads(
+        (root / "plugins/delinea/.claude-plugin/plugin.json").read_text()
+    )
+    assert plugin["version"] == version
+    args = plugin["mcpServers"]["delinea"]["args"]
+    assert f"delinea-mcp=={version}" in args

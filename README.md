@@ -310,25 +310,27 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   incident combinator over the bulk-user operations API. Scenarios:
   `compromise`, `offboard`, `unlock`, `reenable`, `force_logout`; requires
   `confirm=True` plus a non-empty audit comment, and previews when unconfirmed.
-- `role_management(action, role_id=None, data=None, params=None)` - manage roles.
-  `action` may be `list`, `get`, `create` or `update`.
-  Pass optional query parameters with `params` when listing roles. Every
-  `list` action pages with `take` (default 50, max 500) and `skip`.
-  Example: `role_management("update", role_id=3, data={"name": "New Role"})`.
-- `user_role_management(action, user_id, role_ids=None)` - assign or remove roles from a user.
-  `action` is `get`, `add` or `remove` and `role_ids` is a list of role identifiers for add/remove operations.
-- `group_management(action, group_id=None, data=None, params=None)` - handle groups.
-  `action` may be `get`, `list`, `create` or `delete`.
-  Provide `group_id` for get/delete and `data` when creating a group.
-- `folder_management(action, folder_id=None, data=None, params=None)` - manage folders.
-  `action` may be `get`, `list`, `create`, `update` or `delete`.
-  Provide `folder_id` for get, update or delete and supply `data` when creating or updating a folder.
-- `user_group_management(action, user_id, group_ids=None)` - manage group membership for a user.
-  `action` is `get`, `add` or `remove`.
-  Supply a list of `group_ids` when adding or removing membership.
-- `group_role_management(action, group_id, role_ids=None)` - control roles on a group.
-  Use `list`, `add` or `remove` actions.
-  Provide `role_ids` when adding or removing.
+  Roles, groups, folders and membership each have a read tool, a write tool
+  and, where something can be deleted or removed, a separate destructive tool.
+  Before 3.0 each was one `*_management(action, ...)` tool; an old name in
+  `enabled_tools` still enables its replacements. List reads page with `take`
+  (default 50, max 500) and `skip` through `params`.
+
+- Roles: `get_roles(role_id=None, params=None)`,
+  `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, data)`
+  (send the full role from `get_roles` with your changes).
+- User roles: `get_user_roles(user_id)`, `add_user_roles(user_id, role_ids)`,
+  `remove_user_roles(user_id, role_ids)`.
+- Groups: `get_groups(group_id=None, params=None)`, `create_group(data)`,
+  `delete_group(group_id)`.
+- Group membership: `get_user_groups(user_id)`,
+  `add_user_to_groups(user_id, group_ids)`,
+  `remove_user_from_groups(user_id, group_ids)`.
+- Group roles: `get_group_roles(group_id)`, `add_group_roles(group_id, role_ids)`,
+  `remove_group_roles(group_id, role_ids)`.
+- Folders: read with `get_folder` / `search_folders`;
+  `create_folder(data)`, `update_folder(folder_id, data)` (the full folder from
+  `get_folder` with your changes), `delete_folder(folder_id)`.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
 
 ### Delinea Platform users and roles
@@ -337,16 +339,19 @@ Since v1.0.0 the canonical user tools target the Delinea Platform identity
 directory (requires `platform_hostname` + `PLATFORM_SERVICE_*` credentials;
 without them the tools return guidance instead of failing):
 
-- `user_management(action, user_id=None, data=None, username=None)` - Platform
-  user CRUD. `action` accepts `get`, `create`, `update`, `delete` or `search`.
 - `search_users(query)` - search the Platform user directory.
-- `platform_role_management(action, role_id=None, data=None, page_size=100, query="%")` -
-  Platform role CRUD (`list`, `get`, `create`, `update`, `delete`); role
-  mutations are discovery-driven and return guidance on tenants whose API
-  scope doesn't expose them.
-- `platform_user_role_management(action, role_id, user_principals=None)` -
-  `list`, `add` or `remove` users on a Platform role.
-- `platform_user_management(...)` - deprecated alias of `user_management`.
+- `get_platform_user(user_id)`, `create_platform_user(data)`,
+  `update_platform_user(user_id, data)`, `delete_platform_user(user_id)` -
+  Platform users (replace `user_management`).
+- `get_platform_roles(role_name=None, query="", page_size=100)`,
+  `create_platform_role(role_name, description="", enabled=True)`,
+  `update_platform_role(role_name, description, enabled)`,
+  `delete_platform_role(role_name)` - Platform roles. Updating replaces the
+  description and enabled state; built-in roles can't be changed.
+- `get_platform_role_members(role_name)`,
+  `add_platform_role_members(role_name, subject_ids)`,
+  `remove_platform_role_members(role_name, subject_ids)` - assign a role to
+  users or groups by Platform ID.
 
 ### Delinea Platform reports
 
@@ -367,10 +372,14 @@ read-only through the same Platform credentials:
 
 For SS-only deployments without Platform configured:
 
-- `secretserver_local_user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` -
-  the pre-v1.0.0 Secret Server user operations: `get`, `create`, `update`,
-  `delete`, `list_sessions`, `reset_2fa`, `reset_password`, `lock_out`.
-  Example: `secretserver_local_user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
+- `get_secretserver_local_user(user_id)`,
+  `list_secretserver_user_sessions(skip=0, take=20, is_exporting=False)`,
+  `create_secretserver_local_user(data)`,
+  `update_secretserver_local_user(user_id, data)`,
+  `delete_secretserver_local_user(user_id)`.
+- `secretserver_local_user_security_action(action, user_id, data=None)` -
+  `reset_2fa`, `reset_password` or `lock_out`. Example:
+  `secretserver_local_user_security_action("reset_password", 42, {"newPassword": "Pa$$w0rd"})`.
 - `search_secretserver_local_users(query)` - search Secret Server's local user store.
 
 ### StrongDM tools (preview)
@@ -382,7 +391,10 @@ a live SDM organization, and are excluded from the Claude Code plugin.
 Installed via the `strongdm` extra; see
 [docs/strongdm.md](docs/strongdm.md) for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
 (time-boxed just-in-time or standing grants), `sdm_revoke_access`,
-`sdm_user_management` (onboard/offboard flows), `sdm_role_management`,
+`sdm_get_users`, `sdm_create_user` (with optional roles: onboarding),
+`sdm_set_user_status` (suspend/reactivate/offboard), `sdm_delete_user`,
+`sdm_get_roles`, `sdm_create_role`, `sdm_delete_role`, `sdm_add_role_member`,
+`sdm_remove_role_member`,
 `sdm_resource_health`, `sdm_access_requests`, `sdm_activity_report`,
 `sdm_network_status`. Destructive actions are confirm-gated with audit
 comments; ambiguous name matches return candidates without mutating.
@@ -517,7 +529,7 @@ with their organisation's identity provider. Current safeguards:
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-## Privacy
+## Privacy Policy
 
 The server connects only to the Delinea endpoints you configure and sends
 no telemetry. Delinea's privacy policy is at
