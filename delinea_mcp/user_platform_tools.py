@@ -223,8 +223,8 @@ def search_users(query: str) -> dict:
     Calls ``POST /identity/api/Report/RunReport`` with the
     ``user_searchbyname`` canned report.  Returns the raw report payload.
 
-    For SS-only deployments without Platform configured, use
-    :func:`delinea_mcp.secretserver_users.search_secretserver_local_users`.
+    Secret Server deployments without the Platform keep users in Secret
+    Server; ``search_secretserver_local_users`` searches those.
 
     Parameters
     ----------

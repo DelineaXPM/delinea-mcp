@@ -42,10 +42,9 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
 def search_secretserver_local_users(query: str) -> dict:
     """Search local Secret Server users (legacy SS-only deployments).
 
-    Calls ``GET /v1/users?filter.searchText=<query>``.  In Platform-integrated
-    tenants, prefer :func:`delinea_mcp.user_platform_tools.search_users`,
-    which queries Platform's identity directory and is the authoritative
-    user store.
+    Calls ``GET /v1/users?filter.searchText=<query>``. In Platform-integrated
+    tenants the Platform identity directory is the authoritative user store;
+    ``search_users`` searches it.
 
     Parameters
     ----------
