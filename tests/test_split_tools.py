@@ -276,6 +276,21 @@ def test_remove_platform_role_members(perm):
     assert seen == [("PATCH", "/role-memberships/u1/remove-role", body, None)]
 
 
+def test_role_member_timeout_keeps_other_results(monkeypatch):
+    def request(method, url, **kwargs):
+        if "/u2/" in url:
+            raise user_platform_tools.requests.Timeout()
+        return Mock(status_code=204)
+
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    monkeypatch.setattr(user_platform_tools.requests, "request", request)
+    out = user_platform_tools.add_platform_role_members("r", ["u1", "u2", "u3"])
+    results = out["results"]
+    assert results["u1"] == results["u3"] == {"success": True}
+    assert "may or may not have been applied" in results["u2"]["error"]
+
+
 def test_platform_role_tools_report_unconfigured_platform(monkeypatch):
     monkeypatch.setattr(user_platform_tools, "_headers", None)
     monkeypatch.setattr(user_platform_tools, "platform_hostname", None)

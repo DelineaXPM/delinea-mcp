@@ -797,18 +797,30 @@ def _permission_url(path: str) -> str:
 
 
 def _permission_request(method: str, path: str, **kwargs: Any) -> dict:
-    """Call the Permission service; non-2xx responses become ``{"error": ...}``."""
+    """Call the Permission service; failures become ``{"error": ...}``.
+
+    Network errors are returned rather than raised, so a loop over several
+    subjects keeps the results it already has.
+    """
     try:
         headers = _build_headers()
     except RuntimeError as exc:
         return {"error": str(exc)}
-    response = requests.request(
-        method,
-        _permission_url(path),
-        headers=headers,
-        timeout=_DEFAULT_TIMEOUT,
-        **kwargs,
-    )
+    try:
+        response = requests.request(
+            method,
+            _permission_url(path),
+            headers=headers,
+            timeout=_DEFAULT_TIMEOUT,
+            **kwargs,
+        )
+    except requests.Timeout:
+        error = f"Platform permission API timed out on {method} {path}"
+        if method != "GET":
+            error += "; the change may or may not have been applied"
+        return {"error": error}
+    except requests.RequestException as exc:
+        return {"error": f"Platform permission API request failed: {exc}"}
     if response.status_code == 204:
         return {"success": True}
     body = _raw_json(response)
