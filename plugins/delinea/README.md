@@ -8,7 +8,7 @@ manage folders, users, groups, roles and access requests.
 ## What's included
 
 - **The Delinea MCP server** ([`delinea-mcp`](https://pypi.org/project/delinea-mcp/)
-  on PyPI), started on your machine with `uvx --no-config delinea-mcp==2.0.0`.
+  on PyPI), started on your machine with `uvx --no-config delinea-mcp==3.0.0`.
 - **no-secret-visibility skill**: teaches Claude to hand credentials straight
   to the programs that need them, and to reveal a password only after you
   approve it in your client.

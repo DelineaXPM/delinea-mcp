@@ -339,3 +339,17 @@ def test_plugin_pins_the_package_version():
     assert plugin["version"] == version
     args = plugin["mcpServers"]["delinea"]["args"]
     assert f"delinea-mcp=={version}" in args
+    # Same scan as publish-pypi.yml, which stops the release on a stale pin.
+    import re
+
+    stale = {
+        f"{path.relative_to(root)}: {pin}"
+        for base in ("plugins/delinea", "docs")
+        for path in (root / base).rglob("*")
+        if path.is_file()
+        for pin in re.findall(
+            r"delinea-mcp==[0-9][^\s`\"]*", path.read_text(errors="ignore")
+        )
+        if pin != f"delinea-mcp=={version}"
+    }
+    assert not stale
