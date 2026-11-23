@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import server
+from delinea_mcp import secretserver_users, tools
 
 
 def require_credentials():
@@ -27,16 +28,16 @@ def test_health_check_live():
 def test_group_crud_live():
     require_credentials()
     name = unique_name("mcp-group")
-    created = server.group_management("create", data={"name": name, "enabled": True})
+    created = tools.create_group({"name": name, "enabled": True})
     gid = created.get("result", {}).get("id") or created.get("result", {}).get(
         "groupId"
     )
     assert gid
-    fetched = server.group_management("get", group_id=gid)
+    fetched = tools.get_groups(gid)
     assert fetched.get("name") == name
-    roles = server.group_role_management("list", gid)
+    roles = tools.get_group_roles(gid)
     assert isinstance(roles, dict)
-    deleted = server.group_management("delete", group_id=gid)
+    deleted = tools.delete_group(gid)
     assert "error" not in deleted
 
 
@@ -73,25 +74,22 @@ def test_folder_crud_live():
     require_credentials()
     name = unique_name("mcp-folder")
     parent = int(os.getenv("LIVE_FOLDER_ID") or -1)
-    res = server.folder_management(
-        "create",
-        data={
+    res = tools.create_folder(
+        {
             "folderName": name,
             "parentFolderId": parent,
             "folderTypeId": 1,
             "inheritPermissions": True,
             "inheritSecretPolicy": True,
-        },
+        }
     )
     fid = res.get("result", {}).get("id") or res.get("result", {}).get("folderId")
     if not fid:
         pytest.skip(f"folder create failed: {res.get('error', '')[:120]}")
-    current = server.folder_management("get", folder_id=fid)
-    updated = server.folder_management(
-        "update", folder_id=fid, data={**current, "folderName": name + "-u"}
-    )
+    current = server.get_folder(fid)
+    updated = tools.update_folder(fid, {**current, "folderName": name + "-u"})
     assert "error" not in updated
-    deleted = server.folder_management("delete", folder_id=fid)
+    deleted = tools.delete_folder(fid)
     assert "error" not in deleted
 
 
@@ -100,22 +98,29 @@ def test_user_role_group_live():
     user_id = env_var("LIVE_USER_ID")
     role_id = env_var("LIVE_ROLE_ID")
     name = unique_name("mcp-testgrp")
-    group = server.group_management("create", data={"name": name, "enabled": True})
+    group = tools.create_group({"name": name, "enabled": True})
     gid = group.get("result", {}).get("id") or group.get("result", {}).get("groupId")
     assert gid
-    server.user_role_management("add", int(user_id), [int(role_id)])
-    server.user_group_management("add", int(user_id), [gid])
-    server.group_role_management("add", gid, [int(role_id)])
-    server.group_role_management("remove", gid, [int(role_id)])
-    server.user_group_management("remove", int(user_id), [gid])
-    server.user_role_management("remove", int(user_id), [int(role_id)])
-    server.group_management("delete", group_id=gid)
+    steps = [
+        tools.add_user_roles(int(user_id), [int(role_id)]),
+        tools.add_user_to_groups(int(user_id), [gid]),
+        tools.add_group_roles(gid, [int(role_id)]),
+        tools.get_user_roles(int(user_id)),
+        tools.get_user_groups(int(user_id)),
+        tools.remove_group_roles(gid, [int(role_id)]),
+        tools.remove_user_from_groups(int(user_id), [gid]),
+        tools.remove_user_roles(int(user_id), [int(role_id)]),
+        tools.delete_group(gid),
+    ]
+    # Secret Server refuses every role removal when the account's admin
+    # rights come from the Platform rather than a Secret Server role.
+    errors = [s["error"] for s in steps if isinstance(s, dict) and "error" in s]
+    assert all("API_RoleAdministrationNoLockout" in e for e in errors), errors
 
 
-def test_secretserver_local_user_management_sessions_live():
-    """v1.0.0: SS-local user_management was renamed."""
+def test_list_secretserver_user_sessions_live():
     require_credentials()
-    result = server.secretserver_local_user_management("list_sessions")
+    result = secretserver_users.list_secretserver_user_sessions()
     assert isinstance(result, dict)
 
 
@@ -228,17 +233,17 @@ def test_user_management_sessions_live():
     require_credentials()
     if not os.getenv("PLATFORM_HOSTNAME"):
         # Platform not configured -> tool should return a structured error
-        result = server.user_management("get", user_id="x")
-        assert "secretserver_local_user_management" in result.get("error", "")
+        result = server.user_platform_tools.get_platform_user("x")
+        assert "search_secretserver_local_users" in result.get("error", "")
         return
     # Platform configured -> a generic search_users call should succeed.
     result = server.search_users("a")
     assert isinstance(result, dict)
 
 
-def test_role_management_live():
+def test_get_roles_live():
     require_credentials()
-    result = server.role_management("list")
+    result = tools.get_roles()
     assert isinstance(result, dict)
 
 

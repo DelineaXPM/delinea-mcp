@@ -118,7 +118,7 @@ def test_search_users_empty_query_rejected():
 
 
 # --------------------------------------------------------------------------- #
-# user_management — full CRUD lifecycle with cleanup                          #
+# Platform users — full CRUD lifecycle with cleanup                          #
 # --------------------------------------------------------------------------- #
 
 
@@ -127,7 +127,7 @@ def _try_cleanup_user(user_id: str | None):
     if not user_id:
         return
     try:
-        user_platform_tools.user_management("delete", user_id=user_id)
+        user_platform_tools.delete_platform_user(user_id)
     except Exception:
         pass  # surfaces in next pre-test sweep if it leaked
 
@@ -149,7 +149,7 @@ def test_user_management_create_get_update_delete_lifecycle():
             "Password": "TempPass!" + str(int(time.time())),
             "ForcePasswordChangeNextLogin": True,
         }
-        out = user_platform_tools.user_management("create", data=create_payload)
+        out = user_platform_tools.create_platform_user(create_payload)
         assert "result" in out, f"create returned: {out}"
         result = out["result"]
         # Result shape: {"success": True, "Result": <user_uuid>} on modern Platform
@@ -172,7 +172,7 @@ def test_user_management_create_get_update_delete_lifecycle():
         assert verify.get("success") in (True, None)
 
         # 2. Get
-        got = user_platform_tools.user_management("get", user_id=new_user_id)
+        got = user_platform_tools.get_platform_user(new_user_id)
         # GetUserAttributes wraps the user record in Result
         gr = got.get("Result") if isinstance(got, dict) else None
         assert isinstance(gr, dict), f"get returned non-dict Result: {got}"
@@ -180,15 +180,13 @@ def test_user_management_create_get_update_delete_lifecycle():
 
         # 3. Update (change DisplayName)
         new_display = f"MCP Updated {int(time.time())}"
-        upd = user_platform_tools.user_management(
-            "update",
-            user_id=new_user_id,
-            data={"ID": new_user_id, "DisplayName": new_display},
+        upd = user_platform_tools.update_platform_user(
+            new_user_id, {"ID": new_user_id, "DisplayName": new_display}
         )
         assert "result" in upd
 
         # Verify the update propagated.
-        got2 = user_platform_tools.user_management("get", user_id=new_user_id)
+        got2 = user_platform_tools.get_platform_user(new_user_id)
         gr2 = got2.get("Result") if isinstance(got2, dict) else None
         if isinstance(gr2, dict):
             # On some tenants DisplayName updates may be async; allow either.
@@ -198,7 +196,7 @@ def test_user_management_create_get_update_delete_lifecycle():
             )
 
         # 4. Delete
-        deleted = user_platform_tools.user_management("delete", user_id=new_user_id)
+        deleted = user_platform_tools.delete_platform_user(new_user_id)
         assert "result" in deleted
         new_user_id = None  # so the finally block doesn't try again
 
@@ -207,16 +205,15 @@ def test_user_management_create_get_update_delete_lifecycle():
         _try_cleanup_user(new_user_id)
 
 
-def test_user_management_get_rejects_missing_id():
+def test_get_platform_user_rejects_missing_id():
     _require_platform()
-    out = user_platform_tools.user_management("get", user_id=None)
+    out = user_platform_tools.get_platform_user("")
     assert "error" in out
 
 
-def test_user_management_search_action():
-    """``user_management('search', username=...)`` is the search-via-action path."""
+def test_search_users_live():
     _require_platform()
-    out = user_platform_tools.user_management("search", username="test_mcp")
+    out = user_platform_tools.search_users("test_mcp")
     assert out.get("success") is True
 
 
@@ -238,11 +235,9 @@ def test_user_management_unconfigured_returns_helpful_error():
         user_platform_tools.platform_service_account = None
         user_platform_tools.platform_service_password = None
         user_platform_tools._headers = None
-        out = user_platform_tools.user_management(
-            "get", user_id="any-uuid-for-the-test"
-        )
+        out = user_platform_tools.get_platform_user("any-uuid-for-the-test")
         assert "error" in out
-        assert "secretserver_local_user_management" in out["error"]
+        assert "search_secretserver_local_users" in out["error"]
     finally:
         (
             user_platform_tools.platform_hostname,
@@ -253,90 +248,81 @@ def test_user_management_unconfigured_returns_helpful_error():
 
 
 # --------------------------------------------------------------------------- #
-# platform_role_management — read-only on modern tenants                      #
+# Platform roles (Permission service) — lifecycle on a throwaway role         #
 # --------------------------------------------------------------------------- #
 
 
-def test_platform_role_management_list_live():
-    """role_searchbyname canned report returns role rows.
-
-    Note: this tenant's Row columns are lowercase (``name``, ``description``,
-    ``roletype``, ``visibility``, ``ID``).  Other Centrify-era tenants may
-    use ``Name`` — be tolerant.
-    """
+def test_get_platform_roles_lists_built_in_roles_live():
     _require_platform()
-    out = user_platform_tools.platform_role_management("list", page_size=20)
-    assert out.get("success") is True
-    rows = (out.get("Result") or {}).get("Results", [])
-    # Tenant should have at least the "Everybody" system role.
-    assert len(rows) >= 1
-    row_keys = {k.lower() for row in rows for k in (row.get("Row") or {})}
-    assert "name" in row_keys
+    out = user_platform_tools.get_platform_roles()
+    names = {r["roleName"] for r in out.get("records", [])}
+    assert "Platform Admin" in names, out
 
 
-def test_platform_role_management_get_live():
-    """get('Everybody') matches the system role.
-
-    Column casing varies by tenant — check both 'name' and 'Name'.
-    """
+def test_get_platform_role_and_members_live():
     _require_platform()
-    out = user_platform_tools.platform_role_management("get", role_id="Everybody")
-    assert out.get("success") is True
-    rows = (out.get("Result") or {}).get("Results", [])
-
-    def _name(row: dict) -> str:
-        r = row.get("Row") or {}
-        return r.get("name") or r.get("Name") or ""
-
-    assert any(_name(r) == "Everybody" for r in rows)
+    role = user_platform_tools.get_platform_roles("Platform User")
+    assert role.get("roleName") == "Platform User", role
+    members = user_platform_tools.get_platform_role_members("Platform User")
+    assert "members" in members, members
 
 
-@pytest.mark.parametrize("action", ["create", "update", "delete"])
-def test_platform_role_management_mutations_attempt_then_fallback_live(action):
-    """The tool attempts the documented endpoint; this tenant returns 404
-    and the tool surfaces the structured guidance error."""
+def _members_settle(role: str, done, tries: int = 10) -> bool:
+    """Membership changes can take a few seconds to show in the members list."""
+    for _ in range(tries):
+        if done(user_platform_tools.get_platform_role_members(role)["members"] or {}):
+            return True
+        time.sleep(1)
+    return False
+
+
+def test_platform_role_lifecycle_live():
+    """Create, update, assign, unassign and delete a role that grants nothing."""
     _require_platform()
-    out = user_platform_tools.platform_role_management(
-        action, role_id="mcp-itest-role-does-not-exist", data={"Name": "x"}
+    role = f"{TEST_PREFIX}role-{int(time.time())}"
+    username = _unique_username("rolemember")
+    user_id = None
+    try:
+        created = user_platform_tools.create_platform_role(role, "itest")
+        assert "error" not in created, created
+        again = user_platform_tools.create_platform_role(role, "itest")
+        assert "error" in again, again
+        updated = user_platform_tools.update_platform_role(role, "itest 2", True)
+        assert updated.get("description") == "itest 2", updated
+
+        out = user_platform_tools.create_platform_user(
+            {
+                "Name": username,
+                "Mail": username,
+                "DisplayName": "MCP role member",
+                "Password": "TempPass!" + str(int(time.time())),
+                "ForcePasswordChangeNextLogin": True,
+            }
+        )
+        user_id = out["result"].get("Result")
+        assert isinstance(user_id, str), out
+
+        added = user_platform_tools.add_platform_role_members(role, [user_id])
+        assert "error" not in added["results"][user_id], added
+        assert _members_settle(role, lambda m: user_id in m)
+
+        removed = user_platform_tools.remove_platform_role_members(role, [user_id])
+        assert "error" not in removed["results"][user_id], removed
+        assert _members_settle(role, lambda m: user_id not in m)
+    finally:
+        if user_id:
+            _try_cleanup_user(user_id)
+        assert user_platform_tools.delete_platform_role(role) == {"success": True}
+    assert "HTTP 404" in user_platform_tools.get_platform_roles(role)["error"]
+
+
+def test_built_in_platform_role_cannot_be_changed_live():
+    _require_platform()
+    current = user_platform_tools.get_platform_roles("Platform User")
+    out = user_platform_tools.update_platform_role(
+        "Platform User", current.get("description", ""), current.get("enabled", True)
     )
-    # On a 404, the tool returns a guidance error containing "404" and a
-    # pointer at the SS-side fallback.  On a tenant that DOES expose the
-    # endpoint, we'd get {"result": ..., "verification": ...} — the test
-    # tolerates both shapes so it stays useful when run elsewhere.
-    if "error" in out:
-        assert "404" in out["error"]
-        assert "role_management" in out["error"]
-    else:
-        assert "result" in out
-
-
-# --------------------------------------------------------------------------- #
-# platform_user_role_management — read-only                                   #
-# --------------------------------------------------------------------------- #
-
-
-def test_platform_user_role_management_list_live():
-    _require_platform()
-    out = user_platform_tools.platform_user_role_management("list", role_id="Everybody")
-    assert out.get("success") is True
-
-
-@pytest.mark.parametrize("action", ["add", "remove"])
-def test_platform_user_role_management_mutations_attempt_then_fallback_live(action):
-    """Add/remove are attempted; this tenant returns 404 so guidance surfaces."""
-    _require_platform()
-    # Use a synthetic non-existent test principal so even if the tenant DID
-    # support the endpoint, nothing real changes.
-    out = user_platform_tools.platform_user_role_management(
-        action,
-        role_id="Everybody",
-        user_principals=["mcp-itest-noone@dartlabs.invalid"],
-    )
-    if "error" in out:
-        assert "404" in out["error"]
-        assert "user_role_management" in out["error"]
-    else:
-        assert "result" in out
+    assert "HTTP 403" in out.get("error", ""), out
 
 
 # --------------------------------------------------------------------------- #

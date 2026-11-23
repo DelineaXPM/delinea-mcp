@@ -27,8 +27,9 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
-- Password fields masked in every result; plaintext only after the user
-  approves a server-sent confirmation prompt
+- Password fields masked in every result; plaintext reveal is off by default
+  and, when enabled, needs the user's approval (a server-sent prompt, or the
+  client's own tool approval in `client_approval` mode)
 - StrongDM, a Delinea company, will be supported in a future release. An
   experimental preview is available behind `strongdm_enabled` (see
   [docs/strongdm.md](docs/strongdm.md))
@@ -274,11 +275,12 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   masked, or its summary.
 - `reveal_secret_field(secret_id, field_slug, comment=None)` - only when
   plaintext reveal is enabled (see `secret_reveal_mode`; off by default):
-  return one plaintext value after the user approves a confirmation prompt.
+  return one plaintext value after the user approves it (see
+  `secret_reveal_mode` for how approval works).
 - `get_folder(id, all_children=False)` - fetch folder metadata, optionally
   with the full descendant tree.
 - `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.
-- `search_folders(query, lookup=False, take=50, skip=0)` - search or look up folders.
+- `search_folders(query, lookup=False, take=50, skip=0, parent_folder_id=None)` - search or look up folders.
 - `get_secret_environment_variable(secret_id, environment, comment=None)` -
   load a secret's username and password into environment variables. Over
   `stdio` the server reads the secret and writes a private, self-deleting
@@ -289,10 +291,10 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - `check_secret_template_field(template_id, field_id)` - check if a template contains a field.
 - `get_secret_template_field(field_id)` - retrieve details about a specific secret template field by ID.
 - `handle_access_request(request_id, status, response_comment, start_date=None, expiration_date=None)` - approve or deny an access request.
-- `get_pending_access_requests()` - list pending access requests.
+- `get_pending_access_requests(take=50, skip=0)` - list pending access requests.
 - `get_inbox_messages(read_status_filter=None, take=20, skip=0)` - retrieve inbox messages.
 - `mark_inbox_messages_read(message_ids, read=True)` - mark messages as read or unread.
-- `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=None, comment=None)` -
+- `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=1)` -
   create a secret whose password is generated server-side; only sanitized
   metadata is returned, the value never reaches the model.
 - `update_secret_generated_password(secret_id, field_slug, password_field_id, comment=None)` -
@@ -310,25 +312,27 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   incident combinator over the bulk-user operations API. Scenarios:
   `compromise`, `offboard`, `unlock`, `reenable`, `force_logout`; requires
   `confirm=True` plus a non-empty audit comment, and previews when unconfirmed.
-- `role_management(action, role_id=None, data=None, params=None)` - manage roles.
-  `action` may be `list`, `get`, `create` or `update`.
-  Pass optional query parameters with `params` when listing roles. Every
-  `list` action pages with `take` (default 50, max 500) and `skip`.
-  Example: `role_management("update", role_id=3, data={"name": "New Role"})`.
-- `user_role_management(action, user_id, role_ids=None)` - assign or remove roles from a user.
-  `action` is `get`, `add` or `remove` and `role_ids` is a list of role identifiers for add/remove operations.
-- `group_management(action, group_id=None, data=None, params=None)` - handle groups.
-  `action` may be `get`, `list`, `create` or `delete`.
-  Provide `group_id` for get/delete and `data` when creating a group.
-- `folder_management(action, folder_id=None, data=None, params=None)` - manage folders.
-  `action` may be `get`, `list`, `create`, `update` or `delete`.
-  Provide `folder_id` for get, update or delete and supply `data` when creating or updating a folder.
-- `user_group_management(action, user_id, group_ids=None)` - manage group membership for a user.
-  `action` is `get`, `add` or `remove`.
-  Supply a list of `group_ids` when adding or removing membership.
-- `group_role_management(action, group_id, role_ids=None)` - control roles on a group.
-  Use `list`, `add` or `remove` actions.
-  Provide `role_ids` when adding or removing.
+  Roles, groups, folders and membership each have a read tool, a write tool
+  and, where something can be deleted or removed, a separate destructive tool.
+  Before 3.0 each was one `*_management(action, ...)` tool; an old name in
+  `enabled_tools` still enables its replacements. List reads page with `take`
+  (default 50, max 500) and `skip`.
+
+- Roles: `get_roles(role_id=None, include_inactive=False, take=50, skip=0)`,
+  `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, name=None, enabled=None)`
+  (changes only what's given).
+- User roles: `get_user_roles(user_id, take=50, skip=0)`, `add_user_roles(user_id, role_ids)`,
+  `remove_user_roles(user_id, role_ids)`.
+- Groups: `get_groups(group_id=None, query="", take=50, skip=0)`, `create_group(data)`,
+  `delete_group(group_id)`.
+- Group membership: `get_user_groups(user_id, take=50, skip=0)`,
+  `add_user_to_groups(user_id, group_ids)`,
+  `remove_user_from_groups(user_id, group_ids)`.
+- Group roles: `get_group_roles(group_id, take=50, skip=0)`, `add_group_roles(group_id, role_ids)`,
+  `remove_group_roles(group_id, role_ids)`.
+- Folders: read with `get_folder` / `search_folders`;
+  `create_folder(data)`, `update_folder(folder_id, data)` (the full folder from
+  `get_folder` with your changes), `delete_folder(folder_id)`.
 - `health_check()` - query the Secret Server health check endpoint and return the current service status.
 
 ### Delinea Platform users and roles
@@ -337,16 +341,19 @@ Since v1.0.0 the canonical user tools target the Delinea Platform identity
 directory (requires `platform_hostname` + `PLATFORM_SERVICE_*` credentials;
 without them the tools return guidance instead of failing):
 
-- `user_management(action, user_id=None, data=None, username=None)` - Platform
-  user CRUD. `action` accepts `get`, `create`, `update`, `delete` or `search`.
-- `search_users(query)` - search the Platform user directory.
-- `platform_role_management(action, role_id=None, data=None, page_size=100, query="%")` -
-  Platform role CRUD (`list`, `get`, `create`, `update`, `delete`); role
-  mutations are discovery-driven and return guidance on tenants whose API
-  scope doesn't expose them.
-- `platform_user_role_management(action, role_id, user_principals=None)` -
-  `list`, `add` or `remove` users on a Platform role.
-- `platform_user_management(...)` - deprecated alias of `user_management`.
+- `search_users(query, page_size=60, page=1)` - search the Platform user directory.
+- `get_platform_user(user_id)`, `create_platform_user(data)`,
+  `update_platform_user(user_id, data)`, `delete_platform_user(user_id)` -
+  Platform users (replace `user_management`).
+- `get_platform_roles(role_name=None, query="", page_size=100, page=1)`,
+  `create_platform_role(role_name, description="", enabled=True)`,
+  `update_platform_role(role_name, description, enabled)`,
+  `delete_platform_role(role_name)` - Platform roles. Updating replaces the
+  description and enabled state; built-in roles can't be changed.
+- `get_platform_role_members(role_name, page_size=100, page=1)`,
+  `add_platform_role_members(role_name, subject_ids)`,
+  `remove_platform_role_members(role_name, subject_ids)` - assign a role to
+  users or groups by Platform ID.
 
 ### Delinea Platform reports
 
@@ -367,11 +374,15 @@ read-only through the same Platform credentials:
 
 For SS-only deployments without Platform configured:
 
-- `secretserver_local_user_management(action, user_id=None, data=None, skip=0, take=20, is_exporting=False)` -
-  the pre-v1.0.0 Secret Server user operations: `get`, `create`, `update`,
-  `delete`, `list_sessions`, `reset_2fa`, `reset_password`, `lock_out`.
-  Example: `secretserver_local_user_management("reset_password", user_id=42, data={"newPassword": "Pa$$w0rd"})`.
-- `search_secretserver_local_users(query)` - search Secret Server's local user store.
+- `get_secretserver_local_user(user_id)`,
+  `list_secretserver_user_sessions(take=50, skip=0)`,
+  `create_secretserver_local_user(data)`,
+  `update_secretserver_local_user(user_id, data)`,
+  `delete_secretserver_local_user(user_id)`.
+- `reset_secretserver_local_user_password(user_id, password)`,
+  `reset_secretserver_local_user_two_factor(user_id, two_factor_type="Oath")`,
+  `lock_out_secretserver_local_user(user_id, reason="", reason_type="Other")`.
+- `search_secretserver_local_users(query, take=50, skip=0)` - search Secret Server's local user store.
 
 ### StrongDM tools (preview)
 
@@ -382,7 +393,10 @@ a live SDM organization, and are excluded from the Claude Code plugin.
 Installed via the `strongdm` extra; see
 [docs/strongdm.md](docs/strongdm.md) for the full guide. `sdm_search`, `sdm_audit_access`, `sdm_grant_access`
 (time-boxed just-in-time or standing grants), `sdm_revoke_access`,
-`sdm_user_management` (onboard/offboard flows), `sdm_role_management`,
+`sdm_get_users`, `sdm_create_user` (with optional roles: onboarding),
+`sdm_set_user_status` (suspend/reactivate/offboard), `sdm_delete_user`,
+`sdm_get_roles`, `sdm_create_role`, `sdm_delete_role`, `sdm_add_role_member`,
+`sdm_remove_role_member`,
 `sdm_resource_health`, `sdm_access_requests`, `sdm_activity_report`,
 `sdm_network_status`. Destructive actions are confirm-gated with audit
 comments; ambiguous name matches return candidates without mutating.
@@ -517,7 +531,7 @@ with their organisation's identity provider. Current safeguards:
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-## Privacy
+## Privacy Policy
 
 The server connects only to the Delinea endpoints you configure and sends
 no telemetry. Delinea's privacy policy is at

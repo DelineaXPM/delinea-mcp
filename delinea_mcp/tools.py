@@ -21,7 +21,7 @@ from mcp.types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, ConfigDict, Field
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import redact
+from delinea_mcp.api import field_path, redact, target_id_conflict
 
 from . import constants
 from .session import SessionManager
@@ -110,7 +110,10 @@ def _paged(params: dict | None, take: int | None = None, skip: int = 0) -> dict:
     """
     merged = dict(params or {})
     merged["take"] = _clamp(merged.get("take", take), DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
-    merged.setdefault("skip", max(0, int(skip or 0)))
+    try:
+        merged["skip"] = max(0, int(merged.get("skip", skip) or 0))
+    except (TypeError, ValueError):
+        merged["skip"] = 0
     return merged
 
 
@@ -180,9 +183,9 @@ def run_report(
 ) -> dict:
     """Run a read-only SQL report on Secret Server and return its rows.
 
-    Call ``list_example_reports`` first: it is the reference for this tool
-    and lists the Secret Server database tables, columns, special fields and
-    tested example queries to build *sql_query* from. The query runs through
+    ``list_example_reports`` returns the Secret Server database tables,
+    columns, special fields and tested example queries that *sql_query* is
+    written against. The query runs through
     the Secret Server REST API reports endpoints (``POST /api/v1/reports``,
     ``POST /api/v1/reports/execute``, then ``DELETE /api/v1/reports/{id}``;
     see https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/index.htm),
@@ -195,8 +198,8 @@ def run_report(
     sql_query:
         The SQL query to run. Secret Server only accepts a single read-only
         SELECT statement as custom report SQL (no IF, WHILE, BEGIN ... END,
-        TRY/CATCH, PRINT, temporary tables or database-qualified names); call
-        ``list_example_reports`` for the rules, table list and sample queries.
+        TRY/CATCH, PRINT, temporary tables or database-qualified names);
+        ``list_example_reports`` has the rules, table list and sample queries.
     report_name:
         Optional name for the temporary report.
     max_rows:
@@ -236,7 +239,13 @@ def run_report(
 
 
 def check_secret_template(template_id: int) -> dict:  # pragma: no cover
-    """Returns the template details for the given ID."""
+    """Get a secret template by ID: its fields and their settings.
+
+    Calls ``GET /api/v1/secret-templates/{id}``. Each field in ``fields`` has
+    its ``secretTemplateFieldId``, slug (``fieldSlugName``), ``isPassword``
+    and ``isRequired``; these are the IDs and slugs the secret create and
+    update tools take.
+    """
     logger.debug("check_secret_template(%s)", template_id)
     session = SessionManager.get()
     try:
@@ -495,7 +504,7 @@ def _handoff_values(
         if value in (None, "") and (item.get("isPassword") or slug == "password"):
             field = item.get("slug") or slug
             response = session.request(
-                "GET", f"/v1/secrets/{secret_id}/fields/{field}", params=params
+                "GET", field_path(secret_id, field), params=params
             )
             values[var] = _field_text(response)
         else:
@@ -521,25 +530,19 @@ def get_secret_environment_variable(
 ) -> str | dict:
     """Load a secret's username and password into shell environment variables.
 
-    This is the preferred way to *use* a credential: the value never appears
-    in the conversation. When the server runs locally (stdio), it reads the
+    The credential is used without its value appearing in the
+    conversation. When the server runs locally (stdio), it reads the
     secret itself and writes a private, self-deleting file of shell
     assignments, returning only the file's path; nothing else needs to be
     installed. Over HTTP transports it returns a script instead, which calls
     the Secret Server REST API with the server's short-lived access token
     (bash needs curl and jq; powershell needs nothing extra).
 
-    Before retrieving a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being accessed.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -549,11 +552,9 @@ def get_secret_environment_variable(
         Target shell environment. Supported values are ``"bash"``,
         ``"powershell"`` and ``"cmd"``.
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being accessed and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -651,8 +652,7 @@ def create_secret_with_generated_password(
     password_field_id: int,
     items: list[dict] | str,
     folder_id: int | None = None,
-    site_id: int | None = None,
-    comment: str | None = None,
+    site_id: int = 1,
 ) -> dict:  # pragma: no cover
     """Create a new secret with a server-generated password.
 
@@ -660,12 +660,10 @@ def create_secret_with_generated_password(
     password requirements and is **never returned** to the caller.  The model
     receives only the secret's ID and safe metadata.
 
-    Before calling, use ``check_secret_template(template_id)`` to discover:
-
-    * Which fields exist and their ``secretTemplateFieldId`` values.
-    * Which fields have ``isPassword=True`` (use their ID as
-      *password_field_id*).
-    * Which fields have ``isRequired=True`` (must be provided in *items*).
+    ``check_secret_template(template_id)`` lists the template's fields:
+    their ``secretTemplateFieldId`` values, which field is the password
+    (``isPassword=True``, its ID is *password_field_id*) and which are
+    required (``isRequired=True``, they must be in *items*).
 
     Parameters
     ----------
@@ -685,12 +683,8 @@ def create_secret_with_generated_password(
     folder_id:
         Optional folder to store the secret in.
     site_id:
-        Optional distributed engine site identifier.
-    comment:
-        Audit comment recorded against the new secret.  Must explain
-        **why** this secret is being created and, if the action is tied
-        to a formal request (e.g. a Jira ticket, incident, or change
-        request), that reference must be included.
+        Distributed engine site; ``1`` (the default) is the built-in Local
+        site. Secret Server rejects a secret without one.
 
     Returns
     -------
@@ -744,8 +738,7 @@ def create_secret_with_generated_password(
         }
         if folder_id is not None:
             create_payload["folderId"] = folder_id
-        if site_id is not None:
-            create_payload["siteId"] = site_id
+        create_payload["siteId"] = site_id
 
         create_result = session.request(
             "POST",
@@ -792,8 +785,8 @@ def set_secret_field_environment_variable(
 ) -> str | dict:
     """Store a value from the user's machine in a secret field, unseen by the model.
 
-    Use this for values that **cannot** be generated by Delinea (e.g. AWS API
-    keys, external tokens). The value is written with
+    For values Delinea can't generate (e.g. AWS API keys, external tokens).
+    The value is written with
     ``PUT /v1/secrets/{id}/fields/{slug}`` and never enters the conversation.
 
     When the server runs locally (stdio):
@@ -810,21 +803,14 @@ def set_secret_field_environment_variable(
     Over HTTP transports a script is returned instead (bash needs curl and
     jq, cmd needs curl).
 
-    For new secrets, first create the secret (with a placeholder or via
-    ``create_secret_with_generated_password``), then use this tool to populate
-    external fields.
+    The secret must already exist; ``create_secret_with_generated_password``
+    or a placeholder value can create it.
 
-    Before modifying a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being modified.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -832,7 +818,7 @@ def set_secret_field_environment_variable(
         ID of the existing secret to update.
     field_slug:
         Field slug name (e.g. ``"password"``, ``"username"``, ``"api-key"``).
-        Use ``check_secret_template`` to discover slugs.
+        ``check_secret_template`` lists a template's slugs.
     environment:
         Target shell — ``"bash"``, ``"powershell"`` or ``"cmd"``.
     source:
@@ -842,11 +828,9 @@ def set_secret_field_environment_variable(
         * ``"file:/path/to/file"`` — read from a file
         * ``"stdin"`` — prompt the user to type/paste (default)
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being modified and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -874,7 +858,7 @@ def set_secret_field_environment_variable(
         return check
 
     env = _shell(environment)
-    field_path = f"/v1/secrets/{secret_id}/fields/{field_slug}"
+    put_path = field_path(secret_id, field_slug)
     if _script_delivery() == "file":
         params = _checkout_params(comment)
         if source.startswith("file:"):
@@ -887,7 +871,7 @@ def set_secret_field_environment_variable(
             if params:
                 kwargs["params"] = params
             try:
-                session.request("PUT", field_path, sensitive=[value], **kwargs)
+                session.request("PUT", put_path, sensitive=[value], **kwargs)
             except Exception as exc:  # pragma: no cover - network failures
                 logger.exception("Failed to update field %s", field_slug)
                 return {
@@ -908,7 +892,7 @@ def set_secret_field_environment_variable(
                 f"Unsupported source {source!r}; use 'stdin', 'env:VAR' or 'file:/path'"
             )
         job = {
-            "url": session.base_url.rstrip("/") + "/api" + field_path,
+            "url": session.base_url.rstrip("/") + "/api" + put_path,
             "token": session.token,
             "params": params,
             "source": source,
@@ -934,7 +918,7 @@ def set_secret_field_environment_variable(
             ),
         }
 
-    url = f"{session.base_url}/api/v1/secrets/{secret_id}/fields/{field_slug}"
+    url = f"{session.base_url}/api{put_path}"
     if comment:
         from urllib.parse import quote
 
@@ -1014,17 +998,11 @@ def update_secret_generated_password(
     ``PUT /v1/secrets/{id}/fields/{slug}``.  The model **never** sees the old
     or new password value.
 
-    Before modifying a secret, check whether it requires approval:
-
-    1. Call ``get_secret(id, summary=True)`` and inspect
-       ``requiresApproval`` and ``requiresComment``.
-    2. If approval is required, call ``get_pending_access_requests()``
-       to check for an existing grant, or request access and wait for
-       approval via ``handle_access_request()``.
-    3. Always provide the *comment* parameter explaining **why** this
-       secret is being modified.  If the action is tied to a ticket,
-       incident, or change request, that reference **must** be named
-       in the comment.
+    A secret can require a comment or approval before use
+    (``requiresComment`` / ``requiresApproval`` in ``get_secret(id,
+    summary=True)``). For such a secret this tool returns an error unless
+    *comment* is given. Access requests are listed by
+    ``get_pending_access_requests`` and answered by ``handle_access_request``.
 
     Parameters
     ----------
@@ -1032,16 +1010,14 @@ def update_secret_generated_password(
         ID of the secret to update.
     field_slug:
         Field slug of the password field (e.g. ``"password"``).
-        Use ``check_secret_template`` to discover slugs.
+        ``check_secret_template`` lists a template's slugs.
     password_field_id:
         ``secretTemplateFieldId`` of the password field.  Used to generate a
         compliant password via the template rules.
     comment:
-        Required when the secret has ``requiresComment`` or
-        ``requiresApproval`` set.  Must explain **why** this secret is
-        being modified and, if the action is tied to a formal request
-        (e.g. a Jira ticket, incident, or change request), that
-        reference must be included.
+        Reason for the change or access, including any ticket, incident
+        or change request number. Required when the secret has
+        ``requiresComment`` or ``requiresApproval`` set.
 
     Returns
     -------
@@ -1086,7 +1062,7 @@ def update_secret_generated_password(
             }
         session.request(
             "PUT",
-            f"/v1/secrets/{secret_id}/fields/{field_slug}",
+            field_path(secret_id, field_slug),
             sensitive=[str(generated_password)],
             **put_kwargs,
         )
@@ -1268,6 +1244,10 @@ def _confirm_reveal(
     negotiated protocol supports; the model cannot answer that prompt.
     """
     mode = _reveal_mode()
+    try:
+        field_path(secret_id, field_slug)
+    except ValueError as exc:
+        return _RevealGate(str(exc))
     if mode == "disabled":
         return _RevealGate(
             "Plaintext reveal is disabled on this server "
@@ -1304,18 +1284,19 @@ async def reveal_secret_field(
     ],
     comment: str | None = None,
 ) -> dict:
-    """Return one secret field's plaintext value after the human approves.
+    """Return one secret field's plaintext value, subject to approval.
 
-    Call this only when the user has explicitly asked to *see* a value that
-    ``get_secret`` masked. If the user only needs the credential to run a
-    command, use ``get_secret_environment_variable`` instead, which keeps the
-    value out of the conversation.
+    Reveals a value that ``get_secret`` masked, for a user who asked to
+    see it. ``get_secret_environment_variable`` hands a credential to a
+    command without the value entering the conversation.
 
-    Before releasing anything, the server asks the user directly for
-    confirmation in their MCP client (elicitation); a model cannot answer
-    that prompt. If the user declines, or the client cannot show the prompt,
-    nothing is revealed. The revealed value becomes part of the conversation
-    transcript.
+    How a reveal is approved depends on the server's ``secret_reveal_mode``.
+    With ``elicit``, the server asks the user in their MCP client
+    (elicitation), a prompt the model cannot answer; nothing is revealed if
+    the user declines or the client cannot show the prompt. With
+    ``client_approval``, the server does not prompt and relies on the
+    client's own tool-approval setting. The revealed value becomes part of
+    the conversation transcript.
 
     Parameters
     ----------
@@ -1355,7 +1336,7 @@ async def reveal_secret_field(
         }
 
     session = SessionManager.get()
-    path = f"/v1/secrets/{secret_id}/fields/{field_slug}"
+    path = field_path(secret_id, field_slug)
     params = None
     if comment:
         params = {"autoCheckout": "true", "autoCheckIn": "true", "autoComment": comment}
@@ -1383,7 +1364,7 @@ def get_folder(id: int, all_children: bool = False) -> dict:
     all_children:
         When ``True`` include ``childFolders`` with the full descendant
         tree, which can be large. To page through direct children only, use
-        ``folder_management("list", params={"filter.parentFolderId": id})``.
+        ``search_folders(query="", parent_folder_id=id)``.
 
     Returns
     -------
@@ -1403,14 +1384,18 @@ def get_folder(id: int, all_children: bool = False) -> dict:
 def search_secrets(
     query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
 ) -> dict:
-    """Search or look up secrets.
+    """Search secrets by name.
+
+    Calls ``GET /api/v2/secrets?filter.searchText=<query>``, or with
+    *lookup* ``GET /api/v1/secrets/lookup``, which returns only each
+    secret's ID and name. Field values are not returned.
 
     Parameters
     ----------
     query:
         Search text.
     lookup:
-        If ``True``, perform a metadata lookup instead of a full search.
+        If ``True``, return only IDs and names (``/api/v1/secrets/lookup``).
     take:
         Page size (default 50, capped at 500).
     skip:
@@ -1419,7 +1404,7 @@ def search_secrets(
     Returns
     -------
     dict
-        JSON response from the appropriate search endpoint.
+        The Secret Server search response (``records``, paging fields).
     """
     logger.debug("search_secrets(%s, lookup=%s)", query, lookup)
     session = SessionManager.get()
@@ -1433,7 +1418,11 @@ def search_secrets(
 
 
 def search_folders(
-    query: str, lookup: bool = False, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+    query: str,
+    lookup: bool = False,
+    take: int = DEFAULT_PAGE_SIZE,
+    skip: int = 0,
+    parent_folder_id: int | None = None,
 ) -> dict:
     """Search or look up folders.
 
@@ -1447,6 +1436,9 @@ def search_folders(
         Page size (default 50, capped at 500).
     skip:
         Number of records to skip, for paging with ``take``.
+    parent_folder_id:
+        Only return direct children of this folder; ``-1`` returns the
+        top-level folders.
 
     Returns
     -------
@@ -1458,6 +1450,13 @@ def search_folders(
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
         params = _paged({"filter.searchText": query}, take, skip)
+        # parentFolderId alone matches every descendant, and -1 with
+        # limitToDirectDescendents matches nothing.
+        if parent_folder_id == -1:
+            params["filter.onlyIncludeRootFolders"] = "true"
+        elif parent_folder_id is not None:
+            params["filter.parentFolderId"] = parent_folder_id
+            params["filter.limitToDirectDescendents"] = "true"
         return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search folders %s", query)
@@ -1474,7 +1473,8 @@ def check_secret_template_field(
     template_id:
         Identifier of the secret template.
     field_id:
-        Numeric field ID or field name to search for.
+        Numeric field ID, field name or slug; names and slugs match
+        regardless of case.
 
     Returns
     -------
@@ -1488,16 +1488,14 @@ def check_secret_template_field(
         result = session.request(
             "GET",
             "/v1/secret-templates/fields/search",
-            params={
-                "filter.secretTemplateId": template_id,
-                "filter.searchText": field_id,
-                "take": 1,
-            },
+            # All of the template's fields: a name search can rank the exact
+            # match outside the page, and doesn't search slugs.
+            params={"filter.secretTemplateId": template_id, "take": MAX_PAGE_SIZE},
         ).json()
+        wanted = str(field_id).strip().lower()
         for field in result.get("records", []):
-            if str(field.get("id")) == str(field_id) or field.get("name") == str(
-                field_id
-            ):
+            keys = (field.get("id"), field.get("name"), field.get("slugName"))
+            if wanted in {str(k).lower() for k in keys if k is not None}:
                 return {"exists": True, "field": field}
         return {
             "exists": False,
@@ -1552,10 +1550,9 @@ def handle_access_request(
     response_comment:
         Comment explaining the decision.
     start_date, expiration_date:
-        Optional ISO date strings used when approving the request. If these
-        values are present in the object returned by
-        :func:`get_pending_access_requests`, include them by default unless
-        overridden.
+        Optional ISO date strings for the access window when approving.
+        ``get_pending_access_requests`` returns the requested window for
+        each request.
 
     Returns
     -------
@@ -1612,8 +1609,13 @@ def handle_access_request(
         }
 
 
-def get_pending_access_requests() -> dict:  # pragma: no cover
+def get_pending_access_requests(
+    take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:  # pragma: no cover
     """Retrieve pending secret access requests for the current user.
+
+    Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
 
     Returns
     -------
@@ -1627,14 +1629,16 @@ def get_pending_access_requests() -> dict:  # pragma: no cover
         response = session.request(
             "GET",
             "/v1/secret-access-requests",
-            params={
-                "filter.isMyRequest": "false",
-                "filter.status": "Pending",
-                "skip": 0,
-                "sortBy[0].direction": "desc",
-                "sortBy[0].name": "startDate",
-                "take": 60,
-            },
+            params=_paged(
+                {
+                    "filter.isMyRequest": "false",
+                    "filter.status": "Pending",
+                    "sortBy[0].direction": "desc",
+                    "sortBy[0].name": "startDate",
+                },
+                take,
+                skip,
+            ),
         )
         return response.json()
     except Exception as exc:  # pragma: no cover - network failures
@@ -1647,7 +1651,9 @@ def get_inbox_messages(
     take: int = 20,
     skip: int = 0,
 ) -> dict:  # pragma: no cover
-    """Search, filter, sort and page inbox messages.
+    """List the signed-in account's Secret Server inbox messages.
+
+    Filters by read status and pages by *take* (capped at 500) and *skip*.
 
     Parameters
     ----------
@@ -1669,10 +1675,7 @@ def get_inbox_messages(
         skip,
     )
     session = SessionManager.get()
-    params = {
-        "take": take,
-        "skip": skip,
-    }
+    params = _paged(None, take, skip)
     if read_status_filter:
         params["filter.readStatusFilter"] = read_status_filter
     try:
@@ -1702,7 +1705,8 @@ def mark_inbox_messages_read(
     dict
         ``{"result": ..., "verification": ...}`` where ``result`` contains the
         outcome of the update and ``verification`` is the inbox listing after the
-        change.
+        change. Secret Server reports success for IDs that don't exist, so
+        check the listing to confirm.
     """
 
     logger.debug("mark_inbox_messages_read(message_ids=%s, read=%s)", message_ids, read)
@@ -1753,8 +1757,9 @@ def role_management(
 
     When ``action`` is ``"create"``, ``data`` must contain the required keys
     ``name`` and ``enabled`` defining the role's name and active state.
-    When ``action`` is ``"update"``, you need to do a get first, update the
-    relevant fields and post everything back
+    When ``action`` is ``"update"``, ``data`` is the PATCH body
+    ``{"data": {"name": {"dirty": true, "value": ...}, "enabled": {...}}}``;
+    only fields marked dirty change.
 
     ``"create"`` and ``"update"`` actions issue a follow-up ``GET`` request to
     confirm the new role state. The function returns ``{"result": ...,
@@ -1814,6 +1819,7 @@ def user_role_management(
     action: str,
     user_id: int,
     role_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Add or remove roles for a user.
 
@@ -1843,7 +1849,9 @@ def user_role_management(
 
     try:
         if action == "get":
-            return session.request("GET", f"/v1/users/{user_id}/roles").json()
+            return session.request(
+                "GET", f"/v1/users/{user_id}/roles", params=_paged(params)
+            ).json()
         if action == "add":
             if not role_ids:
                 raise ValueError("role_ids required for add")
@@ -1886,8 +1894,6 @@ def group_management(
     ``hasGroupOwners``, ``isPlatform``, ``ownerGroupIds``, ``ownerGroupNames``,
     ``ownerUserIds``, ``ownerUserNames``, ``synchronized`` and
     ``synchronizeNow``.
-    When ``action`` is ``"update"``, you need to do a get first, update the
-    relevant fields and post everything back
 
     ``"create"`` and ``"delete"`` actions perform a verifying ``GET`` after the
     write. The response contains ``{"result": ... , "verification": ...}``.
@@ -1943,6 +1949,7 @@ def user_group_management(
     action: str,
     user_id: int,
     group_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Add or remove a user from groups.
 
@@ -1972,7 +1979,9 @@ def user_group_management(
 
     try:
         if action == "get":
-            return session.request("GET", f"/v1/users/{user_id}/groups").json()
+            return session.request(
+                "GET", f"/v1/users/{user_id}/groups", params=_paged(params)
+            ).json()
         if action == "add":
             if not group_ids:
                 raise ValueError("group_ids required for add")
@@ -1995,6 +2004,7 @@ def group_role_management(
     action: str,
     group_id: int,
     role_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Assign or revoke roles on a group.
 
@@ -2024,7 +2034,9 @@ def group_role_management(
 
     try:
         if action == "list":
-            return session.request("GET", f"/v1/groups/{group_id}/roles").json()
+            return session.request(
+                "GET", f"/v1/groups/{group_id}/roles", params=_paged(params)
+            ).json()
         if action == "add":
             if not role_ids:
                 raise ValueError("role_ids required for add")
@@ -2108,6 +2120,9 @@ def folder_management(
         if action == "update":
             if folder_id is None or data is None:
                 raise ValueError("folder_id and data required for update")
+            conflict = target_id_conflict(data, folder_id, "folder_id")
+            if conflict:
+                return {"error": conflict}
             result = session.request(
                 "PUT", f"/v1/folders/{folder_id}", json=data
             ).json()
@@ -2134,11 +2149,277 @@ def folder_management(
         return {"error": str(exc)}
 
 
-def health_check() -> dict:
-    """Return the current server health status.
+# The *_management functions above are not registered as tools: each mixes
+# reads and writes, which the Claude directory rejects. These tools split
+# them into read, write and destructive operations.
 
-    The endpoint responds with general service information and ``{"status": "Healthy"}``
-    when the server is operational.
+
+def get_roles(
+    role_id: int | None = None,
+    include_inactive: bool = False,
+    take: int = DEFAULT_PAGE_SIZE,
+    skip: int = 0,
+) -> dict:
+    """List Secret Server roles, or get one role by ID.
+
+    Calls ``GET /api/v1/roles``, which has no name filter, paged by *take*
+    (default 50, capped at 500) and *skip*; ``total`` and ``hasNext`` show
+    whether more remain. With *role_id*, calls ``GET /api/v1/roles/{id}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if role_id is not None:
+        return role_management("get", role_id=role_id)
+    params = {"take": take, "skip": skip}
+    if include_inactive:
+        params["filter.includeInactive"] = True
+    return role_management("list", params=params)
+
+
+def create_role(data: dict) -> dict:
+    """Create a Secret Server role.
+
+    Calls ``POST /api/v1/roles``; *data* needs ``name`` and ``enabled``.
+    Returns ``{"result": ..., "verification": ...}``, where verification is
+    a follow-up GET of the role. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return role_management("create", data=data)
+
+
+def update_role(
+    role_id: int, name: str | None = None, enabled: bool | None = None
+) -> dict:
+    """Rename, enable or disable a Secret Server role.
+
+    Calls ``PATCH /api/v1/roles/{id}``, changing only the fields given;
+    ``enabled=False`` disables the role for every member. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    # The API takes {"data": {field: {"dirty": true, "value": ...}}} and
+    # returns HTTP 500 for a plain role object.
+    changes = {"name": name, "enabled": enabled}
+    patch = {
+        k: {"dirty": True, "value": v} for k, v in changes.items() if v is not None
+    }
+    if not patch:
+        return {"error": "Give name and/or enabled to change"}
+    return role_management("update", role_id=role_id, data={"data": patch})
+
+
+def get_user_roles(user_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0) -> dict:
+    """List the roles assigned to a Secret Server user.
+
+    Calls ``GET /api/v1/users/{id}/roles``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("get", user_id, params={"take": take, "skip": skip})
+
+
+def add_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server user.
+
+    Calls ``POST /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_role_management("add", user_id, role_ids)
+
+
+def _explain_role_lockout(result: dict) -> dict:
+    """Replace Secret Server's lock-out refusal with what to do about it."""
+    error = result.get("error", "") if isinstance(result, dict) else ""
+    if "lock you out" in error or "RoleAdministrationNoLockout" in error:
+        return {
+            "error": (
+                "Secret Server refused the removal: it calculates the change "
+                "would lock the signed-in account out of role administration "
+                "(API_RoleAdministrationNoLockout). It counts only rights from "
+                "Secret Server roles, so a Platform administrator account can't "
+                "remove roles. Remove the role in the Secret Server UI, or sign "
+                "in with an account that holds Administer Roles through a Secret "
+                "Server role."
+            )
+        }
+    return result
+
+
+def remove_user_roles(user_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server user.
+
+    Calls ``DELETE /api/v1/users/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server refuses any role removal it calculates would lock the
+    signed-in account out of role administration
+    (``API_RoleAdministrationNoLockout``). It counts only rights granted
+    through Secret Server roles, so an account that is an administrator
+    through the Delinea Platform can add roles but not remove them.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return _explain_role_lockout(user_role_management("remove", user_id, role_ids))
+
+
+def get_groups(
+    group_id: int | None = None,
+    query: str = "",
+    take: int = DEFAULT_PAGE_SIZE,
+    skip: int = 0,
+) -> dict:
+    """List Secret Server groups whose name contains *query*, or get one group by ID.
+
+    Calls ``GET /api/v1/groups`` paged by *take* (default 50, capped at 500)
+    and *skip*; ``total`` and ``hasNext`` show whether more remain. With
+    *group_id*, calls ``GET /api/v1/groups/{id}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if group_id is not None:
+        return group_management("get", group_id=group_id)
+    params = {"take": take, "skip": skip}
+    if query:
+        params["filter.searchText"] = query
+    return group_management("list", params=params)
+
+
+def create_group(data: dict) -> dict:
+    """Create a Secret Server group.
+
+    Calls ``POST /api/v1/groups``. *data* needs ``name`` and ``enabled``;
+    optional keys include ``adGuid``, ``domainId``, ``hasGroupOwners``,
+    ``isPlatform``, ``ownerGroupIds``, ``ownerGroupNames``, ``ownerUserIds``,
+    ``ownerUserNames``, ``synchronized`` and ``synchronizeNow``. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("create", data=data)
+
+
+def delete_group(group_id: int) -> dict:
+    """Delete (deactivate) a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}``, then reads the group back as
+    verification. Secret Server keeps the group with ``enabled: false``
+    rather than removing it. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_management("delete", group_id=group_id)
+
+
+def get_user_groups(user_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0) -> dict:
+    """List the groups a Secret Server user belongs to.
+
+    Calls ``GET /api/v1/users/{id}/groups``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("get", user_id, params={"take": take, "skip": skip})
+
+
+def add_user_to_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Add a Secret Server user to groups.
+
+    Calls ``POST /api/v1/users/{id}/groups`` with ``{"groupIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("add", user_id, group_ids)
+
+
+def remove_user_from_groups(user_id: int, group_ids: list[int]) -> dict:
+    """Remove a Secret Server user from groups.
+
+    Calls ``DELETE /api/v1/users/{id}/groups?groupIds=...``. Secret Server
+    REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return user_group_management("remove", user_id, group_ids)
+
+
+def get_group_roles(
+    group_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:
+    """List the roles assigned to a Secret Server group.
+
+    Calls ``GET /api/v1/groups/{id}/roles``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("list", group_id, params={"take": take, "skip": skip})
+
+
+def add_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Assign roles to a Secret Server group.
+
+    Calls ``POST /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return group_role_management("add", group_id, role_ids)
+
+
+def remove_group_roles(group_id: int, role_ids: list[int]) -> dict:
+    """Remove roles from a Secret Server group.
+
+    Calls ``DELETE /api/v1/groups/{id}/roles`` with ``{"roleIds": [...]}``.
+    Secret Server refuses any role removal it calculates would lock the
+    signed-in account out of role administration
+    (``API_RoleAdministrationNoLockout``). It counts only rights granted
+    through Secret Server roles, so an account that is an administrator
+    through the Delinea Platform can add roles but not remove them.
+    Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return _explain_role_lockout(group_role_management("remove", group_id, role_ids))
+
+
+def create_folder(data: dict) -> dict:
+    """Create a Secret Server folder.
+
+    Calls ``POST /api/v1/folders``; *data* needs ``folderName``,
+    ``parentFolderId`` (``-1`` for the root) and ``folderTypeId`` (``1``);
+    ``inheritPermissions`` and ``inheritSecretPolicy`` are optional booleans.
+    Returns ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("create", data=data)
+
+
+def update_folder(folder_id: int, data: dict) -> dict:
+    """Update a Secret Server folder, replacing it with *data*.
+
+    Calls ``PUT /api/v1/folders/{id}``. *data* is the full folder as
+    ``get_folder`` returns it with the changes applied; it can rename or move
+    the folder and change its permission and policy inheritance. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("update", folder_id=folder_id, data=data)
+
+
+def delete_folder(folder_id: int) -> dict:
+    """Delete a Secret Server folder.
+
+    Calls ``DELETE /api/v1/folders/{id}``, then reads the folder back as
+    verification. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    return folder_management("delete", folder_id=folder_id)
+
+
+def health_check() -> dict:
+    """Check that the configured Secret Server is reachable and healthy.
+
+    Calls ``GET /api/v1/healthcheck``; returns Secret Server's service
+    information, with ``{"status": "Healthy"}`` when it is operational.
     """
     logger.debug("health_check")
     session = SessionManager.get()
@@ -2149,13 +2430,34 @@ def health_check() -> dict:
         return {"error": f"Failed to perform health check: {exc}"}
 
 
+def _roles_named(query: str, max_pages: int = 20) -> dict:
+    """Roles whose name contains *query*; /v1/roles has no name filter."""
+    # ponytail: stops after max_pages * 500 roles; add a server-side filter if
+    # a tenant ever has more.
+    q, matches = query.lower(), []
+    for page in range(max_pages):
+        data = role_management(
+            "list", params={"take": MAX_PAGE_SIZE, "skip": page * MAX_PAGE_SIZE}
+        )
+        if not isinstance(data, dict) or "error" in data:
+            return data
+        records = data.get("records") or []
+        matches += [r for r in records if q in str(r.get("name", "")).lower()]
+        if not data.get("hasNext") or not records:
+            return {"records": matches}
+    return {"records": matches, "truncated": True}
+
+
 def search(query: str) -> dict:
-    """Return search results in MCP format.
+    """Search Secret Server by name across the enabled object types.
+
+    Searches secrets by default; the server's ``search_objects`` setting can
+    add users, folders, groups and roles. ``fetch`` takes a result's ``id``.
 
     Parameters
     ----------
     query:
-        Text to search across the enabled object types.
+        Text to search for in names.
 
     Returns
     -------
@@ -2171,7 +2473,8 @@ def search(query: str) -> dict:
         "user": secretserver_users.search_secretserver_local_users,
         "folder": search_folders,
         "group": lambda q: group_management("list", params={"filter.searchText": q}),
-        "role": lambda q: role_management("list", params={"filter.searchText": q}),
+        # /v1/roles has no name filter.
+        "role": lambda q: _roles_named(q),
     }
 
     base = _api_base_url()
@@ -2200,6 +2503,7 @@ def search(query: str) -> dict:
             title = (
                 rec.get("name")
                 or rec.get("username")
+                or rec.get("userName")
                 or rec.get("folderName")
                 or rec.get("groupName")
                 or rec.get("roleName")
@@ -2253,6 +2557,11 @@ def fetch(id: str) -> dict:
         )
     kind, obj_id = identifier.split("/", 1)
     kind = kind.lower().rstrip("s")
+    if not obj_id.isdigit():
+        raise ValueError(
+            f"identifier {identifier!r} needs a numeric ID after the '/', "
+            "e.g. 'secret/42'"
+        )
     if kind not in _FETCH_ALLOWED:
         raise ValueError(
             f"fetch for {kind!r} is not enabled on this server; enabled types: "
@@ -2278,6 +2587,7 @@ def fetch(id: str) -> dict:
     title = (
         data.get("name")
         or data.get("username")
+        or data.get("userName")
         or data.get("folderName")
         or data.get("groupName")
         or data.get("roleName")
@@ -2312,21 +2622,20 @@ def update_secret_fields(
 ) -> dict:
     """Edit non-sensitive fields on an existing secret.
 
-    Composes the read-mutate-verify flow:
+    Runs these requests:
 
     1. ``GET /v1/secrets/{id}/summary`` to check approval / comment
-       requirements via :func:`_check_secret_approval`.
+       requirements.
     2. ``GET /v1/secrets/{id}`` (template lookup) to identify which slugs
        are password fields.
     3. ``PUT /v1/secrets/{id}/fields/{slug}`` per entry in *field_updates*.
     4. ``GET /v1/secrets/{id}/summary`` for verification.
 
     By default, slugs whose template field has ``isPassword=True`` are
-    refused — the model should not see plaintext password values.  Use
-    :func:`set_secret_field_environment_variable` (which emits a shell
-    script that reads the value locally and PUTs it without the value
-    ever passing through the model) for password-class fields, or set
-    ``allow_password_fields=True`` to override (not recommended).
+    refused, so password values don't pass through the conversation.
+    ``set_secret_field_environment_variable`` stores those from the user's
+    machine without the value passing through the model;
+    ``allow_password_fields=True`` lifts the refusal.
 
     Parameters
     ----------
@@ -2334,17 +2643,15 @@ def update_secret_fields(
         Identifier of the secret to update.
     field_updates:
         Mapping of ``field_slug -> new_value`` (or a JSON string).  Use
-        slugs (e.g. ``"notes"``, ``"url"``, ``"hostname"``) discoverable
-        via :func:`check_secret_template`.
+        slugs (e.g. ``"notes"``, ``"url"``, ``"hostname"``) listed by
+        ``check_secret_template``.
     comment:
-        Audit comment recorded against each field update.  Required when
-        the secret has ``requiresComment`` or ``requiresApproval`` set.
-        Must explain **why** the change is being made and reference any
-        related ticket, incident, or change request.
+        Audit comment recorded against each field update: the reason,
+        including any ticket, incident or change request number. Required
+        when the secret has ``requiresComment`` or ``requiresApproval`` set.
     allow_password_fields:
-        Set to ``True`` to permit updating password-class fields.  Doing
-        so means the new value passes through the model — prefer
-        :func:`set_secret_field_environment_variable` for those fields.
+        Set to ``True`` to permit updating password fields. The new value
+        then passes through the conversation.
 
     Returns
     -------
@@ -2427,7 +2734,7 @@ def update_secret_fields(
                 # The override skips the template lookup, so any value may be
                 # a password: mask it in errors the API returns.
                 kwargs["sensitive"] = [str(value)]
-            session.request("PUT", f"/v1/secrets/{secret_id}/fields/{slug}", **kwargs)
+            session.request("PUT", field_path(secret_id, slug), **kwargs)
             per_field.append({"slug": slug, "updated": True})
         except Exception as exc:  # pragma: no cover - network failures
             logger.exception("Failed to update field %s on secret %s", slug, secret_id)
@@ -2506,10 +2813,10 @@ def bulk_user_response(
     .. warning::
         This tool can lock out, disable, or strip 2FA from many users in a
         single call.  It is intended for incident response (e.g. compromised
-        accounts), bulk offboarding, or break-glass restoration.  **Always
-        verify the user_ids list with the caller before invoking** and
-        require an explicit ``confirm=True`` plus a meaningful audit
-        ``comment`` referencing the ticket/incident.
+        accounts), bulk offboarding, or break-glass restoration. Nothing
+        runs without ``confirm=True`` and a non-empty audit ``comment``;
+        with ``confirm=False`` it returns a preview of the steps and
+        target users.
 
     Composes calls to ``POST /v1/bulk-user-operations/*`` endpoints in the
     sequence prescribed by *scenario*.
@@ -2517,16 +2824,16 @@ def bulk_user_response(
     Scenarios
     ---------
     ``"compromise"``
-        Force-logout → lock → disable → reset FIDO2 → reset TOTP.  Use when
-        an account is suspected of compromise and you want the strongest
-        possible response.
+        Force-logout → lock → disable → reset FIDO2 → reset TOTP: the
+        strongest response, for an account suspected of compromise.
     ``"offboard"``
         Force-logout → disable.  Less aggressive — keeps 2FA registrations
         so audit trails remain meaningful.
     ``"unlock"``
-        Unlock → enable.  Reverses a prior lockout/disable.
+        Unlock → enable.  Reverses a prior lockout/disable, including
+        ``"compromise"``.
     ``"reenable"``
-        Enable only.  Use after ``"compromise"`` was applied in error.
+        Enable only; a locked-out user stays locked out.
     ``"force_logout"``
         Just terminate active sessions.
 
@@ -2537,9 +2844,9 @@ def bulk_user_response(
     scenario:
         One of the scenario names listed above.
     comment:
-        Required audit comment.  Must reference the ticket/incident and
-        explain *why* this action is being taken.  An empty comment is
-        rejected.
+        Required reason, including any ticket or incident number; an empty
+        comment is rejected. It is returned in the result; the bulk API
+        takes no comment, so Secret Server doesn't store it.
     confirm:
         Must be set to ``True`` to actually run any destructive scenario.
         ``"unlock"``, ``"reenable"`` and ``"force_logout"`` also require
@@ -2553,7 +2860,9 @@ def bulk_user_response(
         list of steps and target user_ids, no API calls made.
         On execute: ``{"result": {...}, "verification": {...}}`` where
         ``result`` lists per-step API responses and ``verification`` is
-        a fresh user listing for the affected ids.
+        a fresh user listing for the affected ids. The operations run
+        asynchronously: a step's response only means Secret Server accepted
+        it, and the verification can show the state from before it finished.
     """
 
     logger.debug(
@@ -2658,12 +2967,24 @@ TOOLS = [
     ("get_secret", get_secret),
     ("reveal_secret_field", reveal_secret_field),
     ("get_folder", get_folder),
-    ("role_management", role_management),
-    ("user_role_management", user_role_management),
-    ("group_management", group_management),
-    ("user_group_management", user_group_management),
-    ("group_role_management", group_role_management),
-    ("folder_management", folder_management),
+    ("get_roles", get_roles),
+    ("create_role", create_role),
+    ("update_role", update_role),
+    ("get_user_roles", get_user_roles),
+    ("add_user_roles", add_user_roles),
+    ("remove_user_roles", remove_user_roles),
+    ("get_groups", get_groups),
+    ("create_group", create_group),
+    ("delete_group", delete_group),
+    ("get_user_groups", get_user_groups),
+    ("add_user_to_groups", add_user_to_groups),
+    ("remove_user_from_groups", remove_user_from_groups),
+    ("get_group_roles", get_group_roles),
+    ("add_group_roles", add_group_roles),
+    ("remove_group_roles", remove_group_roles),
+    ("create_folder", create_folder),
+    ("update_folder", update_folder),
+    ("delete_folder", delete_folder),
     ("health_check", health_check),
     ("search_secrets", search_secrets),
     ("search_folders", search_folders),

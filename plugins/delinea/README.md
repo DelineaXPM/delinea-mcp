@@ -8,7 +8,7 @@ manage folders, users, groups, roles and access requests.
 ## What's included
 
 - **The Delinea MCP server** ([`delinea-mcp`](https://pypi.org/project/delinea-mcp/)
-  on PyPI), started on your machine with `uvx --no-config delinea-mcp==2.0.0`.
+  on PyPI), started on your machine with `uvx --no-config delinea-mcp==3.0.0`.
 - **no-secret-visibility skill**: teaches Claude to hand credentials straight
   to the programs that need them, and to reveal a password only after you
   approve it in your client.
@@ -111,7 +111,7 @@ in plaintext unless that setting is on.
   after you approve a confirmation prompt that the server sends to your
   client.
 
-## Data and network use
+## Privacy policy
 
 The MCP server runs on your machine and connects only to the Delinea
 Platform URL you configure and the Secret Server that your Platform tenant
@@ -123,12 +123,13 @@ become part of your conversation. To start the server, `uvx` downloads
 `delinea-mcp` from PyPI the first time each version runs. If Python 3.13
 isn't installed, `uvx` also downloads it from GitHub. Credential handoff
 files are written to a private temporary folder and are deleted when
-they're used, after 15 minutes, or when the server shuts down. The startup check only looks for
-`uvx` on your machine; `/delinea:setup` installs nothing until you approve
+they're used, after 15 minutes, or when the server shuts down. The startup check only
+checks that the plugin's settings are entered and looks for `uvx` on your machine; `/delinea:setup` installs nothing until you approve
 it, and then contacts only your chosen package source (Homebrew, WinGet,
 Scoop, PyPI, or astral.sh for uv's official installer).
 
-Privacy policy: <https://delinea.com/privacy-policy>
+Delinea's full privacy policy, including how to contact Delinea about
+privacy, is at <https://delinea.com/privacy-policy>.
 
 ## Support
 

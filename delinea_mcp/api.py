@@ -4,7 +4,7 @@ import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Iterable
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -149,23 +149,51 @@ def _spans(message: str, value: str) -> list[tuple[int, int]]:
 
 
 _SENSITIVE_KEY = re.compile(r"pass|secret|token|key", re.IGNORECASE)
+_FIELD_SLUG = re.compile(r"[A-Za-z0-9_-]+")
 
 
-def mask_fields(data: Any) -> Any:
-    """Copy of *data* for logging, with password/secret/token/key values masked.
+def field_path(secret_id: Any, slug: Any) -> str:
+    """``/v1/secrets/{id}/fields/{slug}``, refusing a slug that changes the path.
 
-    A JSON string is described by its length, since it may hold any of them.
+    An unchecked slug such as ``../../2/fields/password`` would reach a
+    different secret than the one approved.
     """
-    if isinstance(data, dict):
-        return {
-            k: "********" if _SENSITIVE_KEY.search(str(k)) else mask_fields(v)
-            for k, v in data.items()
-        }
-    if isinstance(data, list):
-        return [mask_fields(v) for v in data]
-    if isinstance(data, str) and data.lstrip().startswith(("{", "[")):
-        return f"<JSON text, {len(data)} chars>"
-    return data
+    if not isinstance(slug, str) or not _FIELD_SLUG.fullmatch(slug):
+        raise ValueError(
+            f"Invalid field slug {slug!r}: slugs contain only letters, digits, "
+            "'-' and '_'"
+        )
+    return f"/v1/secrets/{int(secret_id)}/fields/{slug}"
+
+
+def path_segment(value: Any) -> str:
+    """*value* encoded as one URL path segment; refuses ``.``, ``..`` and empty."""
+    text = str(value)
+    if text in ("", ".", ".."):
+        raise ValueError(f"{value!r} can't be used as a name")
+    return quote(text, safe="")
+
+
+def target_id_conflict(data: Any, target_id: Any, label: str) -> str | None:
+    """Error text when *data* names a different object than *target_id*.
+
+    An update body's own ``id`` can decide which object an API changes, so
+    a body naming another object would change something other than the
+    approved target.
+    """
+    if not isinstance(data, dict):
+        return None
+    for key, value in data.items():
+        if (
+            str(key).lower() == "id"
+            and value not in (None, "")
+            and str(value) != str(target_id)
+        ):
+            return (
+                f"data[{key!r}] is {value!r} but {label} is {target_id!r}; "
+                f"they must name the same object"
+            )
+    return None
 
 
 def sensitive_values(data: Any) -> list[str]:

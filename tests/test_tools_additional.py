@@ -27,10 +27,10 @@ def test_user_management_extra(monkeypatch):
     s = Session()
     monkeypatch.setattr(SessionManager, "_session", s)
     res = secretserver_users.secretserver_local_user_management(
-        "list_sessions", skip=0, take=1, is_exporting=True
+        "list_sessions", skip=5, take=10_000
     )
     assert res == {"ok": True}
-    assert s.calls[0][2]["params"]["isExporting"]
+    assert s.calls[0][2]["params"] == {"take": 500, "skip": 5}
 
     res = secretserver_users.secretserver_local_user_management("unknown")
     assert res["error"] == "Unknown action: unknown"

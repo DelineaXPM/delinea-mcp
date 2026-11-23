@@ -134,7 +134,9 @@ def test_role_management(monkeypatch):
 
 
 def test_user_role_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/users/1/roles", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/users/1/roles", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.user_role_management("get", 1) == {"ok": True}
 
     patch_request(
@@ -178,7 +180,9 @@ def test_group_management(monkeypatch):
 
 
 def test_user_group_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/users/2/groups", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/users/2/groups", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.user_group_management("get", 2) == {"ok": True}
 
     patch_request(
@@ -193,7 +197,9 @@ def test_user_group_management(monkeypatch):
 
 
 def test_group_role_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/groups/3/roles", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/groups/3/roles", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.group_role_management("list", 3) == {"ok": True}
 
     patch_request(
@@ -267,6 +273,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                     "json": {
                         "name": "db-prod",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "G3n3rated!"},
@@ -319,6 +326,7 @@ def test_create_secret_generated_password_injects_existing_field(monkeypatch):
                     "json": {
                         "name": "test",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 108, "itemValue": "NewPwd!"},
                         ],
@@ -357,6 +365,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                     "json": {
                         "name": "json-test",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "Gen!"},
@@ -411,6 +420,7 @@ def test_create_secret_no_items_leak(monkeypatch):
                         "name": "safe",
                         "secretTemplateId": 1,
                         "items": [{"fieldId": 1, "itemValue": "Pwd!"}],
+                        "siteId": 1,
                     },
                 },
             ),

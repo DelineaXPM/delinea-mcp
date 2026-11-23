@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "delinea",
   "displayName": "Delinea Secret Server",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Work with Delinea Secret Server and the Delinea Platform from Claude: find and use secrets without exposing passwords, run SQL reports, and manage folders, users, groups, roles and access requests.",
   "author": {
     "name": "Delinea",
@@ -42,7 +42,7 @@
     "tool_preset": {
       "type": "string",
       "title": "Required: Tool access",
-      "description": "What Claude can do. Read-only: search, view secrets with passwords masked, run reports, and hand credentials to programs without showing them; nothing in Secret Server or the Platform is changed. All tools: also create, update, rotate and delete. Custom: only the tools in the custom tool list below.",
+      "description": "What Claude can do. Read-only: search, view secrets with passwords masked, run reports, and hand credentials to programs without showing them. Secrets and settings aren't changed, but handing over a secret that requires check-out checks it out and back in, which rotates its password if it's set to change on check-in. All tools: also create, update, rotate and delete. Custom: only the tools in the custom tool list below.",
       "options": ["Read-only", "All tools", "Custom"],
       "default": "All tools",
       "required": true
@@ -88,7 +88,7 @@
   "mcpServers": {
     "delinea": {
       "command": "uvx",
-      "args": ["--no-config", "--python", "3.13", "delinea-mcp==2.0.0"],
+      "args": ["--no-config", "--python", "3.13", "delinea-mcp==3.0.0"],
       "env": {
         "DELINEA_MCP_PLUGIN": "1",
         "DELINEA_BASE_URL": "${user_config.delinea_base_url}",

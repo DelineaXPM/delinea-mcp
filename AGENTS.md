@@ -256,7 +256,14 @@ cfg.write_text(json.dumps({"auth_mode": "none"}))
 **MCP Tool Development**:
 
 - Tools registered via `@mcp.tool()` decorator with type hints for automatic schema generation
-- Follow naming convention: verb_noun (e.g., `get_secret`, `search_users`, `user_management`)
+- Follow naming convention: verb_noun (e.g., `get_secret`, `search_users`, `delete_group`)
+- Never put reads and writes in one tool (no `action` that spans both): the
+  Claude directory rejects it. Give each resource a read tool, a
+  non-destructive write tool and a destructive tool, each with a `title` and
+  hints in `annotations.py`. Tools that take a caller-built `data` body must
+  link the vendor API docs in their description. `tests/test_tool_contract.py`
+  enforces all three. A renamed or split tool goes into `LEGACY_TOOL_NAMES`
+  so old allowlists keep working.
 - Include comprehensive docstrings with Parameters and Returns sections
 - Return dictionaries with `error` key on failures, structured data on success
 - Use `logger.debug()` for operation logging with descriptive messages
@@ -272,12 +279,43 @@ def _cfg_or_env(key: str) -> str | None:
 
 **Directory-readiness rules** (Claude connector/plugin directory review):
 
+The plugin ships through the Claude plugin directory, so it has to pass
+Anthropic's review. The sources of truth are:
+
+- Connector review criteria: <https://claude.com/docs/connectors/building/review-criteria>
+- Plugin pre-submission checklist: <https://claude.com/docs/plugins/pre-submission-checklist>
+- Submission guide: <https://claude.com/docs/connectors/building/submission>
+
+After a substantial change to tools (new, renamed, split, or re-described
+tools), the plugin folder (`plugins/delinea/`: manifest, hooks, skills,
+scripts, README) or what the server sends or fetches, fetch those pages
+again and check the change against them; they change over time. Fix
+anything that fails, and update the rules below if the pages added any.
+
 - Every tool needs an entry in both `TOOL_ANNOTATIONS` and `TOOL_TITLES`
   (`delinea_mcp/annotations.py`); register tools with
   `mcp.tool(**tool_metadata(name))(guard_tool(func))`.
+- Tool names are 64 characters or fewer.
+- A tool description (its docstring) says what the tool does, which
+  endpoint it calls, what it returns and when it errors. It doesn't tell
+  Claude how to behave: no "always", "must", "call X first", "only call
+  this when", "prefer Y" or "verify with the user". State the fact instead
+  ("returns an error unless _comment_ is given"; "`list_example_reports`
+  returns the tables"). No private helper names or Sphinx markup
+  (`:func:`) in tool docstrings; they reach Claude verbatim. The same goes
+  for hook output, which Claude reads.
 - Never return plaintext secret values: mask via `_mask_secret`, reveal only
   through `reveal_secret_field` (elicitation-gated via `Resolve`/`Elicit`).
-- List/search tools must page (`_paged`) and bound output.
+- List/search tools must page (`_paged`) and bound output, and errors carry
+  detail (no bare "Bad Request").
+- Plugin: keep the `uvx delinea-mcp==<version>` pin exact and equal to the
+  package version, and only point it at a version already on PyPI; keep
+  the README's privacy policy section and its list of everything the
+  plugin runs, sends or fetches current; everything the plugin runs stays
+  inside `plugins/delinea/`. Run `claude plugin validate ./plugins/delinea`.
+- `tests/test_tool_contract.py` checks the mechanical parts (titles, hints,
+  name length, no read/write mix, doc links, directive phrases). Passing it
+  doesn't replace re-reading the review pages.
 
 ## Dependencies
 

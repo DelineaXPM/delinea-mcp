@@ -1,5 +1,127 @@
 # Release Notes
 
+## v3.0.0 — read and write tools split
+
+### Breaking: tools that mixed reads and writes are split
+
+The Claude directory rejects a tool that takes both read and write
+operations. Each `*_management(action, ...)` tool is replaced by a read tool,
+a create tool and, where something can be updated, deleted or removed,
+separate destructive tools. Read tools carry `readOnlyHint`; updates,
+deletes and removals carry `destructiveHint`; creates and additions don't,
+except StrongDM user creation and role attachment, which grant access.
+Clients use these hints, together with the user's own permission settings,
+to decide when to ask before running a tool. The server's own checks
+(`confirm` and a comment on bulk and StrongDM writes, the reveal prompt,
+Secret Server permissions and approvals) apply regardless.
+
+An old name in `enabled_tools`, `DELINEA_ENABLED_TOOLS` or the plugin's
+Custom tool list still works: it enables every replacement (including the
+destructive ones) and logs a warning. Update the list to the new names to
+choose exactly which operations to allow. Claude Code permission rules and
+prompts that name the old tools need the new names.
+
+- `role_management` → `get_roles`, `create_role`, `update_role`
+- `user_role_management` → `get_user_roles`, `add_user_roles`,
+  `remove_user_roles`
+- `group_management` → `get_groups`, `create_group`, `delete_group`
+- `user_group_management` → `get_user_groups`, `add_user_to_groups`,
+  `remove_user_from_groups`
+- `group_role_management` → `get_group_roles`, `add_group_roles`,
+  `remove_group_roles`
+- `folder_management` → `get_folder`, `search_folders` (existing),
+  `create_folder`, `update_folder`, `delete_folder`
+- `secretserver_local_user_management` → `get_secretserver_local_user`,
+  `list_secretserver_user_sessions`,
+  `create_secretserver_local_user`, `update_secretserver_local_user`,
+  `delete_secretserver_local_user`, `reset_secretserver_local_user_password`,
+  `reset_secretserver_local_user_two_factor`, `lock_out_secretserver_local_user`
+- `user_management`, `platform_user_management` → `search_users` (existing),
+  `get_platform_user`, `create_platform_user`, `update_platform_user`,
+  `delete_platform_user`
+- `platform_role_management` → `get_platform_roles`,
+  `create_platform_role`, `update_platform_role`, `delete_platform_role`
+- `platform_user_role_management` → `get_platform_role_members`,
+  `add_platform_role_members`, `remove_platform_role_members`
+- `sdm_user_management` → `sdm_get_users`, `sdm_create_user`,
+  `sdm_set_user_status`, `sdm_delete_user`
+- `sdm_role_management` → `sdm_get_roles`, `sdm_create_role`,
+  `sdm_delete_role`, `sdm_add_role_member`, `sdm_remove_role_member`
+
+The plugin's Read-only preset now includes the new role, group and
+membership read tools.
+
+### Annotation fixes
+
+`set_secret_field_environment_variable` (overwrites a secret field) and
+`handle_access_request` (approving grants access; a decision is final) now
+carry `destructiveHint`, so clients that honor the hint ask before running
+them.
+
+### Other fixes
+
+- Platform tools fetch a new token before the old one expires (about an
+  hour); before, every Platform tool failed after that until the server
+  restarted.
+- `update_role(role_id, name=None, enabled=None)` sends the dirty-field
+  PATCH body Secret Server expects. The old guidance (send the full role)
+  got HTTP 500.
+- `search_folders(parent_folder_id=...)` returns only direct children, as
+  documented; it returned every descendant. `-1` lists top-level folders.
+- List tools that relied on the API's default page size (10 in Secret
+  Server, 30 for Platform role members) take paging parameters:
+  `get_user_roles`, `get_user_groups`, `get_group_roles`,
+  `get_pending_access_requests`, `search_secretserver_local_users`,
+  `search_users`, `get_platform_roles` and `get_platform_role_members`.
+- `reveal_secret_field` and the README describe both approval modes; they
+  promised a server prompt, which `client_approval` mode doesn't show.
+- The local-user security actions are three typed tools,
+  `reset_secretserver_local_user_password`,
+  `reset_secretserver_local_user_two_factor` and
+  `lock_out_secretserver_local_user`, which build the `{"data": ...}` body
+  Secret Server expects. The single tool taking a caller-built body got
+  HTTP 500 for every action.
+- `get_roles` takes `include_inactive`, `take` and `skip`, and `get_groups`
+  takes `query`, `take` and `skip`, in place of a raw `params` dict.
+  `/api/v1/roles` has no name filter, so `get_roles` no longer claims one.
+  `get_inbox_messages` and `platform_reports` cap their page size at 500,
+  and a negative `skip` is treated as 0.
+- Field slugs and Platform names are checked before they go into a URL
+  path, so a value like `../../2/fields/password` can't reach a different
+  secret, and `..` can't reach a different Permission endpoint.
+- `remove_user_roles` and `remove_group_roles` explain Secret Server's
+  lock-out refusal (`API_RoleAdministrationNoLockout`), which blocks every
+  role removal when the signed-in account is an administrator through the
+  Platform rather than a Secret Server role.
+- `create_secret_with_generated_password` defaults `site_id` to 1, the
+  built-in Local site; without it Secret Server rejected the secret. Its
+  unused `comment` parameter is gone.
+- `update_platform_user` and `delete_platform_user` verify by user ID; the
+  name search they used never matched, so verification was always empty.
+- `check_secret_template_field` matches a field's ID, name or slug,
+  regardless of case.
+- `list_secretserver_user_sessions` says it lists the signed-in account's
+  own sessions, which is all the endpoint returns.
+
+### Platform roles use the Permission service
+
+The Platform role tools called identity API endpoints (`SaasManage/*`,
+`Roles/UpdateRole`) that the Delinea Platform doesn't serve, so every role
+change failed with a 404 that was reported as a scope limitation. Role
+lookups listed legacy identity roles instead of the Platform's roles. The
+tools now use the Platform's Permission service: `/permission/api/roles`
+for roles and `/permission/api/role-memberships` for assignments. They take
+a `role_name`, and members are Platform user or group IDs (`subject_ids`).
+
+### API documentation links
+
+Every new tool's description names the endpoint it calls and links the
+vendor API reference (Secret Server REST API, developer.delinea.com for
+Platform users, StrongDM API reference). The Platform Permission service
+has no public reference page, so its OpenAPI document is in
+`docs/delinea-platform-permission-openapi-spec.json` and the role tools
+link that.
+
 ## v2.0.0 — Claude Code plugin, PyPI package, secret-visibility hardening
 
 ### Distribution

@@ -1,10 +1,10 @@
 """Behaviour hints (ToolAnnotations) for every registered tool.
 
 Clients use these to decide when to ask the human for confirmation, so
-honesty beats optimism: for verb-dispatch tools whose ``action`` parameter
-reaches several operations, the hints describe the *worst reachable*
-action — ``user_management`` can delete, therefore it is destructive even
-though it can also merely list.
+honesty beats optimism: a tool is only non-destructive when every call
+adds state. Creating is additive; updating overwrites, so update tools are
+destructive, and a tool whose ``action`` reaches several operations gets
+the hints of the *worst reachable* one.
 
 All backends talk to remote Delinea/StrongDM services, so
 ``open_world_hint`` stays at the default (None) rather than claiming a
@@ -25,13 +25,15 @@ _ADD = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False
 )
 
-# Writes that overwrite nothing irrecoverable and can be safely repeated.
+# Writes that only add (or flip a flag the same tool can flip back) and can
+# be safely repeated.
 _IDEM = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=True
 )
 
-# Verb-dispatch tools where some reachable action deletes, disables or
-# irreversibly overwrites.
+# Writes that delete, disable or overwrite existing data. Per the MCP spec,
+# anything that isn't purely additive is destructive, so every update tool
+# carries this.
 _DESTR = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False
 )
@@ -59,28 +61,54 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     # ---- Secret Server writes
     "run_report": _ADD,
     "create_secret_with_generated_password": _ADD,
-    "handle_access_request": _ADD,  # approve/deny: state change, not data loss
+    "handle_access_request": _DESTR,  # approve grants access; final either way
     "mark_inbox_messages_read": _IDEM,
     "get_secret_environment_variable": _IDEM,  # emits a local shell script
-    "set_secret_field_environment_variable": _IDEM,
-    "role_management": _DESTR,
-    "user_role_management": _DESTR,
-    "group_management": _DESTR,
-    "user_group_management": _DESTR,
-    "group_role_management": _DESTR,
-    "folder_management": _DESTR,
+    "set_secret_field_environment_variable": _DESTR,  # overwrites the field
+    "get_roles": _RO,
+    "create_role": _ADD,
+    "update_role": _DESTR,  # can rename or disable the role
+    "get_user_roles": _RO,
+    "add_user_roles": _IDEM,
+    "remove_user_roles": _DESTR,
+    "get_groups": _RO,
+    "create_group": _ADD,
+    "delete_group": _DESTR,
+    "get_user_groups": _RO,
+    "add_user_to_groups": _IDEM,
+    "remove_user_from_groups": _DESTR,
+    "get_group_roles": _RO,
+    "add_group_roles": _IDEM,
+    "remove_group_roles": _DESTR,
+    "create_folder": _ADD,
+    "update_folder": _DESTR,  # overwrites; can move or re-permission
+    "delete_folder": _DESTR,
     "update_secret_fields": _DESTR,
     "update_secret_generated_password": _DESTR,  # rotates irreversibly
     "bulk_user_response": _DESTR,
     # ---- Secret Server local users (legacy)
     "search_secretserver_local_users": _RO,
-    "secretserver_local_user_management": _DESTR,
+    "get_secretserver_local_user": _RO,
+    "list_secretserver_user_sessions": _RO,
+    "create_secretserver_local_user": _ADD,
+    "update_secretserver_local_user": _DESTR,  # can disable, lock, re-password
+    "delete_secretserver_local_user": _DESTR,
+    "reset_secretserver_local_user_password": _DESTR,
+    "reset_secretserver_local_user_two_factor": _DESTR,
+    "lock_out_secretserver_local_user": _DESTR,
     # ---- Delinea Platform
-    "user_management": _DESTR,
     "search_users": _RO,
-    "platform_user_management": _DESTR,  # deprecated alias of user_management
-    "platform_role_management": _DESTR,
-    "platform_user_role_management": _DESTR,
+    "get_platform_user": _RO,
+    "create_platform_user": _ADD,
+    "update_platform_user": _DESTR,  # can disable or re-password
+    "delete_platform_user": _DESTR,
+    "get_platform_roles": _RO,
+    "create_platform_role": _ADD,  # fails if the role exists
+    "update_platform_role": _DESTR,  # can disable the role
+    "delete_platform_role": _DESTR,
+    "get_platform_role_members": _RO,
+    "add_platform_role_members": _IDEM,
+    "remove_platform_role_members": _DESTR,
     "platform_reports": _RO,  # run only adds a "View" audit entry
     # ---- StrongDM. Grant/revoke change security posture, so they carry the
     # destructive hint even though granting is technically additive.
@@ -88,8 +116,15 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "sdm_audit_access": _RO,
     "sdm_grant_access": _DESTR,
     "sdm_revoke_access": _DESTR,
-    "sdm_user_management": _DESTR,
-    "sdm_role_management": _DESTR,
+    "sdm_get_users": _RO,
+    "sdm_create_user": _DESTR,  # onboarding attaches roles, granting access
+    "sdm_set_user_status": _DESTR,
+    "sdm_delete_user": _DESTR,
+    "sdm_get_roles": _RO,
+    "sdm_create_role": _ADD,  # an empty role grants nothing
+    "sdm_delete_role": _DESTR,
+    "sdm_add_role_member": _DESTR,
+    "sdm_remove_role_member": _DESTR,
     "sdm_resource_health": _IDEM,  # triggers a healthcheck, no state destroyed
     "sdm_access_requests": _RO,
     "sdm_activity_report": _RO,
@@ -121,37 +156,139 @@ TOOL_TITLES: dict[str, str] = {
     "mark_inbox_messages_read": "Mark Inbox Messages Read",
     "get_secret_environment_variable": "Export Secret to Environment Variables",
     "set_secret_field_environment_variable": "Set Secret Field from Local Value",
-    "role_management": "Manage Roles",
-    "user_role_management": "Manage User Roles",
-    "group_management": "Manage Groups",
-    "user_group_management": "Manage Group Membership",
-    "group_role_management": "Manage Group Roles",
-    "folder_management": "Manage Folders",
+    "get_roles": "Get Roles",
+    "create_role": "Create Role",
+    "update_role": "Update Role",
+    "get_user_roles": "Get User Roles",
+    "add_user_roles": "Add Roles to User",
+    "remove_user_roles": "Remove Roles from User",
+    "get_groups": "Get Groups",
+    "create_group": "Create Group",
+    "delete_group": "Delete Group",
+    "get_user_groups": "Get User Groups",
+    "add_user_to_groups": "Add User to Groups",
+    "remove_user_from_groups": "Remove User from Groups",
+    "get_group_roles": "Get Group Roles",
+    "add_group_roles": "Add Roles to Group",
+    "remove_group_roles": "Remove Roles from Group",
+    "create_folder": "Create Folder",
+    "update_folder": "Update Folder",
+    "delete_folder": "Delete Folder",
     "update_secret_fields": "Update Secret Fields",
     "update_secret_generated_password": "Rotate Secret Password",
     "bulk_user_response": "Bulk User Incident Response",
     # ---- Secret Server local users (legacy)
     "search_secretserver_local_users": "Search Secret Server Local Users",
-    "secretserver_local_user_management": "Manage Secret Server Local Users",
+    "get_secretserver_local_user": "Get Secret Server Local User",
+    "list_secretserver_user_sessions": "List Own Secret Server Sessions",
+    "create_secretserver_local_user": "Create Secret Server Local User",
+    "update_secretserver_local_user": "Update Secret Server Local User",
+    "delete_secretserver_local_user": "Delete Secret Server Local User",
+    "reset_secretserver_local_user_password": "Reset Secret Server Local User Password",
+    "reset_secretserver_local_user_two_factor": "Reset Secret Server Local User Two-Factor",
+    "lock_out_secretserver_local_user": "Lock Out Secret Server Local User",
     # ---- Delinea Platform
-    "user_management": "Manage Platform Users",
     "search_users": "Search Platform Users",
     "platform_reports": "Browse and Run Platform Reports",
-    "platform_user_management": "Manage Platform Users (Deprecated Alias)",
-    "platform_role_management": "Manage Platform Roles",
-    "platform_user_role_management": "Manage Platform User Roles",
+    "get_platform_user": "Get Platform User",
+    "create_platform_user": "Create Platform User",
+    "update_platform_user": "Update Platform User",
+    "delete_platform_user": "Delete Platform User",
+    "get_platform_roles": "Get Platform Roles",
+    "create_platform_role": "Create Platform Role",
+    "update_platform_role": "Update Platform Role",
+    "delete_platform_role": "Delete Platform Role",
+    "get_platform_role_members": "Get Platform Role Members",
+    "add_platform_role_members": "Add Platform Role Members",
+    "remove_platform_role_members": "Remove Platform Role Members",
     # ---- StrongDM
     "sdm_search": "Search StrongDM",
     "sdm_audit_access": "Audit StrongDM Access",
     "sdm_grant_access": "Grant StrongDM Access",
     "sdm_revoke_access": "Revoke StrongDM Access",
-    "sdm_user_management": "Manage StrongDM Users",
-    "sdm_role_management": "Manage StrongDM Roles",
+    "sdm_get_users": "Get StrongDM Users",
+    "sdm_create_user": "Create StrongDM User",
+    "sdm_set_user_status": "Suspend, Reactivate or Offboard StrongDM User",
+    "sdm_delete_user": "Delete StrongDM User",
+    "sdm_get_roles": "Get StrongDM Roles",
+    "sdm_create_role": "Create StrongDM Role",
+    "sdm_delete_role": "Delete StrongDM Role",
+    "sdm_add_role_member": "Add StrongDM Role Member",
+    "sdm_remove_role_member": "Remove StrongDM Role Member",
     "sdm_resource_health": "Check StrongDM Resource Health",
     "sdm_access_requests": "List StrongDM Access Requests",
     "sdm_activity_report": "StrongDM Activity Report",
     "sdm_network_status": "StrongDM Network Status",
 }
+
+
+# Pre-3.0 tools that mixed reads and writes behind an ``action`` parameter,
+# mapped to the tools that replaced them. An old name in an allowlist
+# expands to these so existing configurations keep every capability.
+LEGACY_TOOL_NAMES: dict[str, tuple[str, ...]] = {
+    "role_management": ("get_roles", "create_role", "update_role"),
+    "user_role_management": ("get_user_roles", "add_user_roles", "remove_user_roles"),
+    "group_management": ("get_groups", "create_group", "delete_group"),
+    "user_group_management": (
+        "get_user_groups",
+        "add_user_to_groups",
+        "remove_user_from_groups",
+    ),
+    "group_role_management": (
+        "get_group_roles",
+        "add_group_roles",
+        "remove_group_roles",
+    ),
+    "folder_management": (
+        "get_folder",
+        "search_folders",
+        "create_folder",
+        "update_folder",
+        "delete_folder",
+    ),
+    "secretserver_local_user_management": (
+        "get_secretserver_local_user",
+        "list_secretserver_user_sessions",
+        "create_secretserver_local_user",
+        "update_secretserver_local_user",
+        "delete_secretserver_local_user",
+        "reset_secretserver_local_user_password",
+        "reset_secretserver_local_user_two_factor",
+        "lock_out_secretserver_local_user",
+    ),
+    "user_management": (
+        "search_users",
+        "get_platform_user",
+        "create_platform_user",
+        "update_platform_user",
+        "delete_platform_user",
+    ),
+    "platform_role_management": (
+        "get_platform_roles",
+        "create_platform_role",
+        "update_platform_role",
+        "delete_platform_role",
+    ),
+    "platform_user_role_management": (
+        "get_platform_role_members",
+        "add_platform_role_members",
+        "remove_platform_role_members",
+    ),
+    "sdm_user_management": (
+        "sdm_get_users",
+        "sdm_create_user",
+        "sdm_set_user_status",
+        "sdm_delete_user",
+    ),
+    "sdm_role_management": (
+        "sdm_get_roles",
+        "sdm_create_role",
+        "sdm_delete_role",
+        "sdm_add_role_member",
+        "sdm_remove_role_member",
+    ),
+}
+LEGACY_TOOL_NAMES["platform_user_management"] = LEGACY_TOOL_NAMES["user_management"]
 
 
 def tool_metadata(name: str) -> dict[str, Any]:

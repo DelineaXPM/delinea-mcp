@@ -392,3 +392,11 @@ def test_registered_with_read_only_annotation():
     names = [name for name, _ in user_platform_tools.TOOLS]
     assert "platform_reports" in names
     assert TOOL_ANNOTATIONS["platform_reports"].read_only_hint is True
+
+
+def test_page_size_is_capped(platform):
+    calls, _ = platform
+    user_platform_tools.platform_reports("list", page_size=10_000)
+    user_platform_tools.platform_reports("run", report="r", page_size=10_000)
+    assert calls[0]["params"]["RecordsPerPage"] == 500
+    assert calls[1]["json"]["pagination"]["recordsPerPage"] == 500
