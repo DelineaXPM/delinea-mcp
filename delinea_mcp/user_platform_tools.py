@@ -824,19 +824,32 @@ def _role_path(role_name: str) -> str:
     return f"/roles/{quote(role_name, safe='')}"
 
 
+_MAX_ROLE_PAGE_SIZE = 500
+
+
 def get_platform_roles(
-    role_name: str | None = None, query: str = "", page_size: int = 100
+    role_name: str | None = None,
+    query: str = "",
+    page_size: int = 100,
+    page: int = 1,
 ) -> dict:
     """List Delinea Platform roles, or get one role (with its permissions) by name.
 
     Calls ``GET /permission/api/roles`` (roles whose name contains *query*;
-    all roles when empty) or, with *role_name*, ``GET
-    /permission/api/roles/{name}``. Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    all roles when empty), one page at a time: *page* starts at 1 and
+    *page_size* is capped at 500, and ``pager.total`` in the response is the
+    number of matching roles. With *role_name*, calls ``GET
+    /permission/api/roles/{name}`` instead. Platform Permission API
+    reference: https://<tenant>/permission/swagger/v1/swagger.json
     """
     if role_name:
         return _permission_request("GET", _role_path(role_name))
-    params: dict[str, Any] = {"RecordsPerPage": page_size}
+    try:
+        page = max(int(page), 1)
+        page_size = min(max(int(page_size), 1), _MAX_ROLE_PAGE_SIZE)
+    except (TypeError, ValueError):
+        return {"error": "page and page_size must be positive integers"}
+    params: dict[str, Any] = {"RecordsPerPage": page_size, "PageNumber": page}
     if query:
         params["Name.Contains"] = query
     return _permission_request("GET", "/roles", params=params)

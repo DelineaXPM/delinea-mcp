@@ -343,7 +343,7 @@ without them the tools return guidance instead of failing):
 - `get_platform_user(user_id)`, `create_platform_user(data)`,
   `update_platform_user(user_id, data)`, `delete_platform_user(user_id)` -
   Platform users (replace `user_management`).
-- `get_platform_roles(role_name=None, query="", page_size=100)`,
+- `get_platform_roles(role_name=None, query="", page_size=100, page=1)`,
   `create_platform_role(role_name, description="", enabled=True)`,
   `update_platform_role(role_name, description, enabled)`,
   `delete_platform_role(role_name)` - Platform roles. Updating replaces the

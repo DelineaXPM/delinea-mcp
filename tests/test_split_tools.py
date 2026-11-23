@@ -210,7 +210,11 @@ def test_platform_role_reads(perm):
     user_platform_tools.get_platform_roles("Ops Team")
     user_platform_tools.get_platform_role_members("Ops Team")
     assert seen[0][:2] == ("GET", "/roles")
-    assert seen[0][3]["Name.Contains"] == "ops"
+    assert seen[0][3] == {
+        "RecordsPerPage": 100,
+        "PageNumber": 1,
+        "Name.Contains": "ops",
+    }
     assert [c[:2] for c in seen[1:]] == [
         ("GET", "/roles/Ops%20Team"),
         ("GET", "/roles/Ops%20Team/members"),
@@ -236,6 +240,13 @@ def test_update_platform_role_reports_errors(perm):
     replies[("PUT", "/roles/r")] = 403
     result = user_platform_tools.update_platform_role("r", "", True)
     assert "HTTP 403" in result["error"]
+
+
+def test_platform_roles_page_and_cap(perm):
+    seen, _ = perm
+    user_platform_tools.get_platform_roles(page=3, page_size=10_000)
+    assert seen[0][3] == {"RecordsPerPage": 500, "PageNumber": 3}
+    assert "error" in user_platform_tools.get_platform_roles(page="x")
 
 
 def test_delete_platform_role(perm):
