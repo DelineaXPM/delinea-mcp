@@ -385,5 +385,11 @@ def test_set_user_status_refuses_reads(sdm):
 
 
 def test_search_folders_lists_direct_children(calls):
+    # parentFolderId alone also returns grandchildren (seen on a live tenant).
     tools.search_folders("", parent_folder_id=12)
-    assert first(calls)[2]["params"]["filter.parentFolderId"] == 12
+    tools.search_folders("", parent_folder_id=-1)
+    child, root = (c[2]["params"] for c in calls)
+    assert child["filter.parentFolderId"] == 12
+    assert child["filter.limitToDirectDescendents"] == "true"
+    assert root["filter.onlyIncludeRootFolders"] == "true"
+    assert "filter.parentFolderId" not in root

@@ -1434,7 +1434,8 @@ def search_folders(
     skip:
         Number of records to skip, for paging with ``take``.
     parent_folder_id:
-        Only return direct children of this folder.
+        Only return direct children of this folder; ``-1`` returns the
+        top-level folders.
 
     Returns
     -------
@@ -1446,8 +1447,13 @@ def search_folders(
     path = "/v1/folders/lookup" if lookup else "/v1/folders"
     try:
         params = _paged({"filter.searchText": query}, take, skip)
-        if parent_folder_id is not None:
+        # parentFolderId alone matches every descendant, and -1 with
+        # limitToDirectDescendents matches nothing.
+        if parent_folder_id == -1:
+            params["filter.onlyIncludeRootFolders"] = "true"
+        elif parent_folder_id is not None:
             params["filter.parentFolderId"] = parent_folder_id
+            params["filter.limitToDirectDescendents"] = "true"
         return session.request("GET", path, params=params).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search folders %s", query)
