@@ -23,6 +23,7 @@ from delinea_mcp.api import mask_fields, sensitive_values
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
+from .tools import _paged
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,12 @@ def _parse_json_data(data: dict | str | None) -> dict | None:
     return data
 
 
-def search_secretserver_local_users(query: str) -> dict:
+def search_secretserver_local_users(query: str, take: int = 50, skip: int = 0) -> dict:
     """Search local Secret Server users (legacy SS-only deployments).
 
-    Calls ``GET /v1/users?filter.searchText=<query>``. In Platform-integrated
+    Calls ``GET /v1/users?filter.searchText=<query>``, paged: *take*
+    (default 50, capped at 500) and *skip*; ``total`` and ``hasNext`` in the
+    response show whether more remain. In Platform-integrated
     tenants the Platform identity directory is the authoritative user store;
     ``search_users`` searches it.
 
@@ -60,7 +63,7 @@ def search_secretserver_local_users(query: str) -> dict:
     session = SessionManager.get()
     try:
         return session.request(
-            "GET", "/v1/users", params={"filter.searchText": query}
+            "GET", "/v1/users", params=_paged({"filter.searchText": query}, take, skip)
         ).json()
     except Exception as exc:  # pragma: no cover - network failures
         logger.exception("Failed to search local SS users %s", query)

@@ -217,11 +217,13 @@ def _platform_url(path: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def search_users(query: str) -> dict:
+def search_users(query: str, page_size: int = 60, page: int = 1) -> dict:
     """Search the Platform identity directory for users.
 
     Calls ``POST /identity/api/Report/RunReport`` with the
-    ``user_searchbyname`` canned report.  Returns the raw report payload.
+    ``user_searchbyname`` canned report.  Returns the raw report payload,
+    one page at a time: *page* starts at 1 and *page_size* is capped at 500.
+    The report gives no overall total; a full page means more may remain.
 
     Secret Server deployments without the Platform keep users in Secret
     Server; ``search_secretserver_local_users`` searches those.
@@ -240,6 +242,9 @@ def search_users(query: str) -> dict:
 
     if not query:
         return {"error": "query required"}
+    paging = _page_params(page, page_size)
+    if paging is None:
+        return {"error": "page and page_size must be positive integers"}
     try:
         headers = _build_headers()
     except RuntimeError as exc:
@@ -249,8 +254,8 @@ def search_users(query: str) -> dict:
     payload = {
         "ID": "user_searchbyname",
         "Args": {
-            "PageNumber": 1,
-            "PageSize": 60,
+            "PageNumber": paging["PageNumber"],
+            "PageSize": paging["RecordsPerPage"],
             "Limit": 100000,
             "FilterQuery": None,
             "Caching": 0,
@@ -836,7 +841,17 @@ def _role_path(role_name: str) -> str:
     return f"/roles/{quote(role_name, safe='')}"
 
 
-_MAX_ROLE_PAGE_SIZE = 500
+_MAX_PAGE_SIZE = 500
+
+
+def _page_params(page: Any, page_size: Any) -> dict[str, Any] | None:
+    """Permission API paging params, or None when either isn't an integer."""
+    try:
+        page = max(int(page), 1)
+        page_size = min(max(int(page_size), 1), _MAX_PAGE_SIZE)
+    except (TypeError, ValueError):
+        return None
+    return {"RecordsPerPage": page_size, "PageNumber": page}
 
 
 def get_platform_roles(
@@ -856,12 +871,9 @@ def get_platform_roles(
     """
     if role_name:
         return _permission_request("GET", _role_path(role_name))
-    try:
-        page = max(int(page), 1)
-        page_size = min(max(int(page_size), 1), _MAX_ROLE_PAGE_SIZE)
-    except (TypeError, ValueError):
+    params = _page_params(page, page_size)
+    if params is None:
         return {"error": "page and page_size must be positive integers"}
-    params: dict[str, Any] = {"RecordsPerPage": page_size, "PageNumber": page}
     if query:
         params["Name.Contains"] = query
     return _permission_request("GET", "/roles", params=params)
@@ -904,14 +916,21 @@ def delete_platform_role(role_name: str) -> dict:
     return _permission_request("DELETE", _role_path(role_name))
 
 
-def get_platform_role_members(role_name: str) -> dict:
+def get_platform_role_members(
+    role_name: str, page_size: int = 100, page: int = 1
+) -> dict:
     """List the users and groups assigned to a Delinea Platform role.
 
-    Calls ``GET /permission/api/roles/{name}/members``; members are keyed by
-    user or group ID. Platform Permission API reference:
+    Calls ``GET /permission/api/roles/{name}/members`` one page at a time:
+    *page* starts at 1 and *page_size* is capped at 500, and ``pager.total``
+    in the response is the number of members. Members are keyed by user or
+    group ID. Platform Permission API reference:
     https://<tenant>/permission/swagger/v1/swagger.json
     """
-    return _permission_request("GET", f"{_role_path(role_name)}/members")
+    params = _page_params(page, page_size)
+    if params is None:
+        return {"error": "page and page_size must be positive integers"}
+    return _permission_request("GET", f"{_role_path(role_name)}/members", params=params)
 
 
 def add_platform_role_members(role_name: str, subject_ids: list[str]) -> dict:

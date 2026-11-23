@@ -289,7 +289,7 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - `check_secret_template_field(template_id, field_id)` - check if a template contains a field.
 - `get_secret_template_field(field_id)` - retrieve details about a specific secret template field by ID.
 - `handle_access_request(request_id, status, response_comment, start_date=None, expiration_date=None)` - approve or deny an access request.
-- `get_pending_access_requests()` - list pending access requests.
+- `get_pending_access_requests(take=50, skip=0)` - list pending access requests.
 - `get_inbox_messages(read_status_filter=None, take=20, skip=0)` - retrieve inbox messages.
 - `mark_inbox_messages_read(message_ids, read=True)` - mark messages as read or unread.
 - `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=None, comment=None)` -
@@ -319,14 +319,14 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - Roles: `get_roles(role_id=None, params=None)`,
   `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, data)`
   (send the full role from `get_roles` with your changes).
-- User roles: `get_user_roles(user_id)`, `add_user_roles(user_id, role_ids)`,
+- User roles: `get_user_roles(user_id, take=50, skip=0)`, `add_user_roles(user_id, role_ids)`,
   `remove_user_roles(user_id, role_ids)`.
 - Groups: `get_groups(group_id=None, params=None)`, `create_group(data)`,
   `delete_group(group_id)`.
-- Group membership: `get_user_groups(user_id)`,
+- Group membership: `get_user_groups(user_id, take=50, skip=0)`,
   `add_user_to_groups(user_id, group_ids)`,
   `remove_user_from_groups(user_id, group_ids)`.
-- Group roles: `get_group_roles(group_id)`, `add_group_roles(group_id, role_ids)`,
+- Group roles: `get_group_roles(group_id, take=50, skip=0)`, `add_group_roles(group_id, role_ids)`,
   `remove_group_roles(group_id, role_ids)`.
 - Folders: read with `get_folder` / `search_folders`;
   `create_folder(data)`, `update_folder(folder_id, data)` (the full folder from
@@ -339,7 +339,7 @@ Since v1.0.0 the canonical user tools target the Delinea Platform identity
 directory (requires `platform_hostname` + `PLATFORM_SERVICE_*` credentials;
 without them the tools return guidance instead of failing):
 
-- `search_users(query)` - search the Platform user directory.
+- `search_users(query, page_size=60, page=1)` - search the Platform user directory.
 - `get_platform_user(user_id)`, `create_platform_user(data)`,
   `update_platform_user(user_id, data)`, `delete_platform_user(user_id)` -
   Platform users (replace `user_management`).
@@ -348,7 +348,7 @@ without them the tools return guidance instead of failing):
   `update_platform_role(role_name, description, enabled)`,
   `delete_platform_role(role_name)` - Platform roles. Updating replaces the
   description and enabled state; built-in roles can't be changed.
-- `get_platform_role_members(role_name)`,
+- `get_platform_role_members(role_name, page_size=100, page=1)`,
   `add_platform_role_members(role_name, subject_ids)`,
   `remove_platform_role_members(role_name, subject_ids)` - assign a role to
   users or groups by Platform ID.
@@ -380,7 +380,7 @@ For SS-only deployments without Platform configured:
 - `secretserver_local_user_security_action(action, user_id, data=None)` -
   `reset_2fa`, `reset_password` or `lock_out`. Example:
   `secretserver_local_user_security_action("reset_password", 42, {"newPassword": "Pa$$w0rd"})`.
-- `search_secretserver_local_users(query)` - search Secret Server's local user store.
+- `search_secretserver_local_users(query, take=50, skip=0)` - search Secret Server's local user store.
 
 ### StrongDM tools (preview)
 

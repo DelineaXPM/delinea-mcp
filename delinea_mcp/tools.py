@@ -1481,7 +1481,7 @@ def check_secret_template_field(
             params={
                 "filter.secretTemplateId": template_id,
                 "filter.searchText": field_id,
-                "take": 1,
+                "take": MAX_PAGE_SIZE,
             },
         ).json()
         for field in result.get("records", []):
@@ -1601,8 +1601,13 @@ def handle_access_request(
         }
 
 
-def get_pending_access_requests() -> dict:  # pragma: no cover
+def get_pending_access_requests(
+    take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:  # pragma: no cover
     """Retrieve pending secret access requests for the current user.
+
+    Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
 
     Returns
     -------
@@ -1616,14 +1621,16 @@ def get_pending_access_requests() -> dict:  # pragma: no cover
         response = session.request(
             "GET",
             "/v1/secret-access-requests",
-            params={
-                "filter.isMyRequest": "false",
-                "filter.status": "Pending",
-                "skip": 0,
-                "sortBy[0].direction": "desc",
-                "sortBy[0].name": "startDate",
-                "take": 60,
-            },
+            params=_paged(
+                {
+                    "filter.isMyRequest": "false",
+                    "filter.status": "Pending",
+                    "sortBy[0].direction": "desc",
+                    "sortBy[0].name": "startDate",
+                },
+                take,
+                skip,
+            ),
         )
         return response.json()
     except Exception as exc:  # pragma: no cover - network failures
@@ -1803,6 +1810,7 @@ def user_role_management(
     action: str,
     user_id: int,
     role_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Add or remove roles for a user.
 
@@ -1832,7 +1840,9 @@ def user_role_management(
 
     try:
         if action == "get":
-            return session.request("GET", f"/v1/users/{user_id}/roles").json()
+            return session.request(
+                "GET", f"/v1/users/{user_id}/roles", params=_paged(params)
+            ).json()
         if action == "add":
             if not role_ids:
                 raise ValueError("role_ids required for add")
@@ -1932,6 +1942,7 @@ def user_group_management(
     action: str,
     user_id: int,
     group_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Add or remove a user from groups.
 
@@ -1961,7 +1972,9 @@ def user_group_management(
 
     try:
         if action == "get":
-            return session.request("GET", f"/v1/users/{user_id}/groups").json()
+            return session.request(
+                "GET", f"/v1/users/{user_id}/groups", params=_paged(params)
+            ).json()
         if action == "add":
             if not group_ids:
                 raise ValueError("group_ids required for add")
@@ -1984,6 +1997,7 @@ def group_role_management(
     action: str,
     group_id: int,
     role_ids: list[int] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Assign or revoke roles on a group.
 
@@ -2013,7 +2027,9 @@ def group_role_management(
 
     try:
         if action == "list":
-            return session.request("GET", f"/v1/groups/{group_id}/roles").json()
+            return session.request(
+                "GET", f"/v1/groups/{group_id}/roles", params=_paged(params)
+            ).json()
         if action == "add":
             if not role_ids:
                 raise ValueError("role_ids required for add")
@@ -2165,13 +2181,15 @@ def update_role(role_id: int, data: dict) -> dict:
     return role_management("update", role_id=role_id, data=data)
 
 
-def get_user_roles(user_id: int) -> dict:
+def get_user_roles(user_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0) -> dict:
     """List the roles assigned to a Secret Server user.
 
-    Calls ``GET /api/v1/users/{id}/roles``. Secret Server REST API reference:
+    Calls ``GET /api/v1/users/{id}/roles``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    return user_role_management("get", user_id)
+    return user_role_management("get", user_id, params={"take": take, "skip": skip})
 
 
 def add_user_roles(user_id: int, role_ids: list[int]) -> dict:
@@ -2231,13 +2249,15 @@ def delete_group(group_id: int) -> dict:
     return group_management("delete", group_id=group_id)
 
 
-def get_user_groups(user_id: int) -> dict:
+def get_user_groups(user_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0) -> dict:
     """List the groups a Secret Server user belongs to.
 
-    Calls ``GET /api/v1/users/{id}/groups``. Secret Server REST API reference:
+    Calls ``GET /api/v1/users/{id}/groups``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    return user_group_management("get", user_id)
+    return user_group_management("get", user_id, params={"take": take, "skip": skip})
 
 
 def add_user_to_groups(user_id: int, group_ids: list[int]) -> dict:
@@ -2260,13 +2280,17 @@ def remove_user_from_groups(user_id: int, group_ids: list[int]) -> dict:
     return user_group_management("remove", user_id, group_ids)
 
 
-def get_group_roles(group_id: int) -> dict:
+def get_group_roles(
+    group_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0
+) -> dict:
     """List the roles assigned to a Secret Server group.
 
-    Calls ``GET /api/v1/groups/{id}/roles``. Secret Server REST API reference:
+    Calls ``GET /api/v1/groups/{id}/roles``. Paged: *take* (default 50, capped at 500) and *skip*; ``total`` and
+    ``hasNext`` in the response show whether more remain.
+    Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    return group_role_management("list", group_id)
+    return group_role_management("list", group_id, params={"take": take, "skip": skip})
 
 
 def add_group_roles(group_id: int, role_ids: list[int]) -> dict:

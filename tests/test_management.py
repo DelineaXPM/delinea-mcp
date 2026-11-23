@@ -134,7 +134,9 @@ def test_role_management(monkeypatch):
 
 
 def test_user_role_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/users/1/roles", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/users/1/roles", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.user_role_management("get", 1) == {"ok": True}
 
     patch_request(
@@ -178,7 +180,9 @@ def test_group_management(monkeypatch):
 
 
 def test_user_group_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/users/2/groups", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/users/2/groups", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.user_group_management("get", 2) == {"ok": True}
 
     patch_request(
@@ -193,7 +197,9 @@ def test_user_group_management(monkeypatch):
 
 
 def test_group_role_management(monkeypatch):
-    patch_request(monkeypatch, ("GET", "/v1/groups/3/roles", {}))
+    patch_request(
+        monkeypatch, ("GET", "/v1/groups/3/roles", {"params": {"take": 50, "skip": 0}})
+    )
     assert server.group_role_management("list", 3) == {"ok": True}
 
     patch_request(

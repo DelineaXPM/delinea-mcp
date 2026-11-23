@@ -70,6 +70,25 @@ def test_secret_server_tool_request(calls, call, method, path):
         assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda **kw: tools.get_user_roles(5, **kw),
+        lambda **kw: tools.get_user_groups(5, **kw),
+        lambda **kw: tools.get_group_roles(4, **kw),
+        lambda **kw: tools.get_pending_access_requests(**kw),
+        lambda **kw: secretserver_users.search_secretserver_local_users("", **kw),
+    ],
+)
+def test_list_tools_page(calls, call):
+    # Without take, Secret Server returns only 10 records.
+    call()
+    call(take=10_000, skip=20)
+    params = [c[2]["params"] for c in calls]
+    assert (params[0]["take"], params[0]["skip"]) == (50, 0)
+    assert (params[1]["take"], params[1]["skip"]) == (500, 20)
+
+
 # --------------------------------------------------------------------------- #
 # Secret Server local users                                                   #
 # --------------------------------------------------------------------------- #
@@ -247,6 +266,28 @@ def test_platform_roles_page_and_cap(perm):
     user_platform_tools.get_platform_roles(page=3, page_size=10_000)
     assert seen[0][3] == {"RecordsPerPage": 500, "PageNumber": 3}
     assert "error" in user_platform_tools.get_platform_roles(page="x")
+    user_platform_tools.get_platform_role_members("r")
+    user_platform_tools.get_platform_role_members("r", page=2, page_size=0)
+    assert [c[3] for c in seen[1:]] == [
+        {"RecordsPerPage": 100, "PageNumber": 1},
+        {"RecordsPerPage": 1, "PageNumber": 2},
+    ]
+    assert "error" in user_platform_tools.get_platform_role_members("r", page="x")
+
+
+def test_platform_user_search_pages(monkeypatch):
+    sent = []
+
+    def post(url, json=None, **kwargs):
+        sent.append(json["Args"])
+        return Mock(status_code=200, json=lambda: {"Result": {}}, text="")
+
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    monkeypatch.setattr(user_platform_tools.requests, "post", post)
+    user_platform_tools.search_users("a", page=2, page_size=10_000)
+    assert (sent[0]["PageNumber"], sent[0]["PageSize"]) == (2, 500)
+    assert "error" in user_platform_tools.search_users("a", page="x")
 
 
 def test_delete_platform_role(perm):

@@ -70,7 +70,11 @@ def test_user_details_and_search(monkeypatch):
         if path == "/v1/users/2":
             return DummyResponse({"id": 2, "name": "bob"})
         elif path == "/v1/users":
-            assert kwargs.get("params") == {"filter.searchText": "bob"}
+            assert kwargs.get("params") == {
+                "filter.searchText": "bob",
+                "take": 50,
+                "skip": 0,
+            }
             return DummyResponse({"records": []})
         else:
             raise AssertionError("unexpected path")
