@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Iterable
 from urllib.parse import quote
 
@@ -119,6 +120,11 @@ def configure(
 
 
 _headers: dict[str, str] | None = None
+# time.monotonic() after which _headers must be fetched again; set from the
+# token's expires_in, so a long-running server doesn't keep a dead token.
+_headers_expire_at = float("inf")
+# Fetch a new token this many seconds before the old one expires.
+_TOKEN_EXPIRY_MARGIN = 60
 # Tools run on parallel worker threads; serialise token acquisition so
 # concurrent first calls don't race on the cached headers.
 _headers_lock = threading.Lock()
@@ -139,10 +145,13 @@ _NOT_CONFIGURED_ERROR = (
 )
 
 
+def _headers_valid() -> bool:
+    return bool(_headers) and time.monotonic() < _headers_expire_at
+
+
 def _build_headers() -> dict[str, str]:
     """Return cached headers or fetch a new OAuth token using ``requests``."""
-    global _headers
-    if _headers:
+    if _headers_valid():
         return _headers
 
     if not _platform_configured():
@@ -153,8 +162,8 @@ def _build_headers() -> dict[str, str]:
 
 
 def _fetch_headers() -> dict[str, str]:
-    global _headers
-    if _headers:
+    global _headers, _headers_expire_at
+    if _headers_valid():
         return _headers
 
     url = f"https://{platform_hostname}/identity/api/oauth2/token/xpmplatform"
@@ -190,6 +199,8 @@ def _fetch_headers() -> dict[str, str]:
     if platform_tenant_id:
         headers["X-MT-SecondaryId"] = f"{platform_tenant_id}"
     _headers = headers
+    lifetime = float(token_data.get("expires_in") or 3600)
+    _headers_expire_at = time.monotonic() + max(lifetime - _TOKEN_EXPIRY_MARGIN, 0)
     return _headers
 
 

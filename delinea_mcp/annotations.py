@@ -67,7 +67,7 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "set_secret_field_environment_variable": _DESTR,  # overwrites the field
     "get_roles": _RO,
     "create_role": _ADD,
-    "update_role": _DESTR,  # overwrites; can disable the role
+    "update_role": _DESTR,  # can rename or disable the role
     "get_user_roles": _RO,
     "add_user_roles": _IDEM,
     "remove_user_roles": _DESTR,

@@ -52,6 +52,24 @@ membership read tools.
 `handle_access_request` (approving grants access; a decision is final) now
 carry `destructiveHint`, so clients always ask before running them.
 
+### Other fixes
+
+- Platform tools fetch a new token before the old one expires (about an
+  hour); before, every Platform tool failed after that until the server
+  restarted.
+- `update_role(role_id, name=None, enabled=None)` sends the dirty-field
+  PATCH body Secret Server expects. The old guidance (send the full role)
+  got HTTP 500.
+- `search_folders(parent_folder_id=...)` returns only direct children, as
+  documented; it returned every descendant. `-1` lists top-level folders.
+- List tools that relied on the API's default page size (10 in Secret
+  Server, 30 for Platform role members) take paging parameters:
+  `get_user_roles`, `get_user_groups`, `get_group_roles`,
+  `get_pending_access_requests`, `search_secretserver_local_users`,
+  `search_users`, `get_platform_roles` and `get_platform_role_members`.
+- `reveal_secret_field` and the README describe both approval modes; they
+  promised a server prompt, which `client_approval` mode doesn't show.
+
 ### Platform roles use the Permission service
 
 The Platform role tools called identity API endpoints (`SaasManage/*`,

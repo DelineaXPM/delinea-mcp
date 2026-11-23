@@ -34,7 +34,7 @@ def first(calls):
         (lambda: tools.get_roles(), "GET", "/v1/roles"),
         (lambda: tools.get_roles(3), "GET", "/v1/roles/3"),
         (lambda: tools.create_role({"name": "r"}), "POST", "/v1/roles"),
-        (lambda: tools.update_role(3, {"name": "r"}), "PATCH", "/v1/roles/3"),
+        (lambda: tools.update_role(3, name="r"), "PATCH", "/v1/roles/3"),
         (lambda: tools.get_user_roles(5), "GET", "/v1/users/5/roles"),
         (lambda: tools.add_user_roles(5, [1]), "POST", "/v1/users/5/roles"),
         (lambda: tools.remove_user_roles(5, [1]), "DELETE", "/v1/users/5/roles"),
@@ -68,6 +68,15 @@ def test_secret_server_tool_request(calls, call, method, path):
     # Writes read the object back; reads make exactly one request.
     if method == "GET":
         assert len(calls) == 1
+
+
+def test_update_role_sends_dirty_fields(calls):
+    # A plain role object gets HTTP 500 from Secret Server (seen live).
+    tools.update_role(3, enabled=False)
+    assert first(calls)[2]["json"] == {
+        "data": {"enabled": {"dirty": True, "value": False}}
+    }
+    assert "error" in tools.update_role(3)
 
 
 @pytest.mark.parametrize(

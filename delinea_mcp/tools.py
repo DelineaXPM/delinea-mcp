@@ -1283,17 +1283,19 @@ async def reveal_secret_field(
     ],
     comment: str | None = None,
 ) -> dict:
-    """Return one secret field's plaintext value after the human approves.
+    """Return one secret field's plaintext value, subject to approval.
 
     Reveals a value that ``get_secret`` masked, for a user who asked to
     see it. ``get_secret_environment_variable`` hands a credential to a
     command without the value entering the conversation.
 
-    Before releasing anything, the server asks the user directly for
-    confirmation in their MCP client (elicitation); a model cannot answer
-    that prompt. If the user declines, or the client cannot show the prompt,
-    nothing is revealed. The revealed value becomes part of the conversation
-    transcript.
+    How a reveal is approved depends on the server's ``secret_reveal_mode``.
+    With ``elicit``, the server asks the user in their MCP client
+    (elicitation), a prompt the model cannot answer; nothing is revealed if
+    the user declines or the client cannot show the prompt. With
+    ``client_approval``, the server does not prompt and relies on the
+    client's own tool-approval setting. The revealed value becomes part of
+    the conversation transcript.
 
     Parameters
     ----------
@@ -1755,8 +1757,9 @@ def role_management(
 
     When ``action`` is ``"create"``, ``data`` must contain the required keys
     ``name`` and ``enabled`` defining the role's name and active state.
-    When ``action`` is ``"update"``, you need to do a get first, update the
-    relevant fields and post everything back
+    When ``action`` is ``"update"``, ``data`` is the PATCH body
+    ``{"data": {"name": {"dirty": true, "value": ...}, "enabled": {...}}}``;
+    only fields marked dirty change.
 
     ``"create"`` and ``"update"`` actions issue a follow-up ``GET`` request to
     confirm the new role state. The function returns ``{"result": ...,
@@ -1891,8 +1894,6 @@ def group_management(
     ``hasGroupOwners``, ``isPlatform``, ``ownerGroupIds``, ``ownerGroupNames``,
     ``ownerUserIds``, ``ownerUserNames``, ``synchronized`` and
     ``synchronizeNow``.
-    When ``action`` is ``"update"``, you need to do a get first, update the
-    relevant fields and post everything back
 
     ``"create"`` and ``"delete"`` actions perform a verifying ``GET`` after the
     write. The response contains ``{"result": ... , "verification": ...}``.
@@ -2174,17 +2175,26 @@ def create_role(data: dict) -> dict:
     return role_management("create", data=data)
 
 
-def update_role(role_id: int, data: dict) -> dict:
-    """Update a Secret Server role, replacing its fields with *data*.
+def update_role(
+    role_id: int, name: str | None = None, enabled: bool | None = None
+) -> dict:
+    """Rename, enable or disable a Secret Server role.
 
-    Calls ``PATCH /api/v1/roles/{id}``. Fields left out of *data* are
-    overwritten, so *data* is the full role as ``get_roles`` returns it with
-    the changes applied; ``enabled: false`` disables the role for every
-    member. Returns ``{"result": ..., "verification": ...}``. Secret Server
-    REST API reference:
+    Calls ``PATCH /api/v1/roles/{id}``, changing only the fields given;
+    ``enabled=False`` disables the role for every member. Returns
+    ``{"result": ..., "verification": ...}``. Secret Server REST API
+    reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    return role_management("update", role_id=role_id, data=data)
+    # The API takes {"data": {field: {"dirty": true, "value": ...}}} and
+    # returns HTTP 500 for a plain role object.
+    changes = {"name": name, "enabled": enabled}
+    patch = {
+        k: {"dirty": True, "value": v} for k, v in changes.items() if v is not None
+    }
+    if not patch:
+        return {"error": "Give name and/or enabled to change"}
+    return role_management("update", role_id=role_id, data={"data": patch})
 
 
 def get_user_roles(user_id: int, take: int = DEFAULT_PAGE_SIZE, skip: int = 0) -> dict:

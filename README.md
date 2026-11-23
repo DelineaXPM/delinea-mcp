@@ -27,8 +27,9 @@
   Includes inbox and access request helpers and coding agent utilities.
 - ChatGPT compatibility tools (`search` and `fetch`) for controlled AI interactions.
 - Optional Delinea Platform user management tools
-- Password fields masked in every result; plaintext only after the user
-  approves a server-sent confirmation prompt
+- Password fields masked in every result; plaintext reveal is off by default
+  and, when enabled, needs the user's approval (a server-sent prompt, or the
+  client's own tool approval in `client_approval` mode)
 - StrongDM, a Delinea company, will be supported in a future release. An
   experimental preview is available behind `strongdm_enabled` (see
   [docs/strongdm.md](docs/strongdm.md))
@@ -274,7 +275,8 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   masked, or its summary.
 - `reveal_secret_field(secret_id, field_slug, comment=None)` - only when
   plaintext reveal is enabled (see `secret_reveal_mode`; off by default):
-  return one plaintext value after the user approves a confirmation prompt.
+  return one plaintext value after the user approves it (see
+  `secret_reveal_mode` for how approval works).
 - `get_folder(id, all_children=False)` - fetch folder metadata, optionally
   with the full descendant tree.
 - `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.
@@ -317,8 +319,8 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   (default 50, max 500) and `skip` through `params`.
 
 - Roles: `get_roles(role_id=None, params=None)`,
-  `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, data)`
-  (send the full role from `get_roles` with your changes).
+  `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, name=None, enabled=None)`
+  (changes only what's given).
 - User roles: `get_user_roles(user_id, take=50, skip=0)`, `add_user_roles(user_id, role_ids)`,
   `remove_user_roles(user_id, role_ids)`.
 - Groups: `get_groups(group_id=None, params=None)`, `create_group(data)`,

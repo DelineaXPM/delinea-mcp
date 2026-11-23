@@ -82,6 +82,31 @@ def test_build_headers_network_exception(monkeypatch):
         user_platform_tools._build_headers()
 
 
+def test_build_headers_refreshes_expired_token(monkeypatch):
+    """A cached token is replaced shortly before its expires_in runs out."""
+    monkeypatch.setattr(user_platform_tools, "_headers", None)
+    monkeypatch.setattr(user_platform_tools, "_headers_expire_at", float("inf"))
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    monkeypatch.setattr(user_platform_tools, "platform_service_account", "a")
+    monkeypatch.setattr(user_platform_tools, "platform_service_password", "p")
+    now = [1000.0]
+    monkeypatch.setattr(user_platform_tools.time, "monotonic", lambda: now[0])
+    tokens = iter(["t1", "t2"])
+
+    def post(*a, **kw):
+        token = next(tokens)
+        return Mock(
+            status_code=200, json=lambda: {"access_token": token, "expires_in": 3600}
+        )
+
+    monkeypatch.setattr(user_platform_tools.requests, "post", post)
+    assert user_platform_tools._build_headers()["Authorization"] == "Bearer t1"
+    now[0] += 3500
+    assert user_platform_tools._build_headers()["Authorization"] == "Bearer t1"
+    now[0] += 60
+    assert user_platform_tools._build_headers()["Authorization"] == "Bearer t2"
+
+
 # --------------------------------------------------------------------------- #
 # user_platform_tools._platform_url branches                                  #
 # --------------------------------------------------------------------------- #
