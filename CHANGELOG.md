@@ -7,9 +7,13 @@
 The Claude directory rejects a tool that takes both read and write
 operations. Each `*_management(action, ...)` tool is replaced by a read tool,
 a create tool and, where something can be updated, deleted or removed,
-separate destructive tools. Read tools carry `readOnlyHint`, so clients can run them
-without asking; updates, deletes and removals carry `destructiveHint` and
-always ask; creates and additions no longer do.
+separate destructive tools. Read tools carry `readOnlyHint`; updates,
+deletes and removals carry `destructiveHint`; creates and additions don't,
+except StrongDM user creation and role attachment, which grant access.
+Clients use these hints, together with the user's own permission settings,
+to decide when to ask before running a tool. The server's own checks
+(`confirm` and a comment on bulk and StrongDM writes, the reveal prompt,
+Secret Server permissions and approvals) apply regardless.
 
 An old name in `enabled_tools`, `DELINEA_ENABLED_TOOLS` or the plugin's
 Custom tool list still works: it enables every replacement (including the
@@ -50,7 +54,8 @@ membership read tools.
 
 `set_secret_field_environment_variable` (overwrites a secret field) and
 `handle_access_request` (approving grants access; a decision is final) now
-carry `destructiveHint`, so clients always ask before running them.
+carry `destructiveHint`, so clients that honor the hint ask before running
+them.
 
 ### Other fixes
 

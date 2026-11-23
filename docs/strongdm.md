@@ -64,7 +64,7 @@ control planes.
 | `sdm_get_roles`                                  | List roles, get one, or list its members.                                                                                            |
 | `sdm_create_role` / `sdm_delete_role`            | Role lifecycle. Confirm-gated.                                                                                                       |
 | `sdm_add_role_member` / `sdm_remove_role_member` | Attach or detach a user. Confirm-gated.                                                                                              |
-| `sdm_resource_health`                            | Trigger a healthcheck and summarise per-node results for a resource.                                                                 |
+| `sdm_resource_health`                            | Trigger a healthcheck and summarize per-node results for a resource.                                                                 |
 | `sdm_access_requests`                            | List/inspect pending access requests.                                                                                                |
 | `sdm_activity_report`                            | Query log (SQL bodies, durations, replayable sessions) + admin activity, scoped by user/resource/time.                               |
 | `sdm_network_status`                             | Gateway/relay fleet summary by state; surfaces dead or stopped nodes.                                                                |
