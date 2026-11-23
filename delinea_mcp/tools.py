@@ -1651,7 +1651,9 @@ def get_inbox_messages(
     take: int = 20,
     skip: int = 0,
 ) -> dict:  # pragma: no cover
-    """Search, filter, sort and page inbox messages.
+    """List the signed-in account's Secret Server inbox messages.
+
+    Filters by read status and pages by *take* (capped at 500) and *skip*.
 
     Parameters
     ----------
@@ -2414,10 +2416,10 @@ def delete_folder(folder_id: int) -> dict:
 
 
 def health_check() -> dict:
-    """Return the current server health status.
+    """Check that the configured Secret Server is reachable and healthy.
 
-    The endpoint responds with general service information and ``{"status": "Healthy"}``
-    when the server is operational.
+    Calls ``GET /api/v1/healthcheck``; returns Secret Server's service
+    information, with ``{"status": "Healthy"}`` when it is operational.
     """
     logger.debug("health_check")
     session = SessionManager.get()
@@ -2428,23 +2430,34 @@ def health_check() -> dict:
         return {"error": f"Failed to perform health check: {exc}"}
 
 
-def _roles_named(query: str) -> dict:
-    data = role_management("list", params={"take": MAX_PAGE_SIZE})
-    if isinstance(data, dict) and isinstance(data.get("records"), list):
-        q = query.lower()
-        data["records"] = [
-            r for r in data["records"] if q in str(r.get("name", "")).lower()
-        ]
-    return data
+def _roles_named(query: str, max_pages: int = 20) -> dict:
+    """Roles whose name contains *query*; /v1/roles has no name filter."""
+    # ponytail: stops after max_pages * 500 roles; add a server-side filter if
+    # a tenant ever has more.
+    q, matches = query.lower(), []
+    for page in range(max_pages):
+        data = role_management(
+            "list", params={"take": MAX_PAGE_SIZE, "skip": page * MAX_PAGE_SIZE}
+        )
+        if not isinstance(data, dict) or "error" in data:
+            return data
+        records = data.get("records") or []
+        matches += [r for r in records if q in str(r.get("name", "")).lower()]
+        if not data.get("hasNext") or not records:
+            return {"records": matches}
+    return {"records": matches, "truncated": True}
 
 
 def search(query: str) -> dict:
-    """Return search results in MCP format.
+    """Search Secret Server by name across the enabled object types.
+
+    Searches secrets by default; the server's ``search_objects`` setting can
+    add users, folders, groups and roles. ``fetch`` takes a result's ``id``.
 
     Parameters
     ----------
     query:
-        Text to search across the enabled object types.
+        Text to search for in names.
 
     Returns
     -------

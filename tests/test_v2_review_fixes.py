@@ -932,21 +932,6 @@ def test_field_push_error_never_echoes_value(tmp_path, monkeypatch, capsys):
     assert "S3cr3t-Value" not in err and "********" in err
 
 
-def test_mask_fields_hides_credentials_in_logged_data():
-    data = {
-        "userName": "ann",
-        "password": "Pw-1",
-        "nested": [{"clientSecret": "s", "apiKey": "k", "note": "ok"}],
-    }
-    assert api.mask_fields(data) == {
-        "userName": "ann",
-        "password": "********",
-        "nested": [{"clientSecret": "********", "apiKey": "********", "note": "ok"}],
-    }
-    assert api.mask_fields('{"password": "x"}') == "<JSON text, 17 chars>"
-    assert api.mask_fields(None) is None
-
-
 @pytest.mark.parametrize(
     "data", [{"password": "Pw-Logged-9"}, '{"password": "Pw-Logged-9"}']
 )

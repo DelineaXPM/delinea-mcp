@@ -149,25 +149,6 @@ def _spans(message: str, value: str) -> list[tuple[int, int]]:
 
 
 _SENSITIVE_KEY = re.compile(r"pass|secret|token|key", re.IGNORECASE)
-
-
-def mask_fields(data: Any) -> Any:
-    """Copy of *data* for logging, with password/secret/token/key values masked.
-
-    A JSON string is described by its length, since it may hold any of them.
-    """
-    if isinstance(data, dict):
-        return {
-            k: "********" if _SENSITIVE_KEY.search(str(k)) else mask_fields(v)
-            for k, v in data.items()
-        }
-    if isinstance(data, list):
-        return [mask_fields(v) for v in data]
-    if isinstance(data, str) and data.lstrip().startswith(("{", "[")):
-        return f"<JSON text, {len(data)} chars>"
-    return data
-
-
 _FIELD_SLUG = re.compile(r"[A-Za-z0-9_-]+")
 
 

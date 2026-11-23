@@ -492,3 +492,33 @@ def tools_guarded(func, *args):
     from delinea_mcp.tool_guard import guard_tool
 
     return guard_tool(func)(*args)
+
+
+def test_role_member_batch_keeps_going_past_a_bad_id(perm):
+    seen, _ = perm
+    for func in (
+        user_platform_tools.add_platform_role_members,
+        user_platform_tools.remove_platform_role_members,
+    ):
+        out = func("r", ["u1", "..", "u3"])
+        assert "error" in out["results"][".."]
+        assert (
+            "error" not in out["results"]["u1"] and "error" not in out["results"]["u3"]
+        )
+    assert not any(".." in c[1] for c in seen)
+
+
+def test_role_search_reads_every_page(monkeypatch):
+    pages = [
+        {"records": [{"id": i, "name": f"r{i}"} for i in range(500)], "hasNext": True},
+        {"records": [{"id": 500, "name": "Ops Admin"}], "hasNext": False},
+    ]
+    asked = []
+
+    def fake(action, params=None, **kw):
+        asked.append(params["skip"])
+        return pages[len(asked) - 1]
+
+    monkeypatch.setattr(tools, "role_management", fake)
+    assert tools._roles_named("ops") == {"records": [{"id": 500, "name": "Ops Admin"}]}
+    assert asked == [0, 500]

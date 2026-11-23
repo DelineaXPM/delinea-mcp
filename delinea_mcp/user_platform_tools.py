@@ -37,7 +37,6 @@ import requests
 
 from delinea_mcp.annotations import tool_metadata
 from delinea_mcp.api import (
-    mask_fields,
     path_segment,
     platform_host,
     raise_for_status,
@@ -338,12 +337,9 @@ def user_management(
         a verifying lookup is performed.
     """
 
+    # The body isn't logged: a new user's data can carry a password.
     logger.debug(
-        "user_management(action=%s, user_id=%s, username=%s, data=%s)",
-        action,
-        user_id,
-        username,
-        mask_fields(data),  # a new user's data can carry a password
+        "user_management(action=%s, user_id=%s, username=%s)", action, user_id, username
     )
 
     try:
@@ -964,7 +960,11 @@ def add_platform_role_members(role_name: str, subject_ids: list[str]) -> dict:
     results = {}
     for subject_id in subject_ids:
         body = {"subjectId": subject_id, "roleName": role_name}
-        path = f"/role-memberships/{path_segment(subject_id)}"
+        try:
+            path = f"/role-memberships/{path_segment(subject_id)}"
+        except ValueError as exc:
+            results[subject_id] = {"error": str(exc)}
+            continue
         result = _permission_request("PATCH", f"{path}/add-role", json=body)
         if "HTTP 404" in result.get("error", ""):
             result = _permission_request("POST", "/role-memberships", json=body)
@@ -983,7 +983,11 @@ def remove_platform_role_members(role_name: str, subject_ids: list[str]) -> dict
     results = {}
     for subject_id in subject_ids:
         body = {"subjectId": subject_id, "roleName": role_name}
-        path = f"/role-memberships/{path_segment(subject_id)}/remove-role"
+        try:
+            path = f"/role-memberships/{path_segment(subject_id)}/remove-role"
+        except ValueError as exc:
+            results[subject_id] = {"error": str(exc)}
+            continue
         results[subject_id] = _permission_request("PATCH", path, json=body)
     return {"results": results}
 

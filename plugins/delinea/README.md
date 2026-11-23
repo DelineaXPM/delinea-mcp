@@ -123,8 +123,8 @@ become part of your conversation. To start the server, `uvx` downloads
 `delinea-mcp` from PyPI the first time each version runs. If Python 3.13
 isn't installed, `uvx` also downloads it from GitHub. Credential handoff
 files are written to a private temporary folder and are deleted when
-they're used, after 15 minutes, or when the server shuts down. The startup check only looks for
-`uvx` on your machine; `/delinea:setup` installs nothing until you approve
+they're used, after 15 minutes, or when the server shuts down. The startup check only
+checks that the plugin's settings are entered and looks for `uvx` on your machine; `/delinea:setup` installs nothing until you approve
 it, and then contacts only your chosen package source (Homebrew, WinGet,
 Scoop, PyPI, or astral.sh for uv's official installer).
 

@@ -19,7 +19,7 @@ import logging
 from typing import Any, Iterable
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import mask_fields, sensitive_values, target_id_conflict
+from delinea_mcp.api import sensitive_values, target_id_conflict
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
@@ -111,11 +111,9 @@ def secretserver_local_user_management(
         from the subsequent ``GET``, or the raw API payload for read actions.
     """
 
+    # The body isn't logged: create, update and reset_password carry passwords.
     logger.debug(
-        "secretserver_local_user_management(action=%s, user_id=%s, data=%s)",
-        action,
-        user_id,
-        mask_fields(data),  # create and reset_password carry passwords
+        "secretserver_local_user_management(action=%s, user_id=%s)", action, user_id
     )
     session = SessionManager.get()
 
