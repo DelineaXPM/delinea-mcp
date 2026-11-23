@@ -19,7 +19,7 @@ import logging
 from typing import Any, Iterable
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import mask_fields, sensitive_values
+from delinea_mcp.api import mask_fields, sensitive_values, target_id_conflict
 from delinea_mcp.tool_guard import guard_tool
 
 from .session import SessionManager
@@ -77,7 +77,6 @@ def secretserver_local_user_management(
     *,
     skip: int = 0,
     take: int = 20,
-    is_exporting: bool = False,
 ) -> dict:
     """Manage local Secret Server users (legacy SS-only deployments).
 
@@ -104,8 +103,6 @@ def secretserver_local_user_management(
         JSON body for ``"create"``, ``"update"`` and ``"reset_password"``.
     skip, take:
         Pagination controls for ``"list_sessions"``.
-    is_exporting:
-        Include the ``isExporting`` flag when listing sessions.
 
     Returns
     -------
@@ -149,6 +146,9 @@ def secretserver_local_user_management(
         if action == "update":
             if user_id is None or data is None:
                 raise ValueError("user_id and data required for update")
+            conflict = target_id_conflict(data, user_id, "user_id")
+            if conflict:
+                return {"error": conflict}
             result = session.request(
                 "PUT", f"/v1/users/{user_id}", json=data, **masked
             ).json()
@@ -170,9 +170,7 @@ def secretserver_local_user_management(
                 verify = {"error": str(exc)}
             return {"result": result, "verification": verify}
         if action == "list_sessions":
-            params: dict[str, Any] = {"skip": skip, "take": take}
-            if is_exporting:
-                params["isExporting"] = True
+            params = _paged(None, take, skip)
             return session.request("GET", "/v1/users/sessions", params=params).json()
         if action == "reset_2fa":
             if user_id is None:
@@ -212,18 +210,16 @@ def get_secretserver_local_user(user_id: int) -> dict:
     return secretserver_local_user_management("get", user_id)
 
 
-def list_secretserver_user_sessions(
-    skip: int = 0, take: int = 20, is_exporting: bool = False
-) -> dict:
+def list_secretserver_user_sessions(skip: int = 0, take: int = 20) -> dict:
     """List active Secret Server user sessions.
 
-    Calls ``GET /api/v1/users/sessions`` paged by *skip* and *take*.
+    Calls ``GET /api/v1/users/sessions`` paged by *skip* and *take* (capped
+    at 500); ``total`` and ``hasNext`` in the response show whether more
+    remain.
     Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    return secretserver_local_user_management(
-        "list_sessions", skip=skip, take=take, is_exporting=is_exporting
-    )
+    return secretserver_local_user_management("list_sessions", skip=skip, take=take)
 
 
 def create_secretserver_local_user(data: dict) -> dict:

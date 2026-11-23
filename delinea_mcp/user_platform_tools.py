@@ -44,6 +44,7 @@ from delinea_mcp.api import (
     redact,
     redact_values,
     sensitive_values,
+    target_id_conflict,
 )
 from delinea_mcp.tool_guard import guard_tool
 
@@ -396,7 +397,10 @@ def user_management(
         if action == "update":
             if not user_id or payload is None:
                 raise ValueError("user_id and data required for update")
-            payload.setdefault("ID", user_id)
+            conflict = target_id_conflict(payload, user_id, "user_id")
+            if conflict:
+                return {"error": conflict}
+            payload["ID"] = user_id
             url = _platform_url("/CDirectoryService/ChangeUser")
             response = requests.post(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT

@@ -402,3 +402,32 @@ def test_search_folders_lists_direct_children(calls):
     assert child["filter.limitToDirectDescendents"] == "true"
     assert root["filter.onlyIncludeRootFolders"] == "true"
     assert "filter.parentFolderId" not in root
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda: tools.update_folder(9, {"id": 10, "folderName": "f"}),
+        lambda: secretserver_users.update_secretserver_local_user(5, {"Id": 6}),
+    ],
+)
+def test_update_refuses_body_naming_another_object(calls, call):
+    # The approval shows the path ID; the body must not retarget the write.
+    assert "must name the same object" in call()["error"]
+    assert calls == []
+
+
+def test_update_platform_user_targets_user_id(monkeypatch):
+    sent = []
+
+    def post(url, json=None, **kwargs):
+        sent.append(json)
+        return Mock(status_code=200, json=lambda: {"success": True}, text="")
+
+    monkeypatch.setattr(user_platform_tools, "_headers", {"h": "1"})
+    monkeypatch.setattr(user_platform_tools, "platform_hostname", "host")
+    monkeypatch.setattr(user_platform_tools.requests, "post", post)
+    out = user_platform_tools.update_platform_user("u1", {"ID": "u2"})
+    assert "must name the same object" in out["error"] and sent == []
+    user_platform_tools.update_platform_user("u1", {"DisplayName": "x"})
+    assert sent[0]["ID"] == "u1"

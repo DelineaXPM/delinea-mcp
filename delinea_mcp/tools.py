@@ -21,7 +21,7 @@ from mcp.types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, ConfigDict, Field
 
 from delinea_mcp.annotations import tool_metadata
-from delinea_mcp.api import redact
+from delinea_mcp.api import redact, target_id_conflict
 
 from . import constants
 from .session import SessionManager
@@ -2120,6 +2120,9 @@ def folder_management(
         if action == "update":
             if folder_id is None or data is None:
                 raise ValueError("folder_id and data required for update")
+            conflict = target_id_conflict(data, folder_id, "folder_id")
+            if conflict:
+                return {"error": conflict}
             result = session.request(
                 "PUT", f"/v1/folders/{folder_id}", json=data
             ).json()

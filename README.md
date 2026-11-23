@@ -375,7 +375,7 @@ read-only through the same Platform credentials:
 For SS-only deployments without Platform configured:
 
 - `get_secretserver_local_user(user_id)`,
-  `list_secretserver_user_sessions(skip=0, take=20, is_exporting=False)`,
+  `list_secretserver_user_sessions(skip=0, take=20)`,
   `create_secretserver_local_user(data)`,
   `update_secretserver_local_user(user_id, data)`,
   `delete_secretserver_local_user(user_id)`.

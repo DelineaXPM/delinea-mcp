@@ -168,6 +168,28 @@ def mask_fields(data: Any) -> Any:
     return data
 
 
+def target_id_conflict(data: Any, target_id: Any, label: str) -> str | None:
+    """Error text when *data* names a different object than *target_id*.
+
+    An update body's own ``id`` can decide which object an API changes, so
+    a body naming another object would change something other than the
+    approved target.
+    """
+    if not isinstance(data, dict):
+        return None
+    for key, value in data.items():
+        if (
+            str(key).lower() == "id"
+            and value not in (None, "")
+            and str(value) != str(target_id)
+        ):
+            return (
+                f"data[{key!r}] is {value!r} but {label} is {target_id!r}; "
+                f"they must name the same object"
+            )
+    return None
+
+
 def sensitive_values(data: Any) -> list[str]:
     """Values under password/secret/token/key fields in *data*, for masking."""
     found: list[str] = []
