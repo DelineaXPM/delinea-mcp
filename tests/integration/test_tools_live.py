@@ -112,8 +112,8 @@ def test_user_role_group_live():
         tools.remove_user_roles(int(user_id), [int(role_id)]),
         tools.delete_group(gid),
     ]
-    # Secret Server refuses removals that would lock the service account out
-    # of Role Administration (LIVE_ROLE_ID is usually its admin role).
+    # Secret Server refuses every role removal when the account's admin
+    # rights come from the Platform rather than a Secret Server role.
     errors = [s["error"] for s in steps if isinstance(s, dict) and "error" in s]
     assert all("API_RoleAdministrationNoLockout" in e for e in errors), errors
 

@@ -32,13 +32,13 @@ import os
 import threading
 import time
 from typing import Any, Iterable
-from urllib.parse import quote
 
 import requests
 
 from delinea_mcp.annotations import tool_metadata
 from delinea_mcp.api import (
     mask_fields,
+    path_segment,
     platform_host,
     raise_for_status,
     redact,
@@ -391,7 +391,8 @@ def user_management(
                 timeout=_DEFAULT_TIMEOUT,
             )
             result = _json_or_error(response)
-            verify = search_users(user_id)
+            # A name search can't find a UUID; look the user up by ID.
+            verify = user_management("get", user_id=user_id)
             return {"result": result, "verification": verify}
 
         if action == "update":
@@ -406,9 +407,7 @@ def user_management(
                 url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT
             )
             result = _json_or_error(response, sensitive_values(payload))
-            verify = search_users(
-                payload.get("Name") or payload.get("Username") or user_id
-            )
+            verify = user_management("get", user_id=user_id)
             return {"result": result, "verification": verify}
 
         if action == "search":
@@ -614,10 +613,12 @@ def platform_reports(
       ``required``) and its result ``columns``.
     * ``"run"`` -> ``POST /report/report-definitions/{report}/results``,
       executed synchronously; returns ``{"data": [...], "totalCount": N,
-      "reportDefinitionName": ...}`` for the requested page.
+      "reportDefinitionName": ...}`` for the requested page (some reports
+      omit ``totalCount``).
     * ``"snapshots"`` -> ``GET /report/report-snapshots`` (saved runs the
       service account owns or was given access to).
-    * ``"snapshot_results"`` -> ``GET /report/report-snapshots/{id}/results``.
+    * ``"snapshot_results"`` -> ``GET /report/report-snapshots/{id}/results``;
+      an unknown snapshot ID returns empty data rather than an error.
 
     Nothing is created, scheduled, shared or deleted; a ``run`` only adds a
     "View" entry to the report's audit history.  Runs wait up to
@@ -639,7 +640,7 @@ def platform_reports(
         string of either form is also accepted.
     page / page_size:
         Result paging for ``list``, ``run``, ``snapshots`` and
-        ``snapshot_results``.
+        ``snapshot_results``; *page_size* is capped at 500.
     service:
         For ``list``: exact service name (``"Secret Server"``,
         ``"Identity"``, ``"Permissions"``, ...).
@@ -666,10 +667,8 @@ def platform_reports(
     if action == "snapshot_results" and not snapshot_id:
         return {"error": "snapshot_id required for action='snapshot_results'"}
 
-    try:
-        page = max(int(page), 1)
-        page_size = max(int(page_size), 1)
-    except (TypeError, ValueError):
+    paging = _page_params(page, page_size)
+    if paging is None:
         return {"error": "page and page_size must be positive integers"}
 
     # Normalise filters before touching the network so a malformed request
@@ -686,7 +685,6 @@ def platform_reports(
     except RuntimeError as exc:
         return {"error": str(exc)}
 
-    paging = {"RecordsPerPage": page_size, "PageNumber": page}
     try:
         if action == "list":
             params: dict[str, Any] = dict(paging)
@@ -704,7 +702,7 @@ def platform_reports(
 
         if action == "describe":
             response = requests.get(
-                _report_url(f"/report/report-definitions/{quote(report, safe='')}"),
+                _report_url(f"/report/report-definitions/{path_segment(report)}"),
                 headers=headers,
                 timeout=_DEFAULT_TIMEOUT,
             )
@@ -717,11 +715,14 @@ def platform_reports(
             payload = {
                 "reportDefinitionName": report,
                 "filterValues": filter_values,
-                "pagination": {"recordsPerPage": page_size, "pageNumber": page},
+                "pagination": {
+                    "recordsPerPage": paging["RecordsPerPage"],
+                    "pageNumber": paging["PageNumber"],
+                },
             }
             response = requests.post(
                 _report_url(
-                    f"/report/report-definitions/{quote(report, safe='')}/results"
+                    f"/report/report-definitions/{path_segment(report)}/results"
                 ),
                 headers=headers,
                 json=payload,
@@ -743,7 +744,7 @@ def platform_reports(
 
         response = requests.get(
             _report_url(
-                f"/report/report-snapshots/{quote(snapshot_id, safe='')}/results"
+                f"/report/report-snapshots/{path_segment(snapshot_id)}/results"
             ),
             headers=headers,
             params=paging,
@@ -798,7 +799,8 @@ def delete_platform_user(user_id: str) -> dict:
 
     Calls ``POST /identity/api/UserMgmt/RemoveUsers``. Cloud directory users
     are deleted; users from other directories are only removed from the
-    Platform. API reference:
+    Platform. Returns ``{"result": ..., "verification": ...}``, where
+    verification looks the user up by ID afterwards. API reference:
     https://developer.delinea.com/reference/post_usermgmt-removeusers
     """
     return user_management("delete", user_id=user_id)
@@ -853,7 +855,7 @@ def _permission_request(method: str, path: str, **kwargs: Any) -> dict:
 
 
 def _role_path(role_name: str) -> str:
-    return f"/roles/{quote(role_name, safe='')}"
+    return f"/roles/{path_segment(role_name)}"
 
 
 _MAX_PAGE_SIZE = 500
@@ -882,7 +884,7 @@ def get_platform_roles(
     *page_size* is capped at 500, and ``pager.total`` in the response is the
     number of matching roles. With *role_name*, calls ``GET
     /permission/api/roles/{name}`` instead. Platform Permission API
-    reference: https://<tenant>/permission/swagger/v1/swagger.json
+    reference: https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     if role_name:
         return _permission_request("GET", _role_path(role_name))
@@ -902,7 +904,7 @@ def create_platform_role(
     Calls ``POST /permission/api/roles``; fails if the role exists. A new
     role has no permissions and grants nothing until it is given some in the
     Platform. Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     body = {"roleName": role_name, "enabled": enabled, "description": description}
     return _permission_request("POST", "/roles", json=body)
@@ -914,7 +916,7 @@ def update_platform_role(role_name: str, description: str, enabled: bool) -> dic
     Calls ``PUT /permission/api/roles/{name}``, which replaces both;
     ``enabled=False`` disables the role for every member. Built-in roles
     can't be changed. Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     body = {"id": role_name, "enabled": enabled, "description": description}
     return _permission_request("PUT", _role_path(role_name), json=body)
@@ -926,7 +928,7 @@ def delete_platform_role(role_name: str) -> dict:
     Calls ``DELETE /permission/api/roles/{name}``, which also succeeds when
     no such role exists; users and groups lose the role's permissions.
     Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     return _permission_request("DELETE", _role_path(role_name))
 
@@ -939,8 +941,9 @@ def get_platform_role_members(
     Calls ``GET /permission/api/roles/{name}/members`` one page at a time:
     *page* starts at 1 and *page_size* is capped at 500, and ``pager.total``
     in the response is the number of members. Members are keyed by user or
-    group ID. Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    group ID. A membership just added or removed can take a few seconds to
+    show here. Platform Permission API reference:
+    https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     params = _page_params(page, page_size)
     if params is None:
@@ -956,12 +959,12 @@ def add_platform_role_members(role_name: str, subject_ids: list[str]) -> dict:
     /permission/api/role-memberships/{id}/add-role``, or ``POST
     /permission/api/role-memberships`` when the subject has no role
     assignments yet. Returns one result per subject. Platform Permission API
-    reference: https://<tenant>/permission/swagger/v1/swagger.json
+    reference: https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     results = {}
     for subject_id in subject_ids:
         body = {"subjectId": subject_id, "roleName": role_name}
-        path = f"/role-memberships/{quote(subject_id, safe='')}"
+        path = f"/role-memberships/{path_segment(subject_id)}"
         result = _permission_request("PATCH", f"{path}/add-role", json=body)
         if "HTTP 404" in result.get("error", ""):
             result = _permission_request("POST", "/role-memberships", json=body)
@@ -975,12 +978,12 @@ def remove_platform_role_members(role_name: str, subject_ids: list[str]) -> dict
     For each of *subject_ids* (Platform user or group IDs), calls ``PATCH
     /permission/api/role-memberships/{id}/remove-role``. Returns one result
     per subject. Platform Permission API reference:
-    https://<tenant>/permission/swagger/v1/swagger.json
+    https://github.com/DelineaXPM/delinea-mcp/blob/main/docs/delinea-platform-permission-openapi-spec.json
     """
     results = {}
     for subject_id in subject_ids:
         body = {"subjectId": subject_id, "roleName": role_name}
-        path = f"/role-memberships/{quote(subject_id, safe='')}/remove-role"
+        path = f"/role-memberships/{path_segment(subject_id)}/remove-role"
         results[subject_id] = _permission_request("PATCH", path, json=body)
     return {"results": results}
 

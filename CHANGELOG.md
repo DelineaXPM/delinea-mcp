@@ -34,7 +34,8 @@ prompts that name the old tools need the new names.
 - `secretserver_local_user_management` → `get_secretserver_local_user`,
   `list_secretserver_user_sessions`,
   `create_secretserver_local_user`, `update_secretserver_local_user`,
-  `delete_secretserver_local_user`, `secretserver_local_user_security_action`
+  `delete_secretserver_local_user`, `reset_secretserver_local_user_password`,
+  `reset_secretserver_local_user_two_factor`, `lock_out_secretserver_local_user`
 - `user_management`, `platform_user_management` → `search_users` (existing),
   `get_platform_user`, `create_platform_user`, `update_platform_user`,
   `delete_platform_user`
@@ -74,6 +75,33 @@ them.
   `search_users`, `get_platform_roles` and `get_platform_role_members`.
 - `reveal_secret_field` and the README describe both approval modes; they
   promised a server prompt, which `client_approval` mode doesn't show.
+- The local-user security actions are three typed tools,
+  `reset_secretserver_local_user_password`,
+  `reset_secretserver_local_user_two_factor` and
+  `lock_out_secretserver_local_user`, which build the `{"data": ...}` body
+  Secret Server expects. The single tool taking a caller-built body got
+  HTTP 500 for every action.
+- `get_roles` takes `include_inactive`, `take` and `skip`, and `get_groups`
+  takes `query`, `take` and `skip`, in place of a raw `params` dict.
+  `/api/v1/roles` has no name filter, so `get_roles` no longer claims one.
+  `get_inbox_messages` and `platform_reports` cap their page size at 500,
+  and a negative `skip` is treated as 0.
+- Field slugs and Platform names are checked before they go into a URL
+  path, so a value like `../../2/fields/password` can't reach a different
+  secret, and `..` can't reach a different Permission endpoint.
+- `remove_user_roles` and `remove_group_roles` explain Secret Server's
+  lock-out refusal (`API_RoleAdministrationNoLockout`), which blocks every
+  role removal when the signed-in account is an administrator through the
+  Platform rather than a Secret Server role.
+- `create_secret_with_generated_password` defaults `site_id` to 1, the
+  built-in Local site; without it Secret Server rejected the secret. Its
+  unused `comment` parameter is gone.
+- `update_platform_user` and `delete_platform_user` verify by user ID; the
+  name search they used never matched, so verification was always empty.
+- `check_secret_template_field` matches a field's ID, name or slug,
+  regardless of case.
+- `list_secretserver_user_sessions` says it lists the signed-in account's
+  own sessions, which is all the endpoint returns.
 
 ### Platform roles use the Permission service
 
@@ -88,8 +116,11 @@ a `role_name`, and members are Platform user or group IDs (`subject_ids`).
 ### API documentation links
 
 Every new tool's description names the endpoint it calls and links the
-vendor API reference (Secret Server REST API, developer.delinea.com for the
-Platform, StrongDM API reference).
+vendor API reference (Secret Server REST API, developer.delinea.com for
+Platform users, StrongDM API reference). The Platform Permission service
+has no public reference page, so its OpenAPI document is in
+`docs/delinea-platform-permission-openapi-spec.json` and the role tools
+link that.
 
 ## v2.0.0 — Claude Code plugin, PyPI package, secret-visibility hardening
 

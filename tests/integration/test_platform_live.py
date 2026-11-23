@@ -267,6 +267,15 @@ def test_get_platform_role_and_members_live():
     assert "members" in members, members
 
 
+def _members_settle(role: str, done, tries: int = 10) -> bool:
+    """Membership changes can take a few seconds to show in the members list."""
+    for _ in range(tries):
+        if done(user_platform_tools.get_platform_role_members(role)["members"] or {}):
+            return True
+        time.sleep(1)
+    return False
+
+
 def test_platform_role_lifecycle_live():
     """Create, update, assign, unassign and delete a role that grants nothing."""
     _require_platform()
@@ -295,15 +304,11 @@ def test_platform_role_lifecycle_live():
 
         added = user_platform_tools.add_platform_role_members(role, [user_id])
         assert "error" not in added["results"][user_id], added
-        members = user_platform_tools.get_platform_role_members(role)["members"]
-        assert user_id in members
+        assert _members_settle(role, lambda m: user_id in m)
 
         removed = user_platform_tools.remove_platform_role_members(role, [user_id])
         assert "error" not in removed["results"][user_id], removed
-        assert (
-            user_id
-            not in user_platform_tools.get_platform_role_members(role)["members"]
-        )
+        assert _members_settle(role, lambda m: user_id not in m)
     finally:
         if user_id:
             _try_cleanup_user(user_id)

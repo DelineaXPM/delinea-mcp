@@ -93,7 +93,9 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "create_secretserver_local_user": _ADD,
     "update_secretserver_local_user": _DESTR,  # can disable, lock, re-password
     "delete_secretserver_local_user": _DESTR,
-    "secretserver_local_user_security_action": _DESTR,  # resets, lock-out
+    "reset_secretserver_local_user_password": _DESTR,
+    "reset_secretserver_local_user_two_factor": _DESTR,
+    "lock_out_secretserver_local_user": _DESTR,
     # ---- Delinea Platform
     "search_users": _RO,
     "get_platform_user": _RO,
@@ -178,11 +180,13 @@ TOOL_TITLES: dict[str, str] = {
     # ---- Secret Server local users (legacy)
     "search_secretserver_local_users": "Search Secret Server Local Users",
     "get_secretserver_local_user": "Get Secret Server Local User",
-    "list_secretserver_user_sessions": "List Secret Server User Sessions",
+    "list_secretserver_user_sessions": "List Own Secret Server Sessions",
     "create_secretserver_local_user": "Create Secret Server Local User",
     "update_secretserver_local_user": "Update Secret Server Local User",
     "delete_secretserver_local_user": "Delete Secret Server Local User",
-    "secretserver_local_user_security_action": "Reset or Lock Out Secret Server Local User",
+    "reset_secretserver_local_user_password": "Reset Secret Server Local User Password",
+    "reset_secretserver_local_user_two_factor": "Reset Secret Server Local User Two-Factor",
+    "lock_out_secretserver_local_user": "Lock Out Secret Server Local User",
     # ---- Delinea Platform
     "search_users": "Search Platform Users",
     "platform_reports": "Browse and Run Platform Reports",
@@ -248,7 +252,9 @@ LEGACY_TOOL_NAMES: dict[str, tuple[str, ...]] = {
         "create_secretserver_local_user",
         "update_secretserver_local_user",
         "delete_secretserver_local_user",
-        "secretserver_local_user_security_action",
+        "reset_secretserver_local_user_password",
+        "reset_secretserver_local_user_two_factor",
+        "lock_out_secretserver_local_user",
     ),
     "user_management": (
         "search_users",

@@ -136,18 +136,19 @@ def test_list_tools_page(calls, call):
             "/v1/users/5",
         ),
         (
-            lambda: secretserver_users.secretserver_local_user_security_action(
-                "lock_out", 5
-            ),
+            lambda: secretserver_users.lock_out_secretserver_local_user(5),
             "POST",
             "/v1/users/5/lock-out",
         ),
         (
-            lambda: secretserver_users.secretserver_local_user_security_action(
-                "reset_2fa", 5
-            ),
+            lambda: secretserver_users.reset_secretserver_local_user_two_factor(5),
             "POST",
             "/v1/users/5/reset-two-factor",
+        ),
+        (
+            lambda: secretserver_users.reset_secretserver_local_user_password(5, "pw"),
+            "POST",
+            "/v1/users/5/password-reset",
         ),
     ],
 )
@@ -156,10 +157,19 @@ def test_local_user_tool_request(calls, call, method, path):
     assert first(calls)[:2] == (method, path)
 
 
-def test_security_action_refuses_reads(calls):
-    result = secretserver_users.secretserver_local_user_security_action("get", 5)
-    assert "error" in result
-    assert calls == []
+def test_security_actions_build_the_api_body(calls):
+    # Secret Server returns HTTP 500 unless the body is wrapped in "data".
+    secretserver_users.reset_secretserver_local_user_password(5, "pw")
+    secretserver_users.reset_secretserver_local_user_two_factor(5, "Fido")
+    secretserver_users.lock_out_secretserver_local_user(5, "phished")
+    assert [c[2]["json"] for c in calls] == [
+        {"data": {"userId": 5, "password": "pw"}},
+        {"data": {"twoFactorType": "Fido"}},
+        {"data": {"reasonType": "Other", "description": "phished"}},
+    ]
+    assert "error" in secretserver_users.reset_secretserver_local_user_password(5, "")
+    assert "error" in secretserver_users.lock_out_secretserver_local_user(5, "", "x")
+    assert len(calls) == 3
 
 
 # --------------------------------------------------------------------------- #
@@ -431,3 +441,54 @@ def test_update_platform_user_targets_user_id(monkeypatch):
     assert "must name the same object" in out["error"] and sent == []
     user_platform_tools.update_platform_user("u1", {"DisplayName": "x"})
     assert sent[0]["ID"] == "u1"
+
+
+def test_role_removal_lockout_is_explained(monkeypatch):
+    def refuse(*a, **k):
+        return {"error": "DELETE failed: HTTP 500 - ... would lock you out of ..."}
+
+    monkeypatch.setattr(tools, "user_role_management", refuse)
+    monkeypatch.setattr(tools, "group_role_management", refuse)
+    for result in (tools.remove_user_roles(5, [3]), tools.remove_group_roles(4, [3])):
+        assert "Secret Server UI" in result["error"]
+
+
+def test_paging_clamps_take_and_skip(calls):
+    tools.get_user_roles(5, take=10_000, skip=-3)
+    tools.get_roles(take=0, skip="x")
+    tools.get_groups(query="ops", take=10)
+    tools.get_inbox_messages(take=10_000)
+    got = [c[2]["params"] for c in calls]
+    assert (got[0]["take"], got[0]["skip"]) == (500, 0)
+    assert (got[1]["take"], got[1]["skip"]) == (1, 0)
+    assert got[2] == {"take": 10, "skip": 0, "filter.searchText": "ops"}
+    assert got[3]["take"] == 500
+
+
+@pytest.mark.parametrize(
+    "slug", ["../../2/fields/password", "x/../password", "a?b=c", "", None]
+)
+def test_field_slug_cannot_change_the_path(slug):
+    from delinea_mcp.api import field_path
+
+    with pytest.raises(ValueError):
+        field_path(1, slug)
+
+
+def test_update_secret_fields_refuses_traversal_slug(calls):
+    out = tools.update_secret_fields(1, {"x/../password": "v"})
+    assert not [c for c in calls if c[0] == "PUT"]
+    assert "Invalid field slug" in str(out)
+
+
+@pytest.mark.parametrize("name", ["..", ".", ""])
+def test_platform_names_cannot_change_the_path(perm, name):
+    seen, _ = perm
+    assert "error" in tools_guarded(user_platform_tools.get_platform_role_members, name)
+    assert seen == []
+
+
+def tools_guarded(func, *args):
+    from delinea_mcp.tool_guard import guard_tool
+
+    return guard_tool(func)(*args)

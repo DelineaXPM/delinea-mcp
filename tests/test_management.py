@@ -273,6 +273,7 @@ def test_create_secret_generated_password_success(monkeypatch):
                     "json": {
                         "name": "db-prod",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "G3n3rated!"},
@@ -325,6 +326,7 @@ def test_create_secret_generated_password_injects_existing_field(monkeypatch):
                     "json": {
                         "name": "test",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 108, "itemValue": "NewPwd!"},
                         ],
@@ -363,6 +365,7 @@ def test_create_secret_generated_password_json_string_items(monkeypatch):
                     "json": {
                         "name": "json-test",
                         "secretTemplateId": 6003,
+                        "siteId": 1,
                         "items": [
                             {"fieldId": 200, "itemValue": "admin"},
                             {"fieldId": 108, "itemValue": "Gen!"},
@@ -417,6 +420,7 @@ def test_create_secret_no_items_leak(monkeypatch):
                         "name": "safe",
                         "secretTemplateId": 1,
                         "items": [{"fieldId": 1, "itemValue": "Pwd!"}],
+                        "siteId": 1,
                     },
                 },
             ),

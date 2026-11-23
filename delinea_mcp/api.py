@@ -4,7 +4,7 @@ import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Iterable
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -166,6 +166,31 @@ def mask_fields(data: Any) -> Any:
     if isinstance(data, str) and data.lstrip().startswith(("{", "[")):
         return f"<JSON text, {len(data)} chars>"
     return data
+
+
+_FIELD_SLUG = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def field_path(secret_id: Any, slug: Any) -> str:
+    """``/v1/secrets/{id}/fields/{slug}``, refusing a slug that changes the path.
+
+    An unchecked slug such as ``../../2/fields/password`` would reach a
+    different secret than the one approved.
+    """
+    if not isinstance(slug, str) or not _FIELD_SLUG.fullmatch(slug):
+        raise ValueError(
+            f"Invalid field slug {slug!r}: slugs contain only letters, digits, "
+            "'-' and '_'"
+        )
+    return f"/v1/secrets/{int(secret_id)}/fields/{slug}"
+
+
+def path_segment(value: Any) -> str:
+    """*value* encoded as one URL path segment; refuses ``.``, ``..`` and empty."""
+    text = str(value)
+    if text in ("", ".", ".."):
+        raise ValueError(f"{value!r} can't be used as a name")
+    return quote(text, safe="")
 
 
 def target_id_conflict(data: Any, target_id: Any, label: str) -> str | None:

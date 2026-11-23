@@ -1,0 +1,5181 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Delinea API",
+    "termsOfService": "https://www.delinea.com/tos",
+    "contact": {
+      "name": "Delinea",
+      "url": "https://www.delinea.com"
+    },
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "https://{tenant}.delinea.app/permission",
+      "variables": {
+        "tenant": {
+          "default": "your-tenant"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/api/permissions": {
+      "get": {
+        "tags": ["Permissions"],
+        "summary": "Endpoint used to retrieve a list of permissions.",
+        "description": "Endpoint used to retrieve a list of permissions.",
+        "operationId": "SearchPermissionsWithSimpleFilter",
+        "parameters": [
+          {
+            "name": "SearchText.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "SearchText.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "SearchText.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "SearchText.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "SearchText.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "SearchText.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "SearchText.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "SearchText.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Id.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Area.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Area.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Deleted.Eq",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Deleted.Ne",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Deleted.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "Deleted.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "Deleted.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SortModel"
+              }
+            }
+          },
+          {
+            "name": "RecordsPerPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPermissions"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPermissions"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPermissions"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/permissions/areas": {
+      "get": {
+        "tags": ["Permissions"],
+        "summary": "Endpoint used to get permission areas.",
+        "description": "Endpoint used to get permission areas.",
+        "operationId": "GetPermissionAreas",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionAreas"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionAreas"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionAreas"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/permissions/subjects": {
+      "get": {
+        "tags": ["Permissions"],
+        "summary": "Endpoint used to retrieve a list of subjects that have a given permission.",
+        "description": "Endpoint used to retrieve a list of subjects that have a given permission.",
+        "operationId": "GetPermissionSubjects",
+        "parameters": [
+          {
+            "name": "permissionId",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Name.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "DisplayName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "UserName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Type.Lt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Eq",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Lte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Ne",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SortModel"
+              }
+            }
+          },
+          {
+            "name": "RecordsPerPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionSubjectsModel"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionSubjectsModel"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionSubjectsModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships": {
+      "post": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to create a new role membership.",
+        "description": "Endpoint used to create a new role membership.",
+        "operationId": "CreateRoleMembership",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleMembershipCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleMembershipCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleMembershipCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/{subjectId}/add-role": {
+      "patch": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to add a role to a role membership.",
+        "description": "Endpoint used to add a role to a role membership.",
+        "operationId": "AddRoleToRoleMembership",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRoleToRoleMembershipCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRoleToRoleMembershipCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRoleToRoleMembershipCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/{subjectId}/remove-role": {
+      "patch": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to remove a role from a role membership.",
+        "description": "Endpoint used to remove a role from a role membership.",
+        "operationId": "RemoveRoleFromRoleMembership",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveRoleFromRoleMembershipCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveRoleFromRoleMembershipCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveRoleFromRoleMembershipCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/{subjectId}": {
+      "get": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used load all roles and permissions associated with a subject with the id subjectId.",
+        "description": "Endpoint used load all roles and permissions associated with a subject with the id subjectId.",
+        "operationId": "GetRoleMembership",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "The id of the Subject seeking to action the Resource",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      },
+      "delete": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to delete a role membership with the ID subjectId.",
+        "description": "Endpoint used to delete a role membership with the ID subjectId.",
+        "operationId": "DeleteRoleMembership",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "The ID of the role to delete.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/current": {
+      "get": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used load all roles and permissions associated with the currently authenticated subject.",
+        "description": "Endpoint used load all roles and permissions associated with the currently authenticated subject.",
+        "operationId": "GetCurrentRoleMembership",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/current/refresh": {
+      "put": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint to force refresh/create a role membership for the current user.",
+        "description": "Endpoint to force refresh/create a role membership for the current user.",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembership"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/{subjectId}/has-permission/{operatorType}": {
+      "get": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to determine if a subject with the id subjectId has permission perform the actions on their respective resources.",
+        "description": "Endpoint used to determine if a subject with the id subjectId has permission perform the actions on their respective resources.",
+        "operationId": "SubjectHasPermission",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "The id of the Subject seeking to action the Resource",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "operatorType",
+            "in": "path",
+            "description": "<strong>Valid values: Any or All.</strong> Alternative values will be converted to All.\n The logical operator to use when assessing permission given the supplied resources and their respective actions.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceAction",
+            "in": "query",
+            "description": "A dictionary of ids of the Resources the Subject wishes to action and actions being performed on each respective Resource \n\nI.E. ?resourceAction.someResourceId=someAction&resourceAction.someOtherResourceId=someOtherAction",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/has-permission/{operatorType}": {
+      "get": {
+        "tags": ["RoleMemberships"],
+        "summary": "Endpoint used to determine if the currently authenticated user (via identity token) has permission perform the actions on their respective resources.",
+        "description": "Endpoint used to determine if the currently authenticated user (via identity token) has permission perform the actions on their respective resources.",
+        "operationId": "CurrentUserHasPermission",
+        "parameters": [
+          {
+            "name": "operatorType",
+            "in": "path",
+            "description": "<strong>Valid values: Any or All.</strong> Alternative values will be converted to All.\n The logical operator to use when assessing permission given the supplied resources and their respective actions.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceAction",
+            "in": "query",
+            "description": "A dictionary of ids of the Resources the Subject wishes to action and actions being performed on each respective Resource \n\nI.E. ?resourceAction.someResourceId=someAction&resourceAction.someOtherResourceId=someOtherAction",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasPermissionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/role-memberships/{subjectId}/permissions": {
+      "get": {
+        "tags": ["RoleMemberships"],
+        "summary": "Gets the permissions for a specific subject.",
+        "description": "Gets the permissions for a specific subject.",
+        "operationId": "GetSubjectPermissions",
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectPermissionsModel"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectPermissionsModel"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectPermissionsModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/roles": {
+      "post": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to create a new role.",
+        "description": "Endpoint used to create a new role.",
+        "operationId": "CreateRole",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      },
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to retrieve a list of roles.",
+        "description": "Endpoint used to retrieve a list of roles.",
+        "operationId": "SearchRoles",
+        "parameters": [
+          {
+            "name": "Name.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Enabled.Eq",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Enabled.Ne",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Enabled.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "Enabled.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "Enabled.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "BuiltIn.Eq",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "BuiltIn.Ne",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "BuiltIn.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "BuiltIn.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "boolean",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "name": "BuiltIn.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SortModel"
+              }
+            }
+          },
+          {
+            "name": "RecordsPerPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSearchResultView"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSearchResultView"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSearchResultView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/roles/{id}": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to get a role with the ID id.",
+        "description": "Endpoint used to get a role with the ID id.",
+        "operationId": "GetRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the role",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      },
+      "put": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to update a role.",
+        "description": "Endpoint used to update a role.",
+        "operationId": "UpdateRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the role to update.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      },
+      "delete": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to delete a role with the ID id.",
+        "description": "Endpoint used to delete a role with the ID id.",
+        "operationId": "DeleteRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ID of the role to delete.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/roles/{id}/permissions": {
+      "patch": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to add a list of permissions to a role, and/or remove a list of permissions from a role.",
+        "description": "Endpoint used to add a list of permissions to a role, and/or remove a list of permissions from a role.",
+        "operationId": "PatchPermissions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The role to modify",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "requestBody": {
+          "description": "A list of permissions to add and a list of permissions to remove from a role.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRolePermissionCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRolePermissionCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRolePermissionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/roles/{id}/members": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to retrieve a list of subjects that are members of a given role.",
+        "description": "Endpoint used to retrieve a list of subjects that are members of a given role.",
+        "operationId": "GetRoleMembers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the role to list members of.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Name.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "DisplayName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "UserName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Type.Lt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Eq",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Lte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Ne",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "DirectlyAssigned",
+            "in": "query",
+            "description": "Filter by only directly assigned",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SortModel"
+              }
+            }
+          },
+          {
+            "name": "RecordsPerPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    },
+    "/api/roles/{id}/membership-report": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Endpoint used to retrieve a list of subjects that are members of a given role.",
+        "description": "Endpoint used to retrieve a list of subjects that are members of a given role.",
+        "operationId": "GetRoleMembershipReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the role to list members of.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Id.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Id.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Name.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Name.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "Name.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "DisplayName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DisplayName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "DisplayName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "UserName.Eq",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Ne",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.Contains",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.StartsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.EndsWith",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "UserName.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.NotIn",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "UserName.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "Type.Lt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Eq",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gt",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Gte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Lte",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.Ne",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SubjectType"
+            }
+          },
+          {
+            "name": "Type.In",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Nin",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SubjectType"
+              }
+            }
+          },
+          {
+            "name": "Type.Behavior",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FilterBehaviorTypes"
+            }
+          },
+          {
+            "name": "DirectlyAssigned",
+            "in": "query",
+            "description": "Filter by only directly assigned",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SortModel"
+              }
+            }
+          },
+          {
+            "name": "RecordsPerPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-Api-Version",
+            "in": "header",
+            "description": "The requested API version",
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "X-MT-SecondaryId",
+            "in": "header",
+            "description": "Tenant Secondary ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "00000000-1337-0000-0000-000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembers"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [{}]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddRoleToRoleMembershipCommand": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "roleName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command used to add a Role to a RoleMembership"
+      },
+      "AssignedRole": {
+        "type": "object",
+        "properties": {
+          "roleName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": ""
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The Assigned Role view model"
+      },
+      "BooleanNonNumericFilterOperatorModel": {
+        "type": "object",
+        "properties": {
+          "eq": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "ne": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "in": {
+            "type": "array",
+            "items": {
+              "type": "boolean",
+              "nullable": true
+            },
+            "nullable": true
+          },
+          "nin": {
+            "type": "array",
+            "items": {
+              "type": "boolean",
+              "nullable": true
+            },
+            "nullable": true
+          },
+          "behavior": {
+            "$ref": "#/components/schemas/FilterBehaviorTypes"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateRoleCommand": {
+        "type": "object",
+        "properties": {
+          "roleName": {
+            "type": "string",
+            "description": "The role name.",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether to enable the role."
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the role.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command to create a new role."
+      },
+      "CreateRoleMembershipCommand": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "description": "The Identity id of the subject",
+            "nullable": true
+          },
+          "roleName": {
+            "type": "string",
+            "description": "The name of the initial role for the user",
+            "nullable": true
+          },
+          "subjectFriendlyName": {
+            "type": "string",
+            "description": "The friendly name from Identity for the subject",
+            "nullable": true
+          },
+          "subjectType": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The sources for the role being added",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "description": "The user name of the subject",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command used to create a RoleMembership"
+      },
+      "DirectionType": {
+        "enum": ["None", "Asc", "Desc"],
+        "type": "string"
+      },
+      "FilterBehaviorTypes": {
+        "enum": ["And", "Or", "Unset"],
+        "type": "string"
+      },
+      "FilterStringOperatorModel": {
+        "type": "object",
+        "properties": {
+          "eq": {
+            "type": "string",
+            "nullable": true
+          },
+          "ne": {
+            "type": "string",
+            "nullable": true
+          },
+          "contains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "startsWith": {
+            "type": "string",
+            "nullable": true
+          },
+          "endsWith": {
+            "type": "string",
+            "nullable": true
+          },
+          "in": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "notIn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "behavior": {
+            "$ref": "#/components/schemas/FilterBehaviorTypes"
+          }
+        },
+        "additionalProperties": false
+      },
+      "HasPermissionResponse": {
+        "type": "object",
+        "properties": {
+          "hasPermission": {
+            "type": "boolean",
+            "description": "Whether or not the subject has the permission.",
+            "nullable": true
+          },
+          "denyMessage": {
+            "type": "string",
+            "description": "The message accompanying a denial.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The response to the SubjectHasPermission request."
+      },
+      "PagerModel": {
+        "type": "object",
+        "properties": {
+          "recordsPerPage": {
+            "type": "integer",
+            "description": "",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "description": "",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "description": "",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A data model for depicting pagination data."
+      },
+      "PatchRolePermissionCommand": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The id of the role.",
+            "nullable": true
+          },
+          "add": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of permissions to add to the role.",
+            "nullable": true
+          },
+          "remove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of permissions to remove from the role.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command to add and remove permissions from a role."
+      },
+      "Permission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The name of the permission.",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the permission.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the permission.",
+            "nullable": true
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether the permission is Deleted."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Permission view"
+      },
+      "PermissionAreaFilterStringOperatorModel": {
+        "type": "object",
+        "properties": {
+          "contains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "behavior": {
+            "$ref": "#/components/schemas/FilterBehaviorTypes"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PermissionAreas": {
+        "type": "object",
+        "properties": {
+          "areas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The permission area names",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The permission areas"
+      },
+      "PermissionAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The name of the permission.",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the permission.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the permission.",
+            "nullable": true
+          },
+          "subjectId": {
+            "type": "string",
+            "description": "The unique identifier of the subject (user or group) to whom the permission is assigned.",
+            "nullable": true
+          },
+          "subjectDisplayName": {
+            "type": "string",
+            "description": "The display name of the subject (user or group) to whom the permission is assigned.",
+            "nullable": true
+          },
+          "subjectType": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "serviceUser": {
+            "type": "boolean",
+            "description": "Indicates whether the subject is a service user.",
+            "nullable": true
+          },
+          "directlyAssigned": {
+            "type": "boolean",
+            "description": "Whether the permission is from a Role that is directly assigned to the subject."
+          },
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Dictionary of Role names with a List of sources through which the permission is assigned",
+            "nullable": true
+          },
+          "sourcesDictionary": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Dictionary of GlobalId/FriendlyName for the sources of each AssignedRole",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a permission assignment."
+      },
+      "PermissionFilter": {
+        "type": "object",
+        "properties": {
+          "searchText": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "id": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "area": {
+            "$ref": "#/components/schemas/PermissionAreaFilterStringOperatorModel"
+          },
+          "deleted": {
+            "$ref": "#/components/schemas/BooleanNonNumericFilterOperatorModel"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The filter for searching the Delinea.Permission.Abstractions.Areas.Permission.Permission records."
+      },
+      "PermissionSubjectsModel": {
+        "type": "object",
+        "properties": {
+          "permissionId": {
+            "type": "string",
+            "description": "The unique identifier of the permission.",
+            "nullable": true
+          },
+          "permissionTitle": {
+            "type": "string",
+            "description": "The title of the permission.",
+            "nullable": true
+          },
+          "permissionDescription": {
+            "type": "string",
+            "description": "The description of the permission.",
+            "nullable": true
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionAssignment"
+            },
+            "description": "The list of subjects to whom the permission is assigned.",
+            "nullable": true
+          },
+          "pager": {
+            "$ref": "#/components/schemas/PagerModel"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a model that associates a specific permission with its details and the subjects to whom it is assigned."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      },
+      "RemoveRoleFromRoleMembershipCommand": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "roleName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The sources to remove. If not specified, it is assumed the source to remove is the SubjectId",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command used to remove a Role from a RoleMembership"
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "roleName": {
+            "type": "string",
+            "description": "The name of the role.",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the role is enabled."
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the role.",
+            "nullable": true
+          },
+          "builtIn": {
+            "type": "boolean",
+            "description": "Whether the role is built in."
+          },
+          "internal": {
+            "type": "boolean",
+            "description": "Whether the role is controlled internally."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of permissions on the role.",
+            "nullable": true
+          },
+          "createdOn": {
+            "type": "string",
+            "description": "The date and time the role was created.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Role view"
+      },
+      "RoleFilter": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "enabled": {
+            "$ref": "#/components/schemas/BooleanNonNumericFilterOperatorModel"
+          },
+          "builtIn": {
+            "$ref": "#/components/schemas/BooleanNonNumericFilterOperatorModel"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The filter for searching the N:Delinea.Permission.Abstractions.Areas.Role records."
+      },
+      "RoleMemberModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "serviceUser": {
+            "type": "boolean",
+            "description": "",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "directlyAssigned": {
+            "type": "boolean",
+            "description": ""
+          },
+          "directorySource": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A slim Role Membership model"
+      },
+      "RoleMembers": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Role ID",
+            "nullable": true
+          },
+          "members": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RoleMemberModel"
+            },
+            "description": "Subject IDs",
+            "nullable": true
+          },
+          "filter": {
+            "$ref": "#/components/schemas/RoleMembersFilter"
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SortModel"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "pager": {
+            "$ref": "#/components/schemas/PagerModel"
+          }
+        },
+        "additionalProperties": false,
+        "description": "RoleMembers Result"
+      },
+      "RoleMembersFilter": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "name": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "userName": {
+            "$ref": "#/components/schemas/FilterStringOperatorModel"
+          },
+          "type": {
+            "$ref": "#/components/schemas/SubjectTypeFilterOperatorModel"
+          },
+          "directlyAssigned": {
+            "type": "boolean",
+            "description": "Filter by only directly assigned"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Filter for RoleMemberships"
+      },
+      "RoleMembership": {
+        "type": "object",
+        "properties": {
+          "refreshOn": {
+            "type": "string",
+            "description": "",
+            "format": "date-time",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "description": "",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssignedRole"
+            },
+            "description": "",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "RoleMembership Result"
+      },
+      "RoleSearchModel": {
+        "type": "object",
+        "properties": {
+          "roleName": {
+            "type": "string",
+            "description": "The name of the created role.",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the created role is enabled."
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of the created role.",
+            "nullable": true
+          },
+          "builtIn": {
+            "type": "boolean",
+            "description": "Whether the created role is built in."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Search result view for a Role"
+      },
+      "RoleSearchResultView": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleSearchModel"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "filter": {
+            "$ref": "#/components/schemas/RoleFilter"
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SortModel"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "pager": {
+            "$ref": "#/components/schemas/PagerModel"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Search results for Roles"
+      },
+      "SearchPermissions": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "description": "",
+            "nullable": true
+          },
+          "filter": {
+            "$ref": "#/components/schemas/PermissionFilter"
+          },
+          "pager": {
+            "$ref": "#/components/schemas/PagerModel"
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SortModel"
+            },
+            "description": "",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Search results for Permissions"
+      },
+      "SortModel": {
+        "required": ["name"],
+        "type": "object",
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/DirectionType"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubjectPermissionsModel": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "description": "The unique identifier of the subject.",
+            "nullable": true
+          },
+          "subjectName": {
+            "type": "string",
+            "description": "The name of the subject.",
+            "nullable": true
+          },
+          "subjectDisplayName": {
+            "type": "string",
+            "description": "The display name of the subject.",
+            "nullable": true
+          },
+          "subjectType": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionAssignment"
+            },
+            "description": "The list of subjects to whom the permission is assigned.",
+            "nullable": true
+          },
+          "total": {
+            "type": "integer",
+            "description": "The total number of permission assignments.",
+            "format": "int32",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Represents a subject and its associated permissions."
+      },
+      "SubjectType": {
+        "enum": ["User", "Group", "Unknown"],
+        "type": "string",
+        "description": ""
+      },
+      "SubjectTypeFilterOperatorModel": {
+        "type": "object",
+        "properties": {
+          "lt": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "eq": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "gt": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "gte": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "lte": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "ne": {
+            "$ref": "#/components/schemas/SubjectType"
+          },
+          "in": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectType"
+            },
+            "nullable": true
+          },
+          "nin": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectType"
+            },
+            "nullable": true
+          },
+          "behavior": {
+            "$ref": "#/components/schemas/FilterBehaviorTypes"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateRoleCommand": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The id of the role.",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "The new enabled state for the role."
+          },
+          "description": {
+            "type": "string",
+            "description": "The new description for the role.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Command to update an existing role."
+      },
+      "ValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "Enter JWT Bearer token **_only_**",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Permissions"
+    },
+    {
+      "name": "RoleMemberships"
+    },
+    {
+      "name": "Roles"
+    }
+  ]
+}

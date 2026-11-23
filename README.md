@@ -280,7 +280,7 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - `get_folder(id, all_children=False)` - fetch folder metadata, optionally
   with the full descendant tree.
 - `search_secrets(query, lookup=False, take=50, skip=0)` - search or look up secrets.
-- `search_folders(query, lookup=False, take=50, skip=0)` - search or look up folders.
+- `search_folders(query, lookup=False, take=50, skip=0, parent_folder_id=None)` - search or look up folders.
 - `get_secret_environment_variable(secret_id, environment, comment=None)` -
   load a secret's username and password into environment variables. Over
   `stdio` the server reads the secret and writes a private, self-deleting
@@ -294,7 +294,7 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
 - `get_pending_access_requests(take=50, skip=0)` - list pending access requests.
 - `get_inbox_messages(read_status_filter=None, take=20, skip=0)` - retrieve inbox messages.
 - `mark_inbox_messages_read(message_ids, read=True)` - mark messages as read or unread.
-- `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=None, comment=None)` -
+- `create_secret_with_generated_password(name, secret_template_id, password_field_id, items, folder_id=None, site_id=1)` -
   create a secret whose password is generated server-side; only sanitized
   metadata is returned, the value never reaches the model.
 - `update_secret_generated_password(secret_id, field_slug, password_field_id, comment=None)` -
@@ -316,14 +316,14 @@ behaviour annotations (read-only/destructive hints) via `tools/list`.
   and, where something can be deleted or removed, a separate destructive tool.
   Before 3.0 each was one `*_management(action, ...)` tool; an old name in
   `enabled_tools` still enables its replacements. List reads page with `take`
-  (default 50, max 500) and `skip` through `params`.
+  (default 50, max 500) and `skip`.
 
-- Roles: `get_roles(role_id=None, params=None)`,
+- Roles: `get_roles(role_id=None, include_inactive=False, take=50, skip=0)`,
   `create_role(data)` (needs `name` and `enabled`), `update_role(role_id, name=None, enabled=None)`
   (changes only what's given).
 - User roles: `get_user_roles(user_id, take=50, skip=0)`, `add_user_roles(user_id, role_ids)`,
   `remove_user_roles(user_id, role_ids)`.
-- Groups: `get_groups(group_id=None, params=None)`, `create_group(data)`,
+- Groups: `get_groups(group_id=None, query="", take=50, skip=0)`, `create_group(data)`,
   `delete_group(group_id)`.
 - Group membership: `get_user_groups(user_id, take=50, skip=0)`,
   `add_user_to_groups(user_id, group_ids)`,
@@ -375,13 +375,13 @@ read-only through the same Platform credentials:
 For SS-only deployments without Platform configured:
 
 - `get_secretserver_local_user(user_id)`,
-  `list_secretserver_user_sessions(skip=0, take=20)`,
+  `list_secretserver_user_sessions(take=50, skip=0)`,
   `create_secretserver_local_user(data)`,
   `update_secretserver_local_user(user_id, data)`,
   `delete_secretserver_local_user(user_id)`.
-- `secretserver_local_user_security_action(action, user_id, data=None)` -
-  `reset_2fa`, `reset_password` or `lock_out`. Example:
-  `secretserver_local_user_security_action("reset_password", 42, {"newPassword": "Pa$$w0rd"})`.
+- `reset_secretserver_local_user_password(user_id, password)`,
+  `reset_secretserver_local_user_two_factor(user_id, two_factor_type="Oath")`,
+  `lock_out_secretserver_local_user(user_id, reason="", reason_type="Other")`.
 - `search_secretserver_local_users(query, take=50, skip=0)` - search Secret Server's local user store.
 
 ### StrongDM tools (preview)

@@ -203,15 +203,18 @@ def secretserver_local_user_management(
 def get_secretserver_local_user(user_id: int) -> dict:
     """Get one local Secret Server user by ID (legacy SS-only deployments).
 
-    Calls ``GET /api/v1/users/{id}``. In Platform-integrated tenants use
-    ``get_platform_user``. Secret Server REST API reference:
+    Calls ``GET /api/v1/users/{id}``. In Platform-integrated tenants the
+    Platform directory holds users, and ``get_platform_user`` reads it.
+    Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
     return secretserver_local_user_management("get", user_id)
 
 
-def list_secretserver_user_sessions(skip: int = 0, take: int = 20) -> dict:
-    """List active Secret Server user sessions.
+def list_secretserver_user_sessions(take: int = 50, skip: int = 0) -> dict:
+    """List the signed-in account's own Secret Server sessions.
+
+    The endpoint returns only the current user's sessions, not other users'.
 
     Calls ``GET /api/v1/users/sessions`` paged by *skip* and *take* (capped
     at 500); ``total`` and ``hasNext`` in the response show whether more
@@ -248,38 +251,64 @@ def update_secretserver_local_user(user_id: int, data: dict) -> dict:
 
 
 def delete_secretserver_local_user(user_id: int) -> dict:
-    """Delete a local Secret Server user.
+    """Delete (deactivate) a local Secret Server user.
 
     Calls ``DELETE /api/v1/users/{id}``, then reads the user back as
-    verification. Secret Server REST API reference:
+    verification. Secret Server keeps the user with ``enabled: false``
+    rather than removing it, and refuses to delete a user that is already
+    disabled. Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
     return secretserver_local_user_management("delete", user_id)
 
 
-_SECURITY_ACTIONS = ("reset_2fa", "reset_password", "lock_out")
+def reset_secretserver_local_user_password(user_id: int, password: str) -> dict:
+    """Set a new password for a local Secret Server user.
 
-
-def secretserver_local_user_security_action(
-    action: str, user_id: int, data: dict | None = None
-) -> dict:
-    """Reset two-factor, reset the password of, or lock out a local Secret Server user.
-
-    *action* is one of:
-
-    * ``"reset_2fa"``: ``POST /api/v1/users/{id}/reset-two-factor``.
-    * ``"reset_password"``: ``POST /api/v1/users/{id}/password-reset``;
-      *data* carries the new password (masked in errors and logs).
-    * ``"lock_out"``: ``POST /api/v1/users/{id}/lock-out``.
-
-    Secret Server REST API reference:
+    Calls ``POST /api/v1/users/{id}/password-reset``; the password is masked
+    in errors and logs. Secret Server REST API reference:
     https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
     """
-    if action not in _SECURITY_ACTIONS:
+    if not password:
+        return {"error": "password is required"}
+    body = {"data": {"userId": user_id, "password": password}}
+    return secretserver_local_user_management("reset_password", user_id, body)
+
+
+def reset_secretserver_local_user_two_factor(
+    user_id: int, two_factor_type: str = "Oath"
+) -> dict:
+    """Clear a local Secret Server user's two-factor enrollment.
+
+    Calls ``POST /api/v1/users/{id}/reset-two-factor``. *two_factor_type* is
+    ``"Oath"`` (authenticator app) or ``"Fido"`` (security key); the user
+    enrolls again at next sign-in. Secret Server REST API reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if two_factor_type not in ("Oath", "Fido"):
+        return {"error": "two_factor_type must be 'Oath' or 'Fido'"}
+    body = {"data": {"twoFactorType": two_factor_type}}
+    return secretserver_local_user_management("reset_2fa", user_id, body)
+
+
+def lock_out_secretserver_local_user(
+    user_id: int, reason: str = "", reason_type: str = "Other"
+) -> dict:
+    """Lock a local Secret Server user out until an administrator unlocks them.
+
+    Calls ``POST /api/v1/users/{id}/lock-out``. *reason_type* is
+    ``"SuspiciousActivity"``, ``"LoginAttemptsExceeded"`` or ``"Other"``;
+    *reason* is recorded as the description. Secret Server REST API
+    reference:
+    https://docs.delinea.com/online-help/secret-server/api-scripting/rest-api/rest-api-reference-download/index.htm
+    """
+    if reason_type not in ("SuspiciousActivity", "LoginAttemptsExceeded", "Other"):
         return {
-            "error": f"Unknown action {action!r}; use one of {list(_SECURITY_ACTIONS)}"
+            "error": "reason_type must be SuspiciousActivity, "
+            "LoginAttemptsExceeded or Other"
         }
-    return secretserver_local_user_management(action, user_id, data)
+    body = {"data": {"reasonType": reason_type, "description": reason}}
+    return secretserver_local_user_management("lock_out", user_id, body)
 
 
 TOOLS = [
@@ -289,10 +318,12 @@ TOOLS = [
     ("create_secretserver_local_user", create_secretserver_local_user),
     ("update_secretserver_local_user", update_secretserver_local_user),
     ("delete_secretserver_local_user", delete_secretserver_local_user),
+    ("reset_secretserver_local_user_password", reset_secretserver_local_user_password),
     (
-        "secretserver_local_user_security_action",
-        secretserver_local_user_security_action,
+        "reset_secretserver_local_user_two_factor",
+        reset_secretserver_local_user_two_factor,
     ),
+    ("lock_out_secretserver_local_user", lock_out_secretserver_local_user),
 ]
 
 

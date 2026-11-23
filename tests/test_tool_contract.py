@@ -24,7 +24,6 @@ SINGLE_KIND_ACTION_TOOLS = {
     "platform_reports",  # list, describe, run, snapshots: all reads
     "sdm_access_requests",  # list, status
     "sdm_set_user_status",  # suspend, reactivate, offboard
-    "secretserver_local_user_security_action",  # reset_2fa, reset_password, lock_out
 }
 
 
@@ -85,7 +84,7 @@ def test_tool_names_fit_the_limit(all_tools):
 # Descriptions must say what a tool does, not tell Claude how to behave.
 DIRECTIVE = re.compile(
     r"\byou must\b|\balways\b|\bcall this only\b|\bbefore calling\b"
-    r"|\bcall ``\w+`` first\b|\bprefer\b|\bverify .* with the (user|caller)\b"
+    r"|\bcall ``\w+`` first\b|\bprefer(red)?\b|\bthen use this tool\b|\bverify .* with the (user|caller)\b"
     r"|:func:|:mod:|\b_[a-z]\w+\(?`",
     re.IGNORECASE,
 )
